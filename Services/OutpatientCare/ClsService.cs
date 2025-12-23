@@ -828,7 +828,60 @@ namespace HealthCare.Services.OutpatientCare
             // 5) AUTO PUBLISH: nếu DV cuối cùng đã xong thì tự lập phiếu tổng hợp
             await TryAutoPublishTongHopIfCompletedAsync(chiTiet.MaPhieuKhamCls);
 
+            // ✅ Task 11.4: Targeted broadcast cho bác sĩ chỉ định
+            await BroadcastKetQuaClsChoBacSiAsync(chiTiet.MaPhieuKhamCls, dto);
+
             return dto;
+        }
+
+        // ✅ Task 11.4: Broadcast kết quả CLS chỉ cho bác sĩ chỉ định
+        private async Task BroadcastKetQuaClsChoBacSiAsync(string maPhieuKhamCls, ClsResultDto ketQua)
+        {
+            try
+            {
+                // Lấy thông tin phiếu CLS để biết bác sĩ chỉ định
+                var phieuCls = await _db.PhieuKhamCanLamSangs
+                    .AsNoTracking()
+                    .Include(p => p.PhieuKhamLamSang)
+                        .ThenInclude(pk => pk.BacSiKham)
+                    .Include(p => p.PhieuKhamLamSang)
+                        .ThenInclude(pk => pk.BenhNhan)
+                    .FirstOrDefaultAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls);
+
+                if (phieuCls == null || phieuCls.PhieuKhamLamSang == null)
+                    return;
+
+                var maBacSi = phieuCls.PhieuKhamLamSang.MaBacSiKham;
+                if (string.IsNullOrWhiteSpace(maBacSi))
+                    return;
+
+                // Tạo notification cho bác sĩ
+                var tenBenhNhan = phieuCls.PhieuKhamLamSang.BenhNhan?.HoTen ?? "Bệnh nhân";
+                var maBenhNhan = phieuCls.PhieuKhamLamSang.MaBenhNhan;
+
+                await _notifications.TaoThongBaoAsync(new NotificationCreateRequest
+                {
+                    LoaiThongBao = "ket_qua_cls",
+                    TieuDe = "Kết quả CLS mới",
+                    NoiDung = $"Có kết quả CLS mới cho bệnh nhân {tenBenhNhan} ({maBenhNhan}). Dịch vụ: {ketQua.TenDichVu}",
+                    MucDoUuTien = "normal",
+                    NguonLienQuan = "phieu_cls",
+                    MaDoiTuongLienQuan = maPhieuKhamCls,
+                    NguoiNhan = new List<NotificationRecipientCreateRequest>
+                    {
+                        new NotificationRecipientCreateRequest
+                        {
+                            LoaiNguoiNhan = "bac_si",
+                            MaNguoiNhan = maBacSi
+                        }
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                // Log error nhưng không throw để không ảnh hưởng đến flow chính
+                Console.WriteLine($"Error broadcasting CLS result to doctor: {ex.Message}");
+            }
         }
 
         public async Task<IReadOnlyList<ClsResultDto>> LayKetQuaTheoPhieuClsAsync(string maPhieuKhamCls)

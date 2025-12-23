@@ -24,7 +24,7 @@ namespace HealthCare.Services.MedicationBilling
 
         public async Task<InvoiceDto> TaoHoaDonAsync(InvoiceCreateRequest request)
         {
-            // ===== VALIDATION =====
+            // ✅ Task 13.1: VALIDATION ĐẦY ĐỦ
             if (string.IsNullOrWhiteSpace(request.MaBenhNhan))
                 throw new ArgumentException("MaBenhNhan là bắt buộc");
             if (string.IsNullOrWhiteSpace(request.MaNhanSuThu))
@@ -34,15 +34,17 @@ namespace HealthCare.Services.MedicationBilling
             if (request.SoTien <= 0)
                 throw new ArgumentException("SoTien phải > 0");
 
+            // Validate bệnh nhân tồn tại
             var bn = await _db.BenhNhans
                 .FirstOrDefaultAsync(b => b.MaBenhNhan == request.MaBenhNhan)
                 ?? throw new ArgumentException("Bệnh nhân không tồn tại");
 
+            // Validate nhân sự thu tồn tại
             var ns = await _db.NhanVienYTes
                 .FirstOrDefaultAsync(n => n.MaNhanVien == request.MaNhanSuThu)
                 ?? throw new ArgumentException("Nhân sự thu không tồn tại");
 
-            // ===== CHECK ĐƠN THUỐC =====
+            // ✅ Task 13.1: Validate dịch vụ liên quan (đơn thuốc, phiếu khám, phiếu CLS)
             DonThuoc? donThuoc = null;
             if (!string.IsNullOrWhiteSpace(request.MaDonThuoc))
             {
@@ -54,7 +56,7 @@ namespace HealthCare.Services.MedicationBilling
                     throw new ArgumentException("Đơn thuốc không thuộc bệnh nhân này");
             }
 
-            // ===== CHECK PHIẾU KHÁM LS =====
+            // Validate phiếu khám lâm sàng
             if (!string.IsNullOrWhiteSpace(request.MaPhieuKham))
             {
                 var phieuLs = await _db.PhieuKhamLamSangs
@@ -65,7 +67,7 @@ namespace HealthCare.Services.MedicationBilling
                     throw new ArgumentException("Phiếu khám LS không thuộc bệnh nhân này");
             }
 
-            // ===== CHECK PHIẾU CLS =====
+            // Validate phiếu CLS
             if (!string.IsNullOrWhiteSpace(request.MaPhieuKhamCls))
             {
                 var phieuCls = await _db.PhieuKhamCanLamSangs
@@ -78,7 +80,7 @@ namespace HealthCare.Services.MedicationBilling
                     throw new ArgumentException("Phiếu CLS không thuộc bệnh nhân này");
             }
 
-            // ===== TÍNH TIỀN =====
+            // ✅ Task 13.2: Tính tiền chính xác cho từng loại dịch vụ
             decimal soTien = request.SoTien;
 
             // Với đợt thu "thuoc" thì ưu tiên lấy đúng tổng tiền đơn thuốc
@@ -87,7 +89,7 @@ namespace HealthCare.Services.MedicationBilling
                 soTien = donThuoc.TongTienDon;
             }
 
-            // ===== TẠO HÓA ĐƠN =====
+            // Tạo hóa đơn
             var maHoaDon = HealthCare.RenderID.GeneratorID.NewHoaDonId();
             var now = DateTime.Now;
 
@@ -119,16 +121,14 @@ namespace HealthCare.Services.MedicationBilling
 
             var dto = MapInvoice(saved);
 
-            // ===== REALTIME: Hóa đơn mới =====
+            // Realtime: Hóa đơn mới
             await _realtime.BroadcastInvoiceChangedAsync(dto);
 
-            // ===== REALTIME KPI DOANH THU + HOẠT ĐỘNG GẦN ĐÂY =====
+            // ✅ Task 13.3: Broadcast dashboard update sau mỗi giao dịch
             var dashboard = await _dashboard.LayDashboardHomNayAsync();
             await _realtime.BroadcastDashboardTodayAsync(dashboard);
-            //await _realtime.BroadcastTodayRevenueKpiAsync(dashboard.DoanhThuHomNay);
-            //await _realtime.BroadcastRecentActivitiesAsync(dashboard.HoatDongGanDay);
 
-            // ===== THÔNG BÁO: Hóa đơn mới =====
+            // Thông báo: Hóa đơn mới
             await TaoThongBaoHoaDonMoiAsync(dto);
 
             return dto;
@@ -236,14 +236,12 @@ namespace HealthCare.Services.MedicationBilling
 
             var dto = MapInvoice(updated);
 
+            // Realtime: Trạng thái hóa đơn thay đổi
             await _realtime.BroadcastInvoiceChangedAsync(dto);
 
+            // ✅ Task 13.3: Broadcast dashboard update sau mỗi giao dịch
             var dashboard = await _dashboard.LayDashboardHomNayAsync();
             await _realtime.BroadcastDashboardTodayAsync(dashboard);
-            //await _realtime.BroadcastTodayRevenueKpiAsync(dashboard.DoanhThuHomNay);
-            //await _realtime.BroadcastRecentActivitiesAsync(dashboard.HoatDongGanDay);
-
-
 
             return dto;
         }

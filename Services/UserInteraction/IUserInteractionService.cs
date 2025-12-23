@@ -29,6 +29,7 @@ namespace HealthCare.Services.UserInteraction
         Task<NotificationDto> TaoThongBaoAsync(NotificationCreateRequest request);
         Task<PagedResult<NotificationDto>> LayThongBaoNguoiNhanAsync(NotificationFilterRequest filter);
         Task<NotificationDto?> DanhDauDaDocAsync(long maTbNguoiNhan);
+        Task<int> DanhDauTatCaDaDocAsync(string maNguoiNhan, string loaiNguoiNhan);
         Task<PagedResult<NotificationDto>> TimKiemThongBaoAsync(NotificationSearchFilter filter);
         Task<NotificationDto?> CapNhatTrangThaiThongBaoAsync(
             string maThongBao,

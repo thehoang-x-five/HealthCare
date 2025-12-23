@@ -20,9 +20,12 @@ namespace HealthCare.Realtime
     ///  - RealtimeHub.GetUserGroupName(loaiNguoiDung, maNguoiDung)
     ///  - RealtimeHub.GetRoomGroupName(maPhong)
     /// </summary>
-    public class RealtimeService(IHubContext<RealtimeHub, IRealtimeClient> hub) : IRealtimeService
+    public class RealtimeService(
+        IHubContext<RealtimeHub, IRealtimeClient> hub,
+        IHubContext<RealtimeHub> hubContext) : IRealtimeService
     {
         private readonly IHubContext<RealtimeHub, IRealtimeClient> _hub = hub;
+        private readonly IHubContext<RealtimeHub> _hubContext = hubContext;
 
         // Tất cả bác sĩ
         private static readonly string DoctorRoleGroupName =
@@ -520,6 +523,25 @@ namespace HealthCare.Realtime
 
             var userGroup = RealtimeHub.GetUserGroupName(thongBao.LoaiNguoiNhan ?? "", thongBao.MaNguoiNhan ?? "");
             return _hub.Clients.Group(userGroup).NotificationUpdated(thongBao);
+        }
+
+        // ✅ Task 15.1: Targeted broadcast methods implementation
+        public Task BroadcastToUserAsync(string loaiNguoiDung, string maNguoiDung, string eventName, object data)
+        {
+            var userGroup = RealtimeHub.GetUserGroupName(loaiNguoiDung, maNguoiDung);
+            return _hubContext.Clients.Group(userGroup).SendAsync(eventName, data);
+        }
+
+        public Task BroadcastToRoleAsync(string role, string eventName, object data)
+        {
+            var roleGroup = RealtimeHub.GetRoleGroupName(role);
+            return _hubContext.Clients.Group(roleGroup).SendAsync(eventName, data);
+        }
+
+        public Task BroadcastToRoomAsync(string maPhong, string eventName, object data)
+        {
+            var roomGroup = RealtimeHub.GetRoomGroupName(maPhong);
+            return _hubContext.Clients.Group(roomGroup).SendAsync(eventName, data);
         }
 
     }

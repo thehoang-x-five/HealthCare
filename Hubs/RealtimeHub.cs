@@ -83,14 +83,49 @@ namespace HealthCare.Hubs
             return Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
         }
 
-        public override Task OnConnectedAsync()
+        // ✅ Task 15.2 & 15.3: Auto-join role group khi connect dựa trên JWT claims
+        public override async Task OnConnectedAsync()
         {
-            // có thể log, hoặc auto join role theo Claims nếu muốn
-            return base.OnConnectedAsync();
+            // ✅ Task 15.3: Auto-join role group dựa trên ChucVu claim từ JWT
+            var chucVuClaim = Context.User?.FindFirst("ChucVu")?.Value;
+            
+            if (!string.IsNullOrWhiteSpace(chucVuClaim))
+            {
+                var chucVu = chucVuClaim.ToLowerInvariant();
+                
+                // Map ChucVu to role group
+                string? roleGroup = chucVu switch
+                {
+                    "bac_si" => "bac_si",
+                    "y_ta_hanh_chinh" or "y_ta_phong_kham" => "y_ta",
+                    "ky_thuat_vien" => "y_ta", // Kỹ thuật viên cũng thuộc nhóm y_ta
+                    "admin" => "bac_si", // Admin có thể xem như bác sĩ
+                    _ => null
+                };
+
+                if (roleGroup != null)
+                {
+                    var groupName = GetRoleGroupName(roleGroup);
+                    await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+                }
+            }
+
+            // ✅ Task 15.3: Auto-join user group dựa trên MaNhanVien claim
+            var maNhanVienClaim = Context.User?.FindFirst("MaNhanVien")?.Value;
+            var loaiNguoiDung = "nhan_vien_y_te"; // Default
+            
+            if (!string.IsNullOrWhiteSpace(maNhanVienClaim))
+            {
+                var userGroupName = GetUserGroupName(loaiNguoiDung, maNhanVienClaim);
+                await Groups.AddToGroupAsync(Context.ConnectionId, userGroupName);
+            }
+
+            await base.OnConnectedAsync();
         }
 
         public override Task OnDisconnectedAsync(Exception? exception)
         {
+            // Groups are automatically cleaned up when connection is closed
             return base.OnDisconnectedAsync(exception);
         }
 

@@ -138,5 +138,15 @@ namespace HealthCare.Realtime
 
         /// <summary>Bắn realtime khi cập nhật trạng thái / nội dung thông báo.</summary>
         Task BroadcastNotificationUpdatedAsync(NotificationDto thongBao);
+
+        // ✅ Task 15.1: Targeted broadcast methods
+        /// <summary>Broadcast cho một user cụ thể</summary>
+        Task BroadcastToUserAsync(string loaiNguoiDung, string maNguoiDung, string eventName, object data);
+
+        /// <summary>Broadcast cho một nhóm role (bac_si, y_ta, ky_thuat_vien)</summary>
+        Task BroadcastToRoleAsync(string role, string eventName, object data);
+
+        /// <summary>Broadcast cho một phòng cụ thể</summary>
+        Task BroadcastToRoomAsync(string maPhong, string eventName, object data);
     }
 }

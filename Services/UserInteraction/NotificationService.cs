@@ -21,13 +21,34 @@ namespace HealthCare.Services.UserInteraction
         {
             var now = DateTime.Now;
 
+            // ✅ Task 14.2: Tự động đánh dấu priority "high" cho cấp cứu và kết quả bất thường
+            var priority = request.MucDoUuTien ?? "normal";
+            
+            // Auto-detect high priority cases
+            if (string.IsNullOrWhiteSpace(request.MucDoUuTien))
+            {
+                var loaiThongBao = (request.LoaiThongBao ?? "").ToLowerInvariant();
+                var noiDung = (request.NoiDung ?? "").ToLowerInvariant();
+                
+                // Cấp cứu hoặc kết quả bất thường
+                if (loaiThongBao.Contains("cap_cuu") || 
+                    loaiThongBao.Contains("emergency") ||
+                    noiDung.Contains("cấp cứu") ||
+                    noiDung.Contains("bất thường") ||
+                    noiDung.Contains("nguy hiểm") ||
+                    noiDung.Contains("khẩn"))
+                {
+                    priority = "high";
+                }
+            }
+
             var entity = new ThongBaoHeThong
             {
                 MaThongBao = GeneratorID.NewThongBaoId(),
                 TieuDe = request.TieuDe,
                 NoiDung = request.NoiDung,
                 LoaiThongBao = request.LoaiThongBao,
-                DoUuTien = request.MucDoUuTien,
+                DoUuTien = priority,
                 TrangThai = "da_gui",
                 ThoiGianGui = now
             };
@@ -51,7 +72,8 @@ namespace HealthCare.Services.UserInteraction
 
             _db.ThongBaoHeThongs.Add(entity);
 
-            // Tạo bản ghi người nhận
+            // ✅ Task 14.1: Role-based notification routing
+            // Hỗ trợ broadcast cho cả nhóm (MaNguoiDung = null) và cá nhân cụ thể
             var recipients = new List<ThongBaoNguoiNhan>();
 
             foreach (var r in request.NguoiNhan)
@@ -67,7 +89,7 @@ namespace HealthCare.Services.UserInteraction
                 var rec = new ThongBaoNguoiNhan
                 {
                     MaThongBao = entity.MaThongBao,
-                    LoaiNguoiNhan = loai,   // bac_si / y_ta / nhan_vien_y_te / benh_nhan...
+                    LoaiNguoiNhan = loai,   // bac_si / y_ta / y_ta_hanh_chinh / ky_thuat_vien / nhan_vien_y_te / benh_nhan...
                     DaDoc = false,
                     ThoiGianDoc = null
                 };
@@ -79,7 +101,8 @@ namespace HealthCare.Services.UserInteraction
                 }
                 else
                 {
-                    // Tất cả các loại nhân sự: bac_si, y_ta, thu_ngan, phat_thuoc, nhan_vien_y_te...
+                    // Tất cả các loại nhân sự: bac_si, y_ta, y_ta_hanh_chinh, ky_thuat_vien, thu_ngan, phat_thuoc, nhan_vien_y_te...
+                    // MaNguoiNhan = null => broadcast cho cả nhóm role
                     rec.MaNhanSu = r.MaNguoiNhan;
                     rec.MaBenhNhan = null;
                 }
@@ -87,12 +110,12 @@ namespace HealthCare.Services.UserInteraction
                 recipients.Add(rec);
             }
 
-
             if (recipients.Count > 0)
             {
                 _db.ThongBaoNguoiNhans.AddRange(recipients);
             }
 
+            // ✅ Task 14.3: Persist vào database trước
             await _db.SaveChangesAsync();
 
             // Nếu chỉ có 1 người nhận thì trả về DTO gắn theo người nhận đó
@@ -100,7 +123,7 @@ namespace HealthCare.Services.UserInteraction
 
             var dto = BuildNotificationDto(entity, firstRec, now);
 
-            // Realtime: bắn thông báo mới cho đúng group (benh_nhan / nhan_vien_y_te / role…)
+            // ✅ Task 14.3: Broadcast qua SignalR sau khi lưu thành công
             await _realtime.BroadcastNotificationCreatedAsync(dto);
 
             return dto;
@@ -233,6 +256,45 @@ namespace HealthCare.Services.UserInteraction
             await _db.SaveChangesAsync();
 
             return BuildNotificationDto(header, rec, header.ThoiGianGui);
+        }
+
+        // ✅ Task 14.4: Mark all as read cho một user
+        public async Task<int> DanhDauTatCaDaDocAsync(string maNguoiNhan, string loaiNguoiNhan)
+        {
+            var loai = loaiNguoiNhan.Trim().ToLowerInvariant();
+            
+            // Chuẩn hoá alias
+            if (loai is "staff" or "nhan_su")
+                loai = "nhan_vien_y_te";
+
+            IQueryable<ThongBaoNguoiNhan> query;
+
+            if (loai == "benh_nhan")
+            {
+                query = _db.ThongBaoNguoiNhans
+                    .Where(tn => tn.LoaiNguoiNhan == "benh_nhan" && tn.MaBenhNhan == maNguoiNhan && !tn.DaDoc);
+            }
+            else
+            {
+                query = _db.ThongBaoNguoiNhans
+                    .Where(tn => tn.MaNhanSu == maNguoiNhan && !tn.DaDoc);
+            }
+
+            var unreadRecords = await query.ToListAsync();
+            
+            if (unreadRecords.Count == 0)
+                return 0;
+
+            var now = DateTime.Now;
+            foreach (var rec in unreadRecords)
+            {
+                rec.DaDoc = true;
+                rec.ThoiGianDoc = now;
+            }
+
+            await _db.SaveChangesAsync();
+
+            return unreadRecords.Count;
         }
 
         // ========================
