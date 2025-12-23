@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Threading.Tasks;
+using HealthCare.Attributes;
 using HealthCare.DTOs;
-using HealthCare.Services;
+using HealthCare.Services.MedicationBilling;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,6 +10,8 @@ namespace HealthCare.Controllers
 {
     [ApiController]
     [Route("api/billing")]
+    [Authorize]
+    [RequireRole("y_ta_hanh_chinh")]
     public class BillingController(IBillingService billingService) : ControllerBase
     {
         private readonly IBillingService _billingService = billingService;

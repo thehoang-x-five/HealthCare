@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using HealthCare.DTOs;
 using Microsoft.Extensions.Options;
 
-namespace HealthCare.Services
+namespace HealthCare.Services.UserInteraction
 {
     public class EmailService(IOptions<SmtpOptions> opt) : IEmailService
     {

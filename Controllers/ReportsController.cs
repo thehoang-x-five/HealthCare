@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using HealthCare.DTOs;
-using HealthCare.Services;
+using HealthCare.Services.Report;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

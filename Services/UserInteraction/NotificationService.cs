@@ -8,7 +8,7 @@ using HealthCare.Entities;
 using HealthCare.RenderID;
 using Microsoft.EntityFrameworkCore;
 using HealthCare.Realtime;
-namespace HealthCare.Services
+namespace HealthCare.Services.UserInteraction
 {
     public class NotificationService(DataContext db, IRealtimeService realtime) : INotificationService
     {

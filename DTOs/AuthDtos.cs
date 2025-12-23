@@ -28,6 +28,7 @@ namespace HealthCare.DTOs
 
         public string HoTen { get; set;} = default!;
         public string VaiTro { get; set;} = "bac_si";   // bac_si, y_ta, admin...
+        public string ChucVu { get; set;} = "bac_si";   // bac_si, y_ta_hanh_chinh, y_ta_phong_kham, ky_thuat_vien, admin
 
         public string? LoaiYTa { get; set;}            // hanhchinh, ls, cls
         public string MaKhoa { get; set;} = default!;
@@ -55,6 +56,7 @@ namespace HealthCare.DTOs
         public string MaNhanVien { get; set;} = default!;
         public string HoTen { get; set;} = default!;
         public string VaiTro { get; set;} = default!;
+        public string ChucVu { get; set;} = default!;
         public string? MaKhoa { get; set;}
 
         public string TenDangNhap { get; set;} = default!;

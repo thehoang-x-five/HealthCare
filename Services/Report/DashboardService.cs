@@ -6,7 +6,7 @@ using HealthCare.Datas;
 using HealthCare.DTOs;
 using Microsoft.EntityFrameworkCore;
 
-namespace HealthCare.Services
+namespace HealthCare.Services.Report
 {
     public class DashboardService : IDashboardService
     {

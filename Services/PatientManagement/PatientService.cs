@@ -8,8 +8,9 @@ using HealthCare.Entities;
 using HealthCare.Realtime;
 using HealthCare.RenderID;
 using Microsoft.EntityFrameworkCore;
+using HealthCare.Services.UserInteraction;
 
-namespace HealthCare.Services
+namespace HealthCare.Services.PatientManagement
 {
     public class PatientService(
      DataContext db,

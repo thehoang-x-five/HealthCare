@@ -6,8 +6,10 @@ using HealthCare.DTOs;
 using HealthCare.Entities;
 using HealthCare.Realtime;
 using Microsoft.EntityFrameworkCore;
+using HealthCare.Services.UserInteraction;
+using HealthCare.Services.Report;
 
-namespace HealthCare.Services
+namespace HealthCare.Services.MedicationBilling
 {
     public class BillingService(DataContext db, IRealtimeService realtime, IDashboardService dashboard, INotificationService notifications) : IBillingService
     {

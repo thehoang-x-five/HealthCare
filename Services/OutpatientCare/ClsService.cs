@@ -8,9 +8,13 @@ using HealthCare.DTOs;
 using HealthCare.Entities;
 using Microsoft.EntityFrameworkCore;
 using HealthCare.Realtime;
-using HealthCare.Services;
+using HealthCare.Services.UserInteraction;
+using HealthCare.Services.Report;
+using HealthCare.Services.PatientManagement;
+using HealthCare.Services.MedicationBilling;
 using Microsoft.Extensions.Hosting;
-namespace HealthCare.Services
+
+namespace HealthCare.Services.OutpatientCare
 {
     /// <summary>
     /// Service quản lý phiếu CLS, chi tiết DV, kết quả và phiếu tổng hợp.
@@ -325,87 +329,113 @@ namespace HealthCare.Services
             if (string.IsNullOrWhiteSpace(trangThai))
                 throw new ArgumentException("TrangThai là bắt buộc");
 
-            var phieu = await _db.PhieuKhamCanLamSangs
-                .Include(p => p.PhieuKhamLamSang)
-                    .ThenInclude(ls => ls.BenhNhan)
-                .Include(p => p.ChiTietDichVus)
-                    .ThenInclude(ct => ct.DichVuYTe)
-                .FirstOrDefaultAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls);
-
-            if (phieu is null) return null;
-
-            // Nếu chuyển sang trạng thái đang thực hiện, cần đảm bảo chưa có hóa đơn CLS
-            if (string.Equals(trangThai, "dang_thuc_hien", StringComparison.OrdinalIgnoreCase))
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
             {
-                var daCoHoaDon = await _db.HoaDonThanhToans
-                    .AsNoTracking()
-                    .AnyAsync(hd => hd.MaPhieuKhamCls == phieu.MaPhieuKhamCls);
+                var phieu = await _db.PhieuKhamCanLamSangs
+                    .Include(p => p.PhieuKhamLamSang)
+                        .ThenInclude(ls => ls.BenhNhan)
+                    .Include(p => p.ChiTietDichVus)
+                        .ThenInclude(ct => ct.DichVuYTe)
+                    .FirstOrDefaultAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls);
 
-                if (daCoHoaDon)
-                    throw new InvalidOperationException("Phiếu khám cận lâm sàng của bệnh nhân này đang chưa hoàn tất, không thể tạo thêm phiếu/queue mới.");
-            }
+                if (phieu is null) return null;
 
-            phieu.TrangThai = trangThai;
-            await _db.SaveChangesAsync();
-
-            var maBenhNhan = phieu.PhieuKhamLamSang?.MaBenhNhan;
-            var firstCt = phieu.ChiTietDichVus.FirstOrDefault();
-
-            if (!string.IsNullOrWhiteSpace(maBenhNhan))
-            {
-                await _patients.CapNhatTrangThaiBenhNhanAsync(
-                    maBenhNhan,
-                    new PatientStatusUpdateRequest { TrangThaiHomNay = "cho_kham_dv" });
-            }
-
-            if (firstCt is not null)
-            {
-                await CapNhatTrangThaiChiTietDVAsync(firstCt.MaChiTietDv, trangThai);
-            }
-
-            if (!string.IsNullOrWhiteSpace(maBenhNhan))
-            {
-                var tongTien = phieu.ChiTietDichVus.Sum(ct => ct.DichVuYTe?.DonGia ?? 0m);
-                var thuNgan = await _db.NhanVienYTes.AsNoTracking().FirstOrDefaultAsync()
-                             ?? throw new InvalidOperationException("Không tìm thấy nhân sự thu");
-                var invoiceReq = new InvoiceCreateRequest
+                // Auto-billing: tạo hóa đơn khi chuyển sang "dang_thuc_hien"
+                if (string.Equals(trangThai, "dang_thuc_hien", StringComparison.OrdinalIgnoreCase))
                 {
-                    MaBenhNhan = maBenhNhan,
-                    MaNhanSuThu = thuNgan.MaNhanVien,
-                    LoaiDotThu = "can_lam_sang",
-                    SoTien = tongTien,
-                    MaPhieuKhamCls = phieu.MaPhieuKhamCls,
-                    NoiDung = "Thu phí chỉ định cận lâm sàng"
-                };
-                await _billing.TaoHoaDonAsync(invoiceReq);
-            }
+                    var daCoHoaDon = await _db.HoaDonThanhToans
+                        .AsNoTracking()
+                        .AnyAsync(hd => hd.MaPhieuKhamCls == phieu.MaPhieuKhamCls);
 
-            if (firstCt is not null && !string.IsNullOrWhiteSpace(maBenhNhan))
-            {
-                var phongDv = firstCt.DichVuYTe?.MaPhongThucHien ?? "CLS_XN_01";
-                await _queue.ThemVaoHangDoiAsync(new QueueEnqueueRequest
+                    if (!daCoHoaDon)
+                    {
+                        var maBenhNhan = phieu.PhieuKhamLamSang?.MaBenhNhan;
+                        if (!string.IsNullOrWhiteSpace(maBenhNhan))
+                        {
+                            // Tính tổng tiền từ tất cả dịch vụ
+                            var tongTien = phieu.ChiTietDichVus.Sum(ct => ct.DichVuYTe?.DonGia ?? 0m);
+                            
+                            // Lấy nhân sự thu (có thể là người lập phiếu hoặc nhân sự mặc định)
+                            var thuNgan = await _db.NhanVienYTes
+                                .AsNoTracking()
+                                .FirstOrDefaultAsync(nv => nv.VaiTro == "y_ta" && nv.LoaiYTa == "hanhchinh")
+                                ?? await _db.NhanVienYTes.AsNoTracking().FirstOrDefaultAsync()
+                                ?? throw new InvalidOperationException("Không tìm thấy nhân sự thu");
+
+                            var invoiceReq = new InvoiceCreateRequest
+                            {
+                                MaBenhNhan = maBenhNhan,
+                                MaNhanSuThu = thuNgan.MaNhanVien,
+                                LoaiDotThu = "can_lam_sang",
+                                SoTien = tongTien,
+                                MaPhieuKhamCls = phieu.MaPhieuKhamCls,
+                                PhuongThucThanhToan = "tien_mat",
+                                NoiDung = $"Thu phí cận lâm sàng - Phiếu {phieu.MaPhieuKhamCls}"
+                            };
+                            await _billing.TaoHoaDonAsync(invoiceReq);
+                        }
+                    }
+                }
+
+                phieu.TrangThai = trangThai;
+                await _db.SaveChangesAsync();
+
+                var maBenhNhan2 = phieu.PhieuKhamLamSang?.MaBenhNhan;
+                var firstCt = phieu.ChiTietDichVus.FirstOrDefault();
+
+                if (!string.IsNullOrWhiteSpace(maBenhNhan2))
                 {
-                    MaBenhNhan = maBenhNhan!,
-                    MaPhong = phongDv,
-                    LoaiHangDoi = "can_lam_sang",
-                    MaChiTietDv = firstCt.MaChiTietDv,
-                    MaPhieuKham = null,
-                    Nguon = null,
-                    Nhan = null,
-                    ThoiGianLichHen = null
-                });
+                    await _patients.CapNhatTrangThaiBenhNhanAsync(
+                        maBenhNhan2,
+                        new PatientStatusUpdateRequest { TrangThaiHomNay = "cho_kham_dv" });
+                }
+
+                if (firstCt is not null)
+                {
+                    await CapNhatTrangThaiChiTietDVAsync(firstCt.MaChiTietDv, trangThai);
+                }
+
+                // Queue management: tạo hàng đợi cho dịch vụ đầu tiên
+                if (firstCt is not null && !string.IsNullOrWhiteSpace(maBenhNhan2))
+                {
+                    var daCoHangDoi = await _db.HangDois.AnyAsync(h => h.MaChiTietDv == firstCt.MaChiTietDv);
+                    if (!daCoHangDoi)
+                    {
+                        var phongDv = firstCt.DichVuYTe?.MaPhongThucHien ?? "CLS_XN_01";
+                        await _queue.ThemVaoHangDoiAsync(new QueueEnqueueRequest
+                        {
+                            MaBenhNhan = maBenhNhan2!,
+                            MaPhong = phongDv,
+                            LoaiHangDoi = "can_lam_sang",
+                            MaChiTietDv = firstCt.MaChiTietDv,
+                            MaPhieuKham = null,
+                            Nguon = null,
+                            Nhan = null,
+                            ThoiGianLichHen = null
+                        });
+                    }
+                }
+
+                await transaction.CommitAsync();
+
+                // Broadcast after successful transaction
+                var dto = await BuildClsOrderDtoAsync(maPhieuKhamCls);
+
+                if (dto is not null)
+                {
+                    await _realtime.BroadcastClsOrderStatusUpdatedAsync(dto);
+                    var dashboard = await _dashboard.LayDashboardHomNayAsync();
+                    await _realtime.BroadcastDashboardTodayAsync(dashboard);
+                }
+
+                return dto;
             }
-
-            var dto = await BuildClsOrderDtoAsync(maPhieuKhamCls);
-
-            if (dto is not null)
+            catch (Exception)
             {
-                await _realtime.BroadcastClsOrderStatusUpdatedAsync(dto);
-                var dashboard = await _dashboard.LayDashboardHomNayAsync();
-                await _realtime.BroadcastDashboardTodayAsync(dashboard);
+                await transaction.RollbackAsync();
+                throw;
             }
-
-            return dto;
         }
 
         public async Task<ClsItemDto?> CapNhatTrangThaiChiTietDVAsync(string maChiTietDv, string trangThai)
@@ -682,6 +712,33 @@ namespace HealthCare.Services
 
             // Realtime: có kết quả CLS mới
             await _realtime.BroadcastClsResultCreatedAsync(dto);
+
+            // Targeted broadcast: gửi notification cho bác sĩ chỉ định
+            if (phieuCls?.PhieuKhamLamSang is not null)
+            {
+                var maBacSiChiDinh = phieuCls.PhieuKhamLamSang.MaBacSiKham;
+                if (!string.IsNullOrWhiteSpace(maBacSiChiDinh))
+                {
+                    var notificationReq = new NotificationCreateRequest
+                    {
+                        LoaiThongBao = "ket_qua_cls",
+                        TieuDe = "Kết quả CLS mới",
+                        NoiDung = $"Kết quả {chiTiet.DichVuYTe?.TenDichVu ?? "dịch vụ CLS"} cho bệnh nhân {phieuCls.PhieuKhamLamSang.BenhNhan?.HoTen ?? ""} đã sẵn sàng",
+                        MucDoUuTien = "normal",
+                        NguonLienQuan = "phieu_cls",
+                        MaDoiTuongLienQuan = chiTiet.MaPhieuKhamCls,
+                        NguoiNhan = new List<NotificationRecipientCreateRequest>
+                        {
+                            new NotificationRecipientCreateRequest
+                            {
+                                LoaiNguoiNhan = "bac_si",
+                                MaNguoiNhan = maBacSiChiDinh
+                            }
+                        }
+                    };
+                    await _notifications.TaoThongBaoAsync(notificationReq);
+                }
+            }
 
             // ===== Sau khi chốt kết quả DV CLS =====
             // 1) Cập nhật trạng thái chi tiết DV (đã làm ở trên) -> broadcast để FE nắm
@@ -1076,7 +1133,7 @@ namespace HealthCare.Services
         // =   THÔNG BÁO - CLS      =
         // ==========================
 
-        // Khi tất cả DV trong 1 phiếu CLS đã có kết quả và AutoPublishEnabled = true
+        // Auto-publish: khi tất cả DV trong 1 phiếu CLS đã có kết quả và AutoPublishEnabled = true
         // thì tự động tạo / cập nhật phiếu tổng hợp + gắn lại vào phiếu khám LS.
         private async Task TryAutoPublishTongHopIfCompletedAsync(string maPhieuKhamCls)
         {
@@ -1084,11 +1141,13 @@ namespace HealthCare.Services
                 return;
 
             var phieuCls = await _db.PhieuKhamCanLamSangs
+                .Include(p => p.PhieuKhamLamSang)
                 .FirstOrDefaultAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls);
 
             if (phieuCls is null)
                 return;
 
+            // Check AutoPublishEnabled flag
             if (!phieuCls.AutoPublishEnabled)
                 return;
 
@@ -1106,7 +1165,14 @@ namespace HealthCare.Services
             await _db.SaveChangesAsync();
 
             // Lập / cập nhật phiếu tổng hợp
-            await TaoTongHopAsync(maPhieuKhamCls);
+            var summary = await TaoTongHopAsync(maPhieuKhamCls);
+
+            // Gắn MaPhieuKqKhamCls vào phiếu khám LS
+            if (phieuCls.PhieuKhamLamSang is not null && !string.IsNullOrWhiteSpace(summary.MaPhieuTongHop))
+            {
+                phieuCls.PhieuKhamLamSang.MaPhieuKqKhamCls = summary.MaPhieuTongHop;
+                await _db.SaveChangesAsync();
+            }
         }
 
 

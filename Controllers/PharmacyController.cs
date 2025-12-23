@@ -1,7 +1,8 @@
 ﻿using System;
 using System.Threading.Tasks;
+using HealthCare.Attributes;
 using HealthCare.DTOs;
-using HealthCare.Services;
+using HealthCare.Services.MedicationBilling;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -60,6 +61,7 @@ namespace HealthCare.Controllers
         /// </summary>
         [HttpPost("prescriptions")]
         [Authorize]
+        [RequireRole("bac_si")]
         public async Task<ActionResult<PrescriptionDto>> CreatePrescription(
             [FromBody] PrescriptionCreateRequest request)
         {
@@ -87,6 +89,7 @@ namespace HealthCare.Controllers
         /// </summary>
         [HttpPut("prescriptions/{maDonThuoc}/status")]
         [Authorize]
+        [RequireRole("y_ta_hanh_chinh")]
         public async Task<ActionResult<PrescriptionDto>> UpdatePrescriptionStatus(
             string maDonThuoc,
             [FromBody] PrescriptionStatusUpdateRequest request)

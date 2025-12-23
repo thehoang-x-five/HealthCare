@@ -9,8 +9,12 @@ using HealthCare.Entities;
 using HealthCare.Realtime;
 using HealthCare.RenderID;
 using Microsoft.EntityFrameworkCore;
+using HealthCare.Services.UserInteraction;
+using HealthCare.Services.Report;
+using HealthCare.Services.PatientManagement;
+using HealthCare.Services.MedicationBilling;
 
-namespace HealthCare.Services
+namespace HealthCare.Services.OutpatientCare
 {
     public class HistoryService(
     DataContext db,

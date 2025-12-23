@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 using HealthCare.DTOs;
-using HealthCare.Services;
+using HealthCare.Services.OutpatientCare;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

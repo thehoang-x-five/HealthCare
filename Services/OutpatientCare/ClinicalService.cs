@@ -8,8 +8,12 @@ using HealthCare.Entities;
 using HealthCare.Realtime;
 using HealthCare.RenderID;
 using Microsoft.EntityFrameworkCore;
+using HealthCare.Services.UserInteraction;
+using HealthCare.Services.Report;
+using HealthCare.Services.PatientManagement;
+using HealthCare.Services.MedicationBilling;
 
-namespace HealthCare.Services
+namespace HealthCare.Services.OutpatientCare
 {
     /// <summary>
     /// Service quản lý phiếu khám lâm sàng + chẩn đoán cuối.
@@ -109,6 +113,7 @@ namespace HealthCare.Services
 
         public async Task<ClinicalExamDto> TaoPhieuKhamAsync(ClinicalExamCreateRequest request)
         {
+            // Validate inputs
             if (string.IsNullOrWhiteSpace(request.MaBenhNhan))
                 throw new ArgumentException("MaBenhNhan là bắt buộc");
             if (string.IsNullOrWhiteSpace(request.MaBacSiKham))
@@ -118,9 +123,13 @@ namespace HealthCare.Services
             if (string.IsNullOrWhiteSpace(request.MaDichVuKham))
                 throw new ArgumentException("MaDichVuKham là bắt buộc");
 
-            var benhNhan = await _db.BenhNhans
-                .FirstOrDefaultAsync(b => b.MaBenhNhan == request.MaBenhNhan)
-                    ?? throw new InvalidOperationException("Không tìm thấy bệnh nhân");
+            // Use transaction for complex operations
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var benhNhan = await _db.BenhNhans
+                    .FirstOrDefaultAsync(b => b.MaBenhNhan == request.MaBenhNhan)
+                        ?? throw new InvalidOperationException("Không tìm thấy bệnh nhân");
 
             // Cập nhật hồ sơ bệnh nhân từ 8 field chi tiết
             if (request.DiUng is not null) benhNhan.DiUng = request.DiUng;
@@ -391,6 +400,10 @@ namespace HealthCare.Services
                 await _billing.TaoHoaDonAsync(invoiceReq);
             }
 
+            // Commit transaction before broadcasting
+            await transaction.CommitAsync();
+
+            // ===== Broadcast realtime AFTER successful transaction =====
             var dto = MapClinicalExam(loaded);
 
             await _realtime.BroadcastClinicalExamCreatedAsync(dto);
@@ -398,12 +411,16 @@ namespace HealthCare.Services
 
             var dashboard = await _dashboard.LayDashboardHomNayAsync();
             await _realtime.BroadcastDashboardTodayAsync(dashboard);
-            //await _realtime.BroadcastTodayPatientsKpiAsync(dashboard.BenhNhanTrongNgay);
-            //await _realtime.BroadcastTodayExamOverviewAsync(dashboard.LuotKhamHomNay);
-            //await _realtime.BroadcastRecentActivitiesAsync(dashboard.HoatDongGanDay);
 
             return dto;
         }
+        catch (Exception)
+        {
+            // Rollback on any error
+            await transaction.RollbackAsync();
+            throw;
+        }
+    }
 
 
         // ================== 2. LẤY PHIẾU KHÁM ==================
@@ -435,31 +452,37 @@ namespace HealthCare.Services
             if (string.IsNullOrWhiteSpace(request.TrangThai))
                 throw new ArgumentException("TrangThai là bắt buộc");
 
-            var phieu = await _db.PhieuKhamLamSangs
-                .Include(p => p.BenhNhan)
-                .Include(p => p.DichVuKham)
-                .Include(p => p.BacSiKham)
-                .Include(p => p.NguoiLap)
-                .Include(p => p.LichHenKham)
-                .Include(p => p.PhieuTongHopKetQua)
-                .FirstOrDefaultAsync(p => p.MaPhieuKham == maPhieuKham);
+            try
+            {
+                var phieu = await _db.PhieuKhamLamSangs
+                    .Include(p => p.BenhNhan)
+                    .Include(p => p.DichVuKham)
+                    .Include(p => p.BacSiKham)
+                    .Include(p => p.NguoiLap)
+                    .Include(p => p.LichHenKham)
+                    .Include(p => p.PhieuTongHopKetQua)
+                    .FirstOrDefaultAsync(p => p.MaPhieuKham == maPhieuKham);
 
-            if (phieu is null) return null;
+                if (phieu is null) return null;
 
-            phieu.TrangThai = request.TrangThai;
-            await _db.SaveChangesAsync();
+                phieu.TrangThai = request.TrangThai;
+                await _db.SaveChangesAsync();
 
-            var dto = MapClinicalExam(phieu);
-            await _realtime.BroadcastClinicalExamUpdatedAsync(dto);
+                var dto = MapClinicalExam(phieu);
+                
+                // Broadcast after successful save
+                await _realtime.BroadcastClinicalExamUpdatedAsync(dto);
 
-
-
-            var dashboard = await _dashboard.LayDashboardHomNayAsync();
-            await _realtime.BroadcastDashboardTodayAsync(dashboard);
-            //await _realtime.BroadcastTodayPatientsKpiAsync(dashboard.BenhNhanTrongNgay);
-            //await _realtime.BroadcastTodayExamOverviewAsync(dashboard.LuotKhamHomNay);
-            //await _realtime.BroadcastRecentActivitiesAsync(dashboard.HoatDongGanDay);
-            return dto;
+                var dashboard = await _dashboard.LayDashboardHomNayAsync();
+                await _realtime.BroadcastDashboardTodayAsync(dashboard);
+                
+                return dto;
+            }
+            catch (Exception ex)
+            {
+                // Log error and rethrow with context
+                throw new InvalidOperationException($"Lỗi khi cập nhật trạng thái phiếu khám {maPhieuKham}", ex);
+            }
         }
 
         // ================== 4. CHẨN ĐOÁN CUỐI ==================
@@ -470,122 +493,134 @@ namespace HealthCare.Services
             if (string.IsNullOrWhiteSpace(request.MaPhieuKham))
                 throw new ArgumentException("MaPhieuKham là bắt buộc");
 
-            var phieu = await _db.PhieuKhamLamSangs
-                .Include(p => p.BenhNhan)
-                .Include(p => p.HangDois)
-                    .ThenInclude(h => h.LuotKhamBenh)
-                .FirstOrDefaultAsync(p => p.MaPhieuKham == request.MaPhieuKham)
-                ?? throw new InvalidOperationException("Không tìm thấy phiếu khám");
-
-            var hangDoi = phieu.HangDois;
-            var luot = hangDoi?.LuotKhamBenh;
-            var maBenhNhan = phieu.MaBenhNhan;
-
-            var chanDoan = await _db.PhieuChanDoanCuois
-                .FirstOrDefaultAsync(c => c.MaPhieuKham == request.MaPhieuKham);
-
-            if (chanDoan is null)
+            // Use transaction for complex cascade updates
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
             {
-                chanDoan = new PhieuChanDoanCuoi
+                var phieu = await _db.PhieuKhamLamSangs
+                    .Include(p => p.BenhNhan)
+                    .Include(p => p.HangDois)
+                        .ThenInclude(h => h.LuotKhamBenh)
+                    .FirstOrDefaultAsync(p => p.MaPhieuKham == request.MaPhieuKham)
+                    ?? throw new InvalidOperationException("Không tìm thấy phiếu khám");
+
+                var hangDoi = phieu.HangDois;
+                var luot = hangDoi?.LuotKhamBenh;
+                var maBenhNhan = phieu.MaBenhNhan;
+
+                var chanDoan = await _db.PhieuChanDoanCuois
+                    .FirstOrDefaultAsync(c => c.MaPhieuKham == request.MaPhieuKham);
+
+                if (chanDoan is null)
                 {
-                    MaPhieuChanDoan = $"PCD-{Guid.NewGuid():N}",
-                    MaPhieuKham = request.MaPhieuKham
-                };
-                _db.PhieuChanDoanCuois.Add(chanDoan);
-            }
-
-            chanDoan.MaDonThuoc = request.MaDonThuoc;
-            chanDoan.ChanDoanSoBo = request.ChanDoanSoBo;
-            chanDoan.ChanDoanCuoi = request.ChanDoanCuoi;
-            chanDoan.NoiDungKham = request.NoiDungKham;
-            chanDoan.HuongXuTri = request.HuongXuTri;
-            chanDoan.LoiKhuyen = request.LoiKhuyen;
-            chanDoan.PhatDoDieuTri = request.PhatDoDieuTri;
-
-            // Cập nhật trạng thái lượt/queue/phiếu/BN qua các service hiện có
-            var trangThaiLuot = string.IsNullOrWhiteSpace(request.TrangThaiLuot)
-                ? "hoan_tat"
-                : request.TrangThaiLuot;
-
-            if (luot is not null)
-            {
-                luot.TrangThai = trangThaiLuot;
-                if (request.ThoiGianKetThuc.HasValue)
-                    luot.ThoiGianKetThuc = request.ThoiGianKetThuc.Value;
-                else
-                    luot.ThoiGianKetThuc ??= DateTime.Now;
-            }
-
-            if (hangDoi is not null)
-            {
-                hangDoi.TrangThai = "da_phuc_vu";
-                await _queue.CapNhatTrangThaiHangDoiAsync(
-                    hangDoi.MaHangDoi,
-                    new QueueStatusUpdateRequest { TrangThai = "da_phuc_vu" });
-            }
-
-            await CapNhatTrangThaiPhieuKhamAsync(
-                phieu.MaPhieuKham,
-                new ClinicalExamStatusUpdateRequest { TrangThai = "da_hoan_tat" });
-
-            phieu.BenhNhan.TrangThaiHomNay = "cho_xu_ly";
-
-            await _db.SaveChangesAsync();
-
-            PrescriptionDto? donThuocDto = null;
-            // Tạo đơn thuốc nếu có dữ liệu
-            if (request.DonThuoc is not null && request.DonThuoc.Count > 0)
-            {
-                var maBacSiKeDon = request.MaBacSiKeDon;
-                if (string.IsNullOrWhiteSpace(maBacSiKeDon))
-                {
-                    maBacSiKeDon = luot?.MaNhanSuThucHien ?? phieu.MaBacSiKham;
+                    chanDoan = new PhieuChanDoanCuoi
+                    {
+                        MaPhieuChanDoan = $"PCD-{Guid.NewGuid():N}",
+                        MaPhieuKham = request.MaPhieuKham
+                    };
+                    _db.PhieuChanDoanCuois.Add(chanDoan);
                 }
 
-                var prescriptionReq = new PrescriptionCreateRequest
+                chanDoan.MaDonThuoc = request.MaDonThuoc;
+                chanDoan.ChanDoanSoBo = request.ChanDoanSoBo;
+                chanDoan.ChanDoanCuoi = request.ChanDoanCuoi;
+                chanDoan.NoiDungKham = request.NoiDungKham;
+                chanDoan.HuongXuTri = request.HuongXuTri;
+                chanDoan.LoiKhuyen = request.LoiKhuyen;
+                chanDoan.PhatDoDieuTri = request.PhatDoDieuTri;
+
+                // Cascade update: lượt -> queue -> phiếu -> bệnh nhân
+                var trangThaiLuot = string.IsNullOrWhiteSpace(request.TrangThaiLuot)
+                    ? "hoan_tat"
+                    : request.TrangThaiLuot;
+
+                if (luot is not null)
                 {
-                    MaBenhNhan = maBenhNhan,
-                    MaBacSiKeDon = maBacSiKeDon!,
-                    MaPhieuChanDoanCuoi = chanDoan.MaPhieuChanDoan,
-                    TongTienDon = 0m,
-                    Items = request.DonThuoc
+                    luot.TrangThai = trangThaiLuot;
+                    if (request.ThoiGianKetThuc.HasValue)
+                        luot.ThoiGianKetThuc = request.ThoiGianKetThuc.Value;
+                    else
+                        luot.ThoiGianKetThuc ??= DateTime.Now;
+                }
+
+                if (hangDoi is not null)
+                {
+                    hangDoi.TrangThai = "da_phuc_vu";
+                    await _queue.CapNhatTrangThaiHangDoiAsync(
+                        hangDoi.MaHangDoi,
+                        new QueueStatusUpdateRequest { TrangThai = "da_phuc_vu" });
+                }
+
+                await CapNhatTrangThaiPhieuKhamAsync(
+                    phieu.MaPhieuKham,
+                    new ClinicalExamStatusUpdateRequest { TrangThai = "da_hoan_tat" });
+
+                phieu.BenhNhan.TrangThaiHomNay = "cho_xu_ly";
+
+                await _db.SaveChangesAsync();
+
+                PrescriptionDto? donThuocDto = null;
+                if (request.DonThuoc is not null && request.DonThuoc.Count > 0)
+                {
+                    var maBacSiKeDon = request.MaBacSiKeDon;
+                    if (string.IsNullOrWhiteSpace(maBacSiKeDon))
+                    {
+                        maBacSiKeDon = luot?.MaNhanSuThucHien ?? phieu.MaBacSiKham;
+                    }
+
+                    var prescriptionReq = new PrescriptionCreateRequest
+                    {
+                        MaBenhNhan = maBenhNhan,
+                        MaBacSiKeDon = maBacSiKeDon!,
+                        MaPhieuChanDoanCuoi = chanDoan.MaPhieuChanDoan,
+                        TongTienDon = 0m,
+                        Items = request.DonThuoc
+                    };
+
+                    donThuocDto = await _pharmacy.TaoDonThuocAsync(prescriptionReq);
+                    chanDoan.MaDonThuoc = donThuocDto.MaDonThuoc;
+                    await _db.SaveChangesAsync();
+                }
+
+                // Commit transaction before broadcasting
+                await transaction.CommitAsync();
+
+                // Broadcast after successful transaction
+                var dto = new FinalDiagnosisDto
+                {
+                    MaPhieuChanDoan = chanDoan.MaPhieuChanDoan,
+                    MaPhieuKham = chanDoan.MaPhieuKham,
+                    MaDonThuoc = chanDoan.MaDonThuoc,
+                    ChanDoanSoBo = chanDoan.ChanDoanSoBo,
+                    ChanDoanCuoi = chanDoan.ChanDoanCuoi,
+                    NoiDungKham = chanDoan.NoiDungKham,
+                    HuongXuTri = chanDoan.HuongXuTri,
+                    LoiKhuyen = chanDoan.LoiKhuyen,
+                    PhatDoDieuTri = chanDoan.PhatDoDieuTri
                 };
 
-                donThuocDto = await _pharmacy.TaoDonThuocAsync(prescriptionReq);
-                chanDoan.MaDonThuoc = donThuocDto.MaDonThuoc;
-                await _db.SaveChangesAsync();
-            }
+                await _realtime.BroadcastFinalDiagnosisChangedAsync(dto);
 
-            var dto = new FinalDiagnosisDto
-            {
-                MaPhieuChanDoan = chanDoan.MaPhieuChanDoan,
-                MaPhieuKham = chanDoan.MaPhieuKham,
-                MaDonThuoc = chanDoan.MaDonThuoc,
-                ChanDoanSoBo = chanDoan.ChanDoanSoBo,
-                ChanDoanCuoi = chanDoan.ChanDoanCuoi,
-                NoiDungKham = chanDoan.NoiDungKham,
-                HuongXuTri = chanDoan.HuongXuTri,
-                LoiKhuyen = chanDoan.LoiKhuyen,
-                PhatDoDieuTri = chanDoan.PhatDoDieuTri
-            };
-
-            await _realtime.BroadcastFinalDiagnosisChangedAsync(dto);
-
-            if (!string.IsNullOrWhiteSpace(maBenhNhan))
-            {
-                await _patients.CapNhatTrangThaiBenhNhanAsync(maBenhNhan, new PatientStatusUpdateRequest
+                if (!string.IsNullOrWhiteSpace(maBenhNhan))
                 {
-                    TrangThaiHomNay = "cho_xu_ly"
-                });
+                    await _patients.CapNhatTrangThaiBenhNhanAsync(maBenhNhan, new PatientStatusUpdateRequest
+                    {
+                        TrangThaiHomNay = "cho_xu_ly"
+                    });
+                }
+              
+                var dashboard = await _dashboard.LayDashboardHomNayAsync();
+                await _realtime.BroadcastDashboardTodayAsync(dashboard);
+                await TaoThongBaoPhieuChuanDoanAsync(dto, phieu);
+                
+                return dto;
             }
-          
-            var dashboard = await _dashboard.LayDashboardHomNayAsync();
-            await _realtime.BroadcastDashboardTodayAsync(dashboard);
-            //await _realtime.BroadcastTodayPatientsKpiAsync(dashboard.BenhNhanTrongNgay);
-            //await _realtime.BroadcastTodayExamOverviewAsync(dashboard.LuotKhamHomNay);
-            //await _realtime.BroadcastRecentActivitiesAsync(dashboard.HoatDongGanDay);
-            await TaoThongBaoPhieuChuanDoanAsync(dto, phieu);
-            return dto;
+            catch (Exception)
+            {
+                // Rollback on any error
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         public async Task<FinalDiagnosisDto?> LayChanDoanCuoiAsync(string maPhieuKham)

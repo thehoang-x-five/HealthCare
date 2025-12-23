@@ -10,8 +10,9 @@ using HealthCare.Realtime;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Routing.Matching;
 using Microsoft.Extensions.DependencyInjection;
+using HealthCare.Services.PatientManagement;
 
-namespace HealthCare.Services
+namespace HealthCare.Services.OutpatientCare
 {
     public class QueueService(DataContext db, IRealtimeService realtime, IPatientService patients, IServiceProvider provider) : IQueueService
     {

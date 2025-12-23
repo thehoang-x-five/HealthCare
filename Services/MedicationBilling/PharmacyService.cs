@@ -8,8 +8,10 @@ using HealthCare.DTOs;
 using HealthCare.Entities;
 using HealthCare.Realtime;
 using Microsoft.EntityFrameworkCore;
-using HealthCare.Services;
-namespace HealthCare.Services
+using HealthCare.Services.UserInteraction;
+using HealthCare.Services.Report;
+
+namespace HealthCare.Services.MedicationBilling
 {
     public class PharmacyService(
      DataContext db,
@@ -184,8 +186,42 @@ namespace HealthCare.Services
                     throw new ArgumentException("Phiếu chẩn đoán cuối không tồn tại");
             }
 
-            // Tính tổng tiền từ Items (BE chủ động)
-            decimal tongTien = request.Items.Sum(i => i.ThanhTien);
+            // ✅ Task 12.1: Validation tồn kho và hạn sử dụng trước khi tạo đơn
+            var thuocCodes = request.Items.Select(i => i.MaThuoc).Distinct().ToList();
+            var stockMap = await _db.KhoThuocs
+                .Where(k => thuocCodes.Contains(k.MaThuoc))
+                .ToDictionaryAsync(k => k.MaThuoc, k => k);
+
+            var today = DateTime.Today;
+            foreach (var item in request.Items)
+            {
+                if (item.SoLuong <= 0)
+                    throw new ArgumentException($"Số lượng thuốc {item.MaThuoc} phải > 0");
+
+                if (!stockMap.TryGetValue(item.MaThuoc, out var stock))
+                    throw new ArgumentException($"Thuốc {item.MaThuoc} không tồn tại trong kho");
+
+                // Kiểm tra hạn sử dụng (không cho phép thuốc hết hạn)
+                if (stock.HanSuDung.Date < today)
+                    throw new InvalidOperationException($"Thuốc {item.MaThuoc} ({stock.TenThuoc}) đã hết hạn ({stock.HanSuDung:dd/MM/yyyy}), không thể kê đơn");
+
+                // Kiểm tra tồn kho đủ
+                if (stock.SoLuongTon < item.SoLuong)
+                    throw new InvalidOperationException($"Thuốc {item.MaThuoc} ({stock.TenThuoc}) không đủ tồn kho. Tồn hiện tại: {stock.SoLuongTon}, yêu cầu: {item.SoLuong}");
+            }
+
+            // ✅ Task 12.2: Tính tổng tiền chính xác từ SoLuong * DonGia
+            decimal tongTien = 0m;
+            foreach (var item in request.Items)
+            {
+                var stock = stockMap[item.MaThuoc];
+                var donGia = stock.GiaNiemYet;
+                var thanhTien = item.SoLuong * donGia;
+                tongTien += thanhTien;
+
+                // Cập nhật lại ThanhTien trong item để đảm bảo consistency
+                item.ThanhTien = thanhTien;
+            }
 
             var maDonThuoc = HealthCare.RenderID.GeneratorID.NewDonThuocId();
             var now = DateTime.Now;
@@ -213,9 +249,6 @@ namespace HealthCare.Services
 
             foreach (var item in request.Items)
             {
-                if (item.SoLuong <= 0)
-                    throw new ArgumentException("SoLuong phải > 0");
-
                 var detail = new ChiTietDonThuoc
                 {
                     MaChiTietDon = Guid.NewGuid().ToString("N"),
@@ -265,72 +298,87 @@ namespace HealthCare.Services
             string maDonThuoc,
             PrescriptionStatusUpdateRequest request)
         {
-            var don = await QueryDonThuoc()
-                .FirstOrDefaultAsync(d => d.MaDonThuoc == maDonThuoc);
-
-            if (don == null) return null;
-
-            var oldStatus = don.TrangThai;
-            var newStatus = request.TrangThai;
-
-            don.TrangThai = newStatus;
-
-            // Nếu chuyển sang "da_phat" lần đầu tiên => trừ kho + kiểm tra hạn
-            if (!string.Equals(oldStatus, "da_phat", StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(newStatus, "da_phat", StringComparison.OrdinalIgnoreCase))
+            // ✅ Task 12.3: Sử dụng transaction để đảm bảo consistency khi trừ tồn kho
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
             {
-                var details = await _db.ChiTietDonThuocs
-                    .Where(c => c.MaDonThuoc == maDonThuoc)
-                    .ToListAsync();
+                var don = await QueryDonThuoc()
+                    .FirstOrDefaultAsync(d => d.MaDonThuoc == maDonThuoc);
 
-                var thuocCodes = details.Select(d => d.MaThuoc).Distinct().ToList();
+                if (don == null) return null;
 
-                var stockMap = await _db.KhoThuocs
-                    .Where(k => thuocCodes.Contains(k.MaThuoc))
-                    .ToDictionaryAsync(k => k.MaThuoc, k => k);
+                var oldStatus = don.TrangThai;
+                var newStatus = request.TrangThai;
 
-                var today = DateTime.Today;
-                var calculator = new DrugStatusCalculator();
-                foreach (var d in details)
+                don.TrangThai = newStatus;
+
+                // ✅ Task 12.3: Trừ tồn kho khi đơn chuyển sang "da_phat"
+                if (!string.Equals(oldStatus, "da_phat", StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(newStatus, "da_phat", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!stockMap.TryGetValue(d.MaThuoc, out var stock))
-                        throw new InvalidOperationException($"Thuốc {d.MaThuoc} không tồn tại trong kho");
+                    var details = await _db.ChiTietDonThuocs
+                        .Where(c => c.MaDonThuoc == maDonThuoc)
+                        .ToListAsync();
 
-                    // Chặn thuốc đã hết hạn (trạng thái hoặc hạn dùng)
-                    if (string.Equals(stock.TrangThai, DrugStatuses.HetHan, StringComparison.OrdinalIgnoreCase) ||
-                        stock.HanSuDung.Date < today)
+                    var thuocCodes = details.Select(d => d.MaThuoc).Distinct().ToList();
+
+                    var stockMap = await _db.KhoThuocs
+                        .Where(k => thuocCodes.Contains(k.MaThuoc))
+                        .ToDictionaryAsync(k => k.MaThuoc, k => k);
+
+                    var today = DateTime.Today;
+                    var calculator = new DrugStatusCalculator();
+                    
+                    foreach (var d in details)
                     {
-                        throw new InvalidOperationException($"Thuốc {d.MaThuoc} đã hết hạn, không thể phát");
+                        if (!stockMap.TryGetValue(d.MaThuoc, out var stock))
+                            throw new InvalidOperationException($"Thuốc {d.MaThuoc} không tồn tại trong kho");
+
+                        // Kiểm tra hạn sử dụng (không cho phép thuốc hết hạn)
+                        if (stock.HanSuDung.Date < today)
+                        {
+                            throw new InvalidOperationException($"Thuốc {d.MaThuoc} ({stock.TenThuoc}) đã hết hạn ({stock.HanSuDung:dd/MM/yyyy}), không thể phát");
+                        }
+
+                        // Kiểm tra tồn kho đủ
+                        if (stock.SoLuongTon < d.SoLuong)
+                            throw new InvalidOperationException($"Thuốc {d.MaThuoc} ({stock.TenThuoc}) không đủ tồn kho. Tồn hiện tại: {stock.SoLuongTon}, yêu cầu: {d.SoLuong}");
+
+                        // Trừ tồn kho
+                        stock.SoLuongTon -= d.SoLuong;
+                        
+                        // ✅ Task 12.3: Cập nhật trạng thái thuốc (sap_het_ton, het_han)
+                        stock.TrangThai = calculator.CalculateStatus(stock);
                     }
-
-                    // Cho phép 'sap_het_han' / 'sap_het_ton' / 'hoat_dong' nhưng vẫn kiểm soát tồn
-                    if (stock.SoLuongTon < d.SoLuong)
-                        throw new InvalidOperationException($"Không đủ tồn kho cho thuốc {d.MaThuoc}");
-
-                    stock.SoLuongTon -= d.SoLuong;
-                    stock.TrangThai = calculator.CalculateStatus(stock);
                 }
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                // reload để có đầy đủ nav sau khi EF track
+                var updated = await QueryDonThuoc()
+                    .AsNoTracking()
+                    .FirstAsync(d => d.MaDonThuoc == maDonThuoc);
+
+                var dto = MapPrescription(updated);
+
+                // Realtime: trạng thái đơn thuốc thay đổi (vd: da_phat)
+                await _realtime.BroadcastPrescriptionStatusUpdatedAsync(dto);
+
+                // Thông báo: (ví dụ khi đơn chuyển sang đã phát)
+                await TaoThongBaoTrangThaiDonThuocAsync(dto);
+                
+                // Cập nhật Dashboard: hoạt động gần đây liên quan đơn thuốc
+                var dashboard = await _dashboard.LayDashboardHomNayAsync();
+                await _realtime.BroadcastDashboardTodayAsync(dashboard);
+                
+                return dto;
             }
-
-            await _db.SaveChangesAsync();
-
-            // reload để có đầy đủ nav sau khi EF track
-            var updated = await QueryDonThuoc()
-                .AsNoTracking()
-                .FirstAsync(d => d.MaDonThuoc == maDonThuoc);
-
-            var dto = MapPrescription(updated);
-
-            // Realtime: trạng thái đơn thuốc thay đổi (vd: da_phat)
-            await _realtime.BroadcastPrescriptionStatusUpdatedAsync(dto);
-
-            // Thông báo: (ví dụ khi đơn chuyển sang đã phát)
-            await TaoThongBaoTrangThaiDonThuocAsync(dto);
-            // Cập nhật Dashboard: hoạt động gần đây liên quan đơn thuốc
-            var dashboard = await _dashboard.LayDashboardHomNayAsync();
-            await _realtime.BroadcastDashboardTodayAsync(dashboard);
-            //await _realtime.BroadcastRecentActivitiesAsync(dashboard.HoatDongGanDay);
-            return dto;
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         public async Task<PagedResult<PrescriptionDto>> TimKiemDonThuocAsync(

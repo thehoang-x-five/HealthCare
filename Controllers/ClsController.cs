@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using HealthCare.Attributes;
 using HealthCare.DTOs;
-using HealthCare.Services;
+using HealthCare.Services.OutpatientCare;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,6 +19,7 @@ namespace HealthCare.Controllers
         // ===== PHIẾU CLS =====
 
         [HttpPost("orders")]
+        [RequireRole("bac_si")]
         public async Task<ActionResult<ClsOrderDto>> TaoPhieuCls(
             [FromBody] ClsOrderCreateRequest request)
         {
@@ -86,6 +88,7 @@ namespace HealthCare.Controllers
         // ===== KẾT QUẢ CLS =====
 
         [HttpPost("results")]
+        [RequireRole("ky_thuat_vien")]
         public async Task<ActionResult<ClsResultDto>> TaoKetQua(
             [FromBody] ClsResultCreateRequest request)
         {

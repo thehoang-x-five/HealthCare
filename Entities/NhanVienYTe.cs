@@ -16,6 +16,7 @@ namespace HealthCare.Entities
         public string HoTen { get; set; } = default!;
         public string VaiTro { get; set; } = "bac_si"; // bac_si,y_ta
         public string? LoaiYTa { get; set; } // hanhchinh,ls,cls
+        public string ChucVu { get; set; } = "bac_si"; // bac_si, y_ta_hanh_chinh, y_ta_phong_kham, ky_thuat_vien, admin
         public string? Email { get; set; }
         public string? DienThoai { get; set; }
         public string TrangThaiCongTac { get; set; } = "dang_cong_tac"; // dang_cong_tac,tam_nghi,nghi_viec

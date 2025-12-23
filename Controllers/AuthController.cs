@@ -1,9 +1,9 @@
-﻿// AuthController.cs :contentReference[oaicite:5]{index=5}
+﻿// AuthController.cs
 using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using HealthCare.DTOs;
-using HealthCare.Services;
+using HealthCare.Services.UserInteraction;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

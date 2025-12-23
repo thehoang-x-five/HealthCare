@@ -10,8 +10,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using HealthCare.Hubs;
 using HealthCare.Realtime;
-using HealthCare.Services;
 using HealthCare.DTOs;
+// SOA Service Modules
+using HealthCare.Services.UserInteraction;
+using HealthCare.Services.MasterData;
+using HealthCare.Services.PatientManagement;
+using HealthCare.Services.OutpatientCare;
+using HealthCare.Services.MedicationBilling;
+using HealthCare.Services.Report;
+using HealthCare.Services.HttpClients;
 
 
 
@@ -39,6 +46,38 @@ builder.Services.AddMemoryCache();
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.Configure<OtpOptions>(builder.Configuration.GetSection("Otp"));
 
+// ===== HTTP Clients for SOA Communication =====
+builder.Services.AddHttpClient<IPatientServiceClient, PatientServiceClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:BaseUrl"] ?? "https://localhost:7001");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+builder.Services.AddHttpClient<IMasterDataServiceClient, MasterDataServiceClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:BaseUrl"] ?? "https://localhost:7001");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+builder.Services.AddHttpClient<IBillingServiceClient, BillingServiceClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:BaseUrl"] ?? "https://localhost:7001");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+builder.Services.AddHttpClient<IUserInteractionServiceClient, UserInteractionServiceClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:BaseUrl"] ?? "https://localhost:7001");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+builder.Services.AddHttpClient<IReportServiceClient, ReportServiceClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:BaseUrl"] ?? "https://localhost:7001");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+// ===== Services =====
 builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.AddScoped<IRealtimeService, RealtimeService>();
 builder.Services.AddScoped<IAuthService, AuthService>();

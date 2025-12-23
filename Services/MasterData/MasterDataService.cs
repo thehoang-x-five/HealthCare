@@ -7,7 +7,7 @@ using HealthCare.DTOs;
 using HealthCare.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace HealthCare.Services
+namespace HealthCare.Services.MasterData
 {
     public class MasterDataService(DataContext db) : IMasterDataService
     {

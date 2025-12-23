@@ -8,8 +8,10 @@ using HealthCare.Entities;
 using HealthCare.Realtime;
 using Microsoft.EntityFrameworkCore;
 using HealthCare.RenderID;
-using HealthCare.Services;
-namespace HealthCare.Services
+using HealthCare.Services.UserInteraction;
+using HealthCare.Services.Report;
+
+namespace HealthCare.Services.PatientManagement
 {
     public class AppointmentService(DataContext db, IRealtimeService realtime, INotificationService notifications, IDashboardService dashboard) : IAppointmentService
     {

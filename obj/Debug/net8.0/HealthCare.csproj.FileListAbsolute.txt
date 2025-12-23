@@ -196,4 +196,4 @@ D:\thehoang\HealthCare\HealthCare\obj\Debug\net8.0\staticwebassets.pack.json
 D:\thehoang\HealthCare\HealthCare\obj\Debug\net8.0\HealthCare.csproj.Up2Date
 D:\thehoang\HealthCare\HealthCare\obj\Debug\net8.0\HealthCare.genruntimeconfig.cache
 D:\thehoang\HealthCare\HealthCare\obj\Debug\net8.0\ref\HealthCare.dll
-D:\thehoang\HealthCare\HealthCare\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
+D:\thehoang\HealthCare\HealthCare\obj\Debug\net8.0\HealthCare.sourcelink.json

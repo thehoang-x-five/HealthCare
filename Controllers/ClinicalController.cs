@@ -1,7 +1,8 @@
 using System;
 using System.Threading.Tasks;
+using HealthCare.Attributes;
 using HealthCare.DTOs;
-using HealthCare.Services;
+using HealthCare.Services.OutpatientCare;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,6 +11,7 @@ namespace HealthCare.Controllers
     [ApiController]
     [Route("api/clinical")]
     [Authorize]
+    [RequireRole("bac_si")]
     public class ClinicalController(IClinicalService service) : ControllerBase
     {
         private readonly IClinicalService _service = service;

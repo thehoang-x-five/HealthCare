@@ -14,7 +14,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Caching.Memory;
 using HealthCare.Realtime;
-namespace HealthCare.Services
+using HealthCare.Services.Report;
+
+namespace HealthCare.Services.UserInteraction
 {
     public class AuthService(DataContext db, IConfiguration cfg, IRealtimeService realtime, IDashboardService dashboard, IMemoryCache cache) : IAuthService
     {
@@ -281,6 +283,9 @@ namespace HealthCare.Services
              // Vai trò trong hệ thống (bac_si, y_ta, admin, ...)
                 new Claim(ClaimTypes.Role, staff.VaiTro ?? "bac_si"),
                 new Claim("VaiTro", staff.VaiTro ?? "bac_si"),
+                
+                // Chức vụ chi tiết (bac_si, y_ta_hanh_chinh, y_ta_phong_kham, ky_thuat_vien, admin)
+                new Claim("ChucVu", staff.ChucVu ?? "bac_si"),
 
                 // Loại người nhận notification: NVYT
                 new Claim("LoaiNguoiNhan", "nhan_vien_y_te"),
@@ -340,6 +345,7 @@ namespace HealthCare.Services
                 TenDangNhap = staff.TenDangNhap,
                 HoTen = staff.HoTen,
                 VaiTro = staff.VaiTro,
+                ChucVu = staff.ChucVu,
                 LoaiYTa = staff.LoaiYTa,
                 MaKhoa = staff.MaKhoa,
                 Email = staff.Email,
@@ -372,6 +378,7 @@ namespace HealthCare.Services
                 MaNhanVien = staff.MaNhanVien,
                 HoTen = staff.HoTen,
                 VaiTro = staff.VaiTro,
+                ChucVu = staff.ChucVu,
                 MaKhoa = staff.MaKhoa,
 
                 TenDangNhap = staff.TenDangNhap,
