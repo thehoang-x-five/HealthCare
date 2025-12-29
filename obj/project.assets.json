@@ -4049,11 +4049,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\thehoang\\HealthCare\\HealthCare\\HealthCare.csproj",
+      "projectUniqueName": "C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\HealthCare\\HealthCare.csproj",
       "projectName": "HealthCare",
-      "projectPath": "D:\\thehoang\\HealthCare\\HealthCare\\HealthCare.csproj",
+      "projectPath": "C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\HealthCare\\HealthCare.csproj",
       "packagesPath": "C:\\Users\\THINKPAD\\.nuget\\packages\\",
-      "outputPath": "D:\\thehoang\\HealthCare\\HealthCare\\obj\\",
+      "outputPath": "C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\HealthCare\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

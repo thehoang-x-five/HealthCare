@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HealthCare.Migrations
 {
     [DbContext(typeof(DataContext))]
-    [Migration("20251209075349_newthe")]
-    partial class newthe
+    [Migration("20251229105505_the")]
+    partial class the
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -244,7 +244,6 @@ namespace HealthCare.Migrations
                         .HasColumnType("varchar(255)");
 
                     b.Property<string>("Nguon")
-                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("Nhan")
@@ -583,6 +582,10 @@ namespace HealthCare.Migrations
                         .HasColumnType("varchar(255)");
 
                     b.Property<string>("AnhDaiDien")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("ChucVu")
+                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("ChuyenMon")

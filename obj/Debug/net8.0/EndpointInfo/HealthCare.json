@@ -4670,6 +4670,10 @@
             "type": "string",
             "nullable": true
           },
+          "ChucVu": {
+            "type": "string",
+            "nullable": true
+          },
           "MaKhoa": {
             "type": "string",
             "nullable": true
@@ -8169,6 +8173,10 @@
             "nullable": true
           },
           "VaiTro": {
+            "type": "string",
+            "nullable": true
+          },
+          "ChucVu": {
             "type": "string",
             "nullable": true
           },

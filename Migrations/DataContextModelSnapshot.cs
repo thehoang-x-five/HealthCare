@@ -241,7 +241,6 @@ namespace HealthCare.Migrations
                         .HasColumnType("varchar(255)");
 
                     b.Property<string>("Nguon")
-                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("Nhan")
@@ -584,7 +583,7 @@ namespace HealthCare.Migrations
 
                     b.Property<string>("ChucVu")
                         .IsRequired()
-                        .HasColumnType("varchar(50)");
+                        .HasColumnType("longtext");
 
                     b.Property<string>("ChuyenMon")
                         .HasColumnType("longtext");

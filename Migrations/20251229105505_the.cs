@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace HealthCare.Migrations
 {
     /// <inheritdoc />
-    public partial class thenew : Migration
+    public partial class the : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -135,6 +135,8 @@ namespace HealthCare.Migrations
                     VaiTro = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     LoaiYTa = table.Column<string>(type: "longtext", nullable: true)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    ChucVu = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Email = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -484,7 +486,7 @@ namespace HealthCare.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     LoaiHangDoi = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    Nguon = table.Column<string>(type: "longtext", nullable: false)
+                    Nguon = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Nhan = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
@@ -537,7 +539,7 @@ namespace HealthCare.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     MaNhanSuThucHien = table.Column<string>(type: "varchar(255)", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    MaYTaHoTro = table.Column<string>(type: "varchar(255)", nullable: false)
+                    MaYTaHoTro = table.Column<string>(type: "varchar(255)", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     LoaiLuot = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
