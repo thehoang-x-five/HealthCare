@@ -538,10 +538,18 @@ namespace HealthCare.Services.OutpatientCare
                 query = query.Where(h => h.TrangThai == filter.TrangThai);
 
             if (filter.FromTime.HasValue)
-                query = query.Where(h => h.ThoiGianCheckin >= filter.FromTime.Value);
+            {
+                // ✅ Convert UTC to local time before comparing with DB datetime (which is stored as local)
+                var localFromTime = filter.FromTime.Value.ToLocalTime();
+                query = query.Where(h => h.ThoiGianCheckin >= localFromTime);
+            }
 
             if (filter.ToTime.HasValue)
-                query = query.Where(h => h.ThoiGianCheckin <= filter.ToTime.Value);
+            {
+                // ✅ Convert UTC to local time before comparing with DB datetime (which is stored as local)
+                var localToTime = filter.ToTime.Value.ToLocalTime();
+                query = query.Where(h => h.ThoiGianCheckin <= localToTime);
+            }
 
             var sortBy = filter.SortBy?.ToLowerInvariant();
             var sortDir = (filter.SortDirection ?? "asc").ToLowerInvariant();

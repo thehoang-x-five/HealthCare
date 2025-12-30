@@ -71,6 +71,7 @@
     {
         public string MaPhieuChanDoan { get; set;} = default!;
         public string MaPhieuKham { get; set;} = default!;
+        public string? MaBenhNhan { get; set;} // ✅ Thêm để frontend validate patient ID
         public string? MaDonThuoc { get; set;}
         public string? TenThuoc { get; set;} 
         public string? DonViTinh { get; set;} 
