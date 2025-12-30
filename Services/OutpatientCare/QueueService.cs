@@ -451,7 +451,7 @@ namespace HealthCare.Services.OutpatientCare
                 if (nhanSu is null)
                 {
                     var pageEmpty = filter.Page <= 0 ? 1 : filter.Page;
-                    var pageSizeEmpty = filter.PageSize <= 0 ? 500 : filter.PageSize;
+                    var pageSizeEmpty = filter.PageSize <= 0 ? 50 : filter.PageSize; // ✅ Chuẩn hóa: 50 items mặc định
 
                     return new PagedResult<QueueItemDto>
                     {
@@ -491,7 +491,7 @@ namespace HealthCare.Services.OutpatientCare
                     if (string.IsNullOrWhiteSpace(maPhongTruc))
                     {
                         var pageEmpty = filter.Page <= 0 ? 1 : filter.Page;
-                        var pageSizeEmpty = filter.PageSize <= 0 ? 500 : filter.PageSize;
+                        var pageSizeEmpty = filter.PageSize <= 0 ? 50 : filter.PageSize; // ✅ Chuẩn hóa: 50 items mặc định
 
                         return new PagedResult<QueueItemDto>
                         {
@@ -510,7 +510,7 @@ namespace HealthCare.Services.OutpatientCare
                     if (string.IsNullOrWhiteSpace(maPhongPhuTrach))
                     {
                         var pageEmpty = filter.Page <= 0 ? 1 : filter.Page;
-                        var pageSizeEmpty = filter.PageSize <= 0 ? 500 : filter.PageSize;
+                        var pageSizeEmpty = filter.PageSize <= 0 ? 50 : filter.PageSize; // ✅ Chuẩn hóa: 50 items mặc định
 
                         return new PagedResult<QueueItemDto>
                         {
@@ -568,7 +568,7 @@ namespace HealthCare.Services.OutpatientCare
             };
 
             var page = filter.Page <= 0 ? 1 : filter.Page;
-            var pageSize = filter.PageSize <= 0 ? 500 : filter.PageSize;
+            var pageSize = filter.PageSize <= 0 ? 50 : filter.PageSize; // ✅ Chuẩn hóa: 50 items mặc định
 
             var total = await query.CountAsync();
 

@@ -104,4 +104,10 @@
 
 
     }
+
+    public record class CompleteExamRequest
+    {
+        public bool ForceComplete { get; set;} = false; // Cho phép hoàn tất dù còn pending
+        public string? GhiChu { get; set;}
+    }
 }

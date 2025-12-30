@@ -529,33 +529,18 @@ namespace HealthCare.Services.OutpatientCare
                 chanDoan.LoiKhuyen = request.LoiKhuyen;
                 chanDoan.PhatDoDieuTri = request.PhatDoDieuTri;
 
-                // Cascade update: lượt -> queue -> phiếu -> bệnh nhân
-                var trangThaiLuot = string.IsNullOrWhiteSpace(request.TrangThaiLuot)
-                    ? "hoan_tat"
-                    : request.TrangThaiLuot;
-
-                if (luot is not null)
-                {
-                    luot.TrangThai = trangThaiLuot;
-                    if (request.ThoiGianKetThuc.HasValue)
-                        luot.ThoiGianKetThuc = request.ThoiGianKetThuc.Value;
-                    else
-                        luot.ThoiGianKetThuc ??= DateTime.Now;
-                }
-
-                if (hangDoi is not null)
-                {
-                    hangDoi.TrangThai = "da_phuc_vu";
-                    await _queue.CapNhatTrangThaiHangDoiAsync(
-                        hangDoi.MaHangDoi,
-                        new QueueStatusUpdateRequest { TrangThai = "da_phuc_vu" });
-                }
-
+                // ===== CHỈ LƯU CHẨN ĐOÁN, KHÔNG ĐÓNG PHIẾU =====
+                // Chuyển phiếu khám sang trạng thái "da_lap_chan_doan" (đã lập chẩn đoán, chờ xử lý)
                 await CapNhatTrangThaiPhieuKhamAsync(
                     phieu.MaPhieuKham,
-                    new ClinicalExamStatusUpdateRequest { TrangThai = "da_hoan_tat" });
+                    new ClinicalExamStatusUpdateRequest { TrangThai = "da_lap_chan_doan" });
 
+                // Cập nhật trạng thái bệnh nhân → cho_xu_ly (chờ xử lý chẩn đoán)
                 phieu.BenhNhan.TrangThaiHomNay = "cho_xu_ly";
+
+                // KHÔNG đóng lượt khám, hàng đợi ở đây
+                // Lượt khám vẫn: dang_kham
+                // Hàng đợi vẫn: dang_thuc_hien
 
                 await _db.SaveChangesAsync();
 
@@ -645,6 +630,130 @@ namespace HealthCare.Services.OutpatientCare
                 LoiKhuyen = chanDoan.LoiKhuyen,
                 PhatDoDieuTri = chanDoan.PhatDoDieuTri
             };
+        }
+
+        // ================== 4.1. HOÀN TẤT PHIẾU KHÁM ==================
+
+        public async Task<ClinicalExamDto> CompleteExamAsync(
+            string maPhieuKham,
+            CompleteExamRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(maPhieuKham))
+                throw new ArgumentException("MaPhieuKham là bắt buộc");
+
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var phieu = await _db.PhieuKhamLamSangs
+                    .Include(p => p.BenhNhan)
+                    .Include(p => p.HangDois)
+                        .ThenInclude(h => h.LuotKhamBenh)
+                    .Include(p => p.PhieuKhamCanLamSang)
+                    .Include(p => p.PhieuChanDoanCuoi)
+                        .ThenInclude(pcd => pcd.DonThuoc)
+                    .FirstOrDefaultAsync(p => p.MaPhieuKham == maPhieuKham)
+                    ?? throw new InvalidOperationException("Không tìm thấy phiếu khám");
+
+                // Chỉ cho phép hoàn tất nếu đã có chẩn đoán
+                if (phieu.TrangThai != "da_lap_chan_doan")
+                    throw new InvalidOperationException(
+                        "Phiếu khám chưa có chẩn đoán hoặc đã hoàn tất. Trạng thái hiện tại: " + phieu.TrangThai);
+
+                // Kiểm tra các bước xử lý đã xong chưa (nếu không force)
+                if (!request.ForceComplete)
+                {
+                    var hasPendingCls = await CheckClsPendingAsync(phieu);
+                    var hasPendingPrescription = await CheckPrescriptionPendingAsync(phieu);
+                    var hasPendingBilling = await CheckBillingPendingAsync(phieu);
+
+                    if (hasPendingCls)
+                        throw new InvalidOperationException("Còn dịch vụ CLS chưa hoàn tất.");
+
+                    if (hasPendingPrescription)
+                        throw new InvalidOperationException("Còn đơn thuốc chưa lấy.");
+
+                    if (hasPendingBilling)
+                        throw new InvalidOperationException("Còn thanh toán chưa xong.");
+                }
+
+                // Đóng tất cả
+                var hangDoi = phieu.HangDois;
+                var luot = hangDoi?.LuotKhamBenh;
+
+                if (luot is not null)
+                {
+                    luot.TrangThai = "hoan_tat";
+                    luot.ThoiGianKetThuc = DateTime.Now;
+                }
+
+                if (hangDoi is not null)
+                {
+                    hangDoi.TrangThai = "da_phuc_vu";
+                    await _queue.CapNhatTrangThaiHangDoiAsync(
+                        hangDoi.MaHangDoi,
+                        new QueueStatusUpdateRequest { TrangThai = "da_phuc_vu" });
+                }
+
+                await CapNhatTrangThaiPhieuKhamAsync(
+                    phieu.MaPhieuKham,
+                    new ClinicalExamStatusUpdateRequest { TrangThai = "da_hoan_tat" });
+
+                phieu.BenhNhan.TrangThaiHomNay = null; // Hoàn tất, không cần trạng thái
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                var dto = await LayPhieuKhamAsync(maPhieuKham);
+                await _realtime.BroadcastClinicalExamUpdatedAsync(dto);
+
+                var dashboard = await _dashboard.LayDashboardHomNayAsync();
+                await _realtime.BroadcastDashboardTodayAsync(dashboard);
+
+                return dto;
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+        private async Task<bool> CheckClsPendingAsync(PhieuKhamLamSang phieu)
+        {
+            // Nếu không có phiếu CLS → không cần check
+            if (phieu.PhieuKhamCanLamSang == null) return false;
+
+            var cls = phieu.PhieuKhamCanLamSang;
+            // Chỉ pending nếu trạng thái không phải "da_hoan_tat" và không phải "da_huy"
+            return cls.TrangThai != "da_hoan_tat" && cls.TrangThai != "da_huy";
+        }
+
+        private async Task<bool> CheckPrescriptionPendingAsync(PhieuKhamLamSang phieu)
+        {
+            var chanDoan = phieu.PhieuChanDoanCuoi;
+            if (chanDoan?.MaDonThuoc == null) return false;
+
+            var donThuoc = await _db.DonThuocs
+                .FirstOrDefaultAsync(d => d.MaDonThuoc == chanDoan.MaDonThuoc);
+
+            // Đơn thuốc chưa được phát (TrangThai != "da_phat")
+            // Trạng thái: da_ke, cho_phat, da_phat
+            return donThuoc != null && donThuoc.TrangThai != "da_phat";
+        }
+
+        private async Task<bool> CheckBillingPendingAsync(PhieuKhamLamSang phieu)
+        {
+            // Kiểm tra có hóa đơn chưa thu tiền không
+            // Nếu không có hóa đơn nào cho phiếu này, coi như không cần thanh toán (đã miễn phí)
+            var hoaDon = await _db.HoaDonThanhToans
+                .FirstOrDefaultAsync(h => h.MaPhieuKham == phieu.MaPhieuKham);
+
+            // Nếu không có hóa đơn → không cần thanh toán → không pending
+            if (hoaDon == null) return false;
+
+            // Hóa đơn chưa thu tiền (TrangThai != "da_thu")
+            // Trạng thái: da_thu, da_huy
+            return hoaDon.TrangThai != "da_thu";
         }
 
         // ================== 5. SEARCH + PAGING ==================

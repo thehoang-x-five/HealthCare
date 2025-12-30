@@ -1,12 +1,1 @@
-{
-  "Version": 1,
-  "Hash": "TRq5xK6qhKQXCogMdW0yfm3Di3aKXODqYMQfP6nvW4c=",
-  "Source": "HealthCare",
-  "BasePath": "_content/HealthCare",
-  "Mode": "Default",
-  "ManifestType": "Build",
-  "ReferencedProjectsConfiguration": [],
-  "DiscoveryPatterns": [],
-  "Assets": [],
-  "Endpoints": []
-}
+{"Version":1,"Hash":"wmw0RZdjnJiVhoQdrSnZg0tecYbB+YKhaJ5tSLuNG0Q=","Source":"HealthCare","BasePath":"/","Mode":"Root","ManifestType":"Build","ReferencedProjectsConfiguration":[],"DiscoveryPatterns":[],"Assets":[],"Endpoints":[]}

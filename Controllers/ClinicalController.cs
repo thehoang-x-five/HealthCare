@@ -69,6 +69,27 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
+        [HttpPost("{maPhieuKham}/complete")]
+        public async Task<ActionResult<ClinicalExamDto>> CompleteExam(
+            string maPhieuKham,
+            [FromBody] CompleteExamRequest? request = null)
+        {
+            try
+            {
+                request ??= new CompleteExamRequest();
+                var result = await _service.CompleteExamAsync(maPhieuKham, request);
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpGet("search")]
         public async Task<ActionResult<PagedResult<ClinicalExamDto>>> Search(
             [FromQuery] string? maBenhNhan,

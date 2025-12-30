@@ -474,7 +474,7 @@ namespace HealthCare.Services.OutpatientCare
             int pageSize)
         {
             page = page <= 0 ? 1 : page;
-            pageSize = pageSize <= 0 ? 500 : pageSize;
+            pageSize = pageSize <= 0 ? 50 : pageSize; // ✅ Chuẩn hóa: 50 items mặc định
 
             var query =
                 from cls in _db.PhieuKhamCanLamSangs.AsNoTracking()
@@ -867,6 +867,8 @@ namespace HealthCare.Services.OutpatientCare
             var phieuCls = await _db.PhieuKhamCanLamSangs
                 .Include(p => p.PhieuKhamLamSang)
                     .ThenInclude(ls => ls.BenhNhan)
+                .Include(p => p.PhieuKhamLamSang)
+                    .ThenInclude(ls => ls.DichVuKham)
                 .FirstOrDefaultAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls)
                     ?? throw new InvalidOperationException("Không tìm thấy phiếu CLS");
 
@@ -925,25 +927,62 @@ namespace HealthCare.Services.OutpatientCare
                 summary.ThoiGianXuLy = now;
             }
 
-            // ===== PATCH: gắn mã phiếu tổng hợp vào lại phiếu khám LS =====
+            // ===== Gắn mã phiếu tổng hợp vào lại phiếu khám LS =====
             phieuLs.MaPhieuKqKhamCls = summary.MaPhieuTongHop;
-
-            // Đây là thời điểm "lấy lại phiếu LS cũ đó đẩy lại vào queue phòng khám".
-            // Nếu queue phòng khám của anh dựa trên trạng thái phiếu LS:
-            //   - Có thể chỉnh về trạng thái chờ khám lại, ví dụ "da_lap" (tùy nghiệp vụ).
-            // Ví dụ (chỉ là gợi ý, anh sửa theo rule thực tế):
-            // if (phieuLs.TrangThai == "dang_kham")
-            // {
-            //     phieuLs.TrangThai = "da_lap";
-            // }
-
-            // Nếu anh có bảng HangDoi / Queue riêng cho phòng khám thì có thể gọi
-            // 1 hàm re-enqueue tại đây, ví dụ:
-            // await RequeueClinicalExamToClinicAsync(phieuLs);
-            // (em không đoán schema HangDoi nên để TODO cho anh tự map cho đúng)
-            // ===== HẾT PATCH =====
-
             await _db.SaveChangesAsync();
+
+            // ===== Tạo lại hàng chờ cho phiếu LS để quay lại khám =====
+            // Tìm hàng chờ hiện có của phiếu LS
+            var queueExisting = await _db.HangDois
+                .Include(h => h.PhieuKhamLamSang)
+                    .ThenInclude(p => p.DichVuKham)
+                .FirstOrDefaultAsync(h => h.MaPhieuKham == phieuLs.MaPhieuKham);
+
+            var maPhongKham = phieuLs.DichVuKham?.MaPhongThucHien;
+            
+            if (queueExisting is not null && !string.IsNullOrWhiteSpace(maPhongKham))
+            {
+                // Cập nhật hàng chờ hiện có: chuyển về "cho_goi", Nguon = "service_return"
+                // Cập nhật hàng chờ hiện có: chuyển về "cho_goi", Nguon = "service_return"
+                // CapNhatThongTinHangDoiAsync đã tự động set TrangThai = "cho_goi"
+                await _queue.CapNhatThongTinHangDoiAsync(queueExisting.MaHangDoi, new QueueEnqueueRequest
+                {
+                    MaBenhNhan = phieuLs.MaBenhNhan,
+                    MaPhong = maPhongKham,
+                    LoaiHangDoi = "kham_lam_sang",
+                    Nguon = "service_return",
+                    Nhan = null,
+                    CapCuu = false,
+                    DoUuTien = 0, // QueueService sẽ tự tính độ ưu tiên cho service_return
+                    ThoiGianLichHen = null,
+                    MaPhieuKham = phieuLs.MaPhieuKham,
+                    MaChiTietDv = null,
+                    PhanLoaiDen = null
+                });
+            }
+            else if (!string.IsNullOrWhiteSpace(maPhongKham))
+            {
+                // Tạo hàng chờ mới nếu chưa có (trường hợp hiếm - hàng chờ bị xóa)
+                await _queue.ThemVaoHangDoiAsync(new QueueEnqueueRequest
+                {
+                    MaBenhNhan = phieuLs.MaBenhNhan,
+                    MaPhong = maPhongKham,
+                    LoaiHangDoi = "kham_lam_sang",
+                    Nguon = "service_return",
+                    Nhan = null,
+                    CapCuu = false,
+                    DoUuTien = 0,
+                    ThoiGianLichHen = null,
+                    MaPhieuKham = phieuLs.MaPhieuKham,
+                    MaChiTietDv = null,
+                    PhanLoaiDen = null
+                });
+            }
+
+            // Cập nhật trạng thái bệnh nhân → cho_kham (chờ khám lại)
+            await _patients.CapNhatTrangThaiBenhNhanAsync(
+                phieuLs.MaBenhNhan,
+                new PatientStatusUpdateRequest { TrangThaiHomNay = "cho_kham" });
 
             var dto = new ClsSummaryDto
             {

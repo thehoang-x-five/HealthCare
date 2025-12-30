@@ -56,7 +56,7 @@ namespace HealthCare.DTOs
         public string? SortDirection { get; set; } = "asc";
 
         public int Page { get; set; } = 1;
-        public int PageSize { get; set; } = 500;
+        public int PageSize { get; set; } = 50; // ✅ Chuẩn hóa: 50 items mặc định
     }
 
     // ===================== ĐƠN THUỐC (ORDERS) =====================

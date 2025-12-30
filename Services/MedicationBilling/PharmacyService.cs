@@ -140,7 +140,7 @@ namespace HealthCare.Services.MedicationBilling
             };
 
             var page = filter.Page <= 0 ? 1 : filter.Page;
-            var pageSize = filter.PageSize <= 0 ? 500 : filter.PageSize;
+            var pageSize = filter.PageSize <= 0 ? 50 : filter.PageSize; // ✅ Chuẩn hóa: 50 items mặc định
 
             var totalItems = await query.CountAsync();
 
@@ -414,7 +414,7 @@ namespace HealthCare.Services.MedicationBilling
             }
 
             page = page <= 0 ? 1 : page;
-            pageSize = pageSize <= 0 ? 500 : pageSize;
+            pageSize = pageSize <= 0 ? 50 : pageSize; // ✅ Chuẩn hóa: 50 items mặc định
 
             var totalItems = await query.CountAsync();
 

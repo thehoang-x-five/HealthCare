@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "QQaTf1B+/do=",
+  "dgSpecHash": "7YpBjyLamnU=",
   "success": true,
-  "projectFilePath": "C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\HealthCare\\HealthCare.csproj",
+  "projectFilePath": "C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\HealthCare.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\THINKPAD\\.nuget\\packages\\bcrypt.net-core\\1.6.0\\bcrypt.net-core.1.6.0.nupkg.sha512",
     "C:\\Users\\THINKPAD\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",

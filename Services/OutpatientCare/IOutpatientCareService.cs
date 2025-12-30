@@ -30,6 +30,9 @@ namespace HealthCare.Services.OutpatientCare
         // ===== CHẨN ĐOÁN CUỐI =====
         Task<FinalDiagnosisDto> TaoChanDoanCuoiAsync(FinalDiagnosisCreateRequest request);
         Task<FinalDiagnosisDto?> LayChanDoanCuoiAsync(string maPhieuKham);
+        
+        // ===== HOÀN TẤT PHIẾU KHÁM =====
+        Task<ClinicalExamDto> CompleteExamAsync(string maPhieuKham, CompleteExamRequest request);
     }
 
     public interface IClsService
