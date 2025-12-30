@@ -386,9 +386,19 @@ namespace HealthCare.Services.OutpatientCare
 
                 if (!string.IsNullOrWhiteSpace(maBenhNhan2))
                 {
-                    await _patients.CapNhatTrangThaiBenhNhanAsync(
-                        maBenhNhan2,
-                        new PatientStatusUpdateRequest { TrangThaiHomNay = "cho_kham_dv" });
+                    Console.WriteLine($"[CLS] Updating patient {maBenhNhan2} status to cho_kham_dv");
+                    try
+                    {
+                        await _patients.CapNhatTrangThaiBenhNhanAsync(
+                            maBenhNhan2,
+                            new PatientStatusUpdateRequest { TrangThaiHomNay = "cho_kham_dv" });
+                        Console.WriteLine($"[CLS] Patient status updated successfully");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[CLS] Failed to update patient status: {ex.Message}");
+                        throw;
+                    }
                 }
 
                 if (firstCt is not null)

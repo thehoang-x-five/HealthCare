@@ -975,7 +975,7 @@ namespace HealthCare.Datas
                     NgayLap = ngayLap,
                     GioLap = gioLap,
                     TrieuChung = trieuChung,
-                    TrangThai = (ngayLap.Date == today) ? "dang_kham" : "da_hoan_tat"
+                    TrangThai = (ngayLap.Date == today) ? "dang_thuc_hien" : "da_hoan_tat"
                 });
             }
 

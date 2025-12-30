@@ -382,7 +382,7 @@ namespace HealthCare.Services.OutpatientCare
 
                     LoaiLuot = loaiLuot,
                     TrangThai = string.IsNullOrWhiteSpace(request.TrangThai)
-                        ? "dang_kham"
+                        ? "dang_thuc_hien"
                         : request.TrangThai,
                 };
 
@@ -471,7 +471,7 @@ namespace HealthCare.Services.OutpatientCare
                     maBenhNhan!,
                     new PatientStatusUpdateRequest
                     {
-                        TrangThaiHomNay = !laPhongDichVu ? "dang_kham" : "dang_kham_dv"
+                        TrangThaiHomNay = !laPhongDichVu ? "dang_thuc_hien" : "dang_kham_dv"
                     });
             }
 

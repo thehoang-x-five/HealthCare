@@ -196,9 +196,9 @@ namespace HealthCare.Services.Report
             todayCls.Count(p => p.TrangThai == "da_lap");
             
                         // Đang khám / đang thực hiện:
-                       //  - LS: "dang_kham"
+                       //  - LS: "dang_thuc_hien"
                        //  - CLS: "dang_thuc_hien"
-           int dangKham = todayLs.Count(p => p.TrangThai == "dang_kham") +
+           int dangKham = todayLs.Count(p => p.TrangThai == "dang_thuc_hien") +
            todayCls.Count(p => p.TrangThai == "dang_thuc_hien");
            
                         // Đã hoàn tất:

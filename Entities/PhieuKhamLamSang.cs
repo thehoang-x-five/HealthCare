@@ -20,7 +20,7 @@ namespace HealthCare.Entities
         public DateTime NgayLap { get; set; }
         public TimeSpan GioLap { get; set; }
         public string? TrieuChung { get; set; }
-        public string TrangThai { get; set; } = "da_lap"; // da_lap,dang_kham,da_hoan_tat,da_huy
+        public string TrangThai { get; set; } = "da_lap"; // da_lap,dang_thuc_hien,da_lap_chan_doan,da_hoan_tat,da_huy
 
 
         public BenhNhan BenhNhan { get; set; } = default!;

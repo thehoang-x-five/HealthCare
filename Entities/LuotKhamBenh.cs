@@ -14,7 +14,7 @@ namespace HealthCare.Entities
         public string LoaiLuot { get; set; } = "kham_lam_sang"; // kham_lam_sang,can_lam_sang
         public DateTime ThoiGianBatDau { get; set; }
         public DateTime? ThoiGianKetThuc { get; set; }
-        public string TrangThai { get; set; } = "dang_kham"; // dang_kham,hoan_tat
+        public string TrangThai { get; set; } = "dang_thuc_hien"; // dang_thuc_hien,hoan_tat
 
         public HangDoi HangDoi { get; set; } = default!;
 

@@ -182,7 +182,7 @@ namespace HealthCare.DTOs
         public string? LoaiLuot { get; set; } // kham_lam_sang,can_lam_sang
 
      
-        public string TrangThai { get; set; } = "dang_thuc_hien"; // dang_kham,hoan_tat
+        public string TrangThai { get; set; } = "dang_thuc_hien"; // dang_thuc_hien,hoan_tat
 
     }
 
