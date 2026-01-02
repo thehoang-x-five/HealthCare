@@ -96,6 +96,32 @@ namespace HealthCare.DTOs
 
         public DateTime? FromTime { get; set;}
         public DateTime? ToTime { get; set;}
+
+        /// <summary>
+        /// Tìm kiếm trong tiêu đề và nội dung thông báo.
+        /// </summary>
+        public string? Keyword { get; set;}
+
+        /// <summary>
+        /// Loại thông báo: he_thong, lich_hen, benh_nhan, nha_thuoc, thanh_toan, result, reminder.
+        /// </summary>
+        public string? LoaiThongBao { get; set;}
+
+        /// <summary>
+        /// Mức độ ưu tiên: cao, thuong.
+        /// </summary>
+        public string? MucDoUuTien { get; set;}
+
+        /// <summary>
+        /// Sắp xếp theo: ThoiGianGui, MucDoUuTien.
+        /// </summary>
+        public string? SortBy { get; set;}
+
+        /// <summary>
+        /// Hướng sắp xếp: asc, desc.
+        /// </summary>
+        public string? SortDirection { get; set;} = "desc";
+
         public int Page { get; set;} = 1;
         public int PageSize { get; set;} = 50;
     }

@@ -83,7 +83,9 @@ namespace HealthCare.Services.MedicationBilling
 
         public async Task<PagedResult<DrugDto>> TimKiemThuocAsync(DrugSearchFilter filter)
         {
-            var query = _db.KhoThuocs.AsNoTracking().AsQueryable();
+            var query = _db.KhoThuocs
+                .AsNoTracking()
+                .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(filter.Keyword))
             {
@@ -98,6 +100,13 @@ namespace HealthCare.Services.MedicationBilling
             if (!string.IsNullOrWhiteSpace(filter.TrangThai))
             {
                 query = query.Where(k => k.TrangThai == filter.TrangThai);
+            }
+
+            // ✅ Filter theo DonViTinh
+            if (!string.IsNullOrWhiteSpace(filter.DonViTinh))
+            {
+                var donVi = filter.DonViTinh.Trim();
+                query = query.Where(k => k.DonViTinh != null && k.DonViTinh.Contains(donVi));
             }
 
             if (filter.HanSuDungFrom.HasValue)
@@ -386,6 +395,7 @@ namespace HealthCare.Services.MedicationBilling
             DateTime? fromDate,
             DateTime? toDate,
             string? trangThai,
+            string? keyword,
             int page,
             int pageSize)
         {
@@ -411,6 +421,19 @@ namespace HealthCare.Services.MedicationBilling
             if (!string.IsNullOrWhiteSpace(trangThai))
             {
                 query = query.Where(d => d.TrangThai == trangThai);
+            }
+
+            // ✅ Keyword search: tìm trong MaDonThuoc, MaBenhNhan, TenBenhNhan, TenBacSiKeDon, ChanDoan
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                var kw = keyword.Trim();
+                query = query.Where(d =>
+                    d.MaDonThuoc.Contains(kw) ||
+                    d.MaBenhNhan.Contains(kw) ||
+                    (d.BenhNhan != null && d.BenhNhan.HoTen.Contains(kw)) ||
+                    (d.BacSiKeDon != null && d.BacSiKeDon.HoTen.Contains(kw)) ||
+                    (d.PhieuChanDoanCuoi != null && d.PhieuChanDoanCuoi.ChanDoanCuoi != null && 
+                     d.PhieuChanDoanCuoi.ChanDoanCuoi.Contains(kw)));
             }
 
             page = page <= 0 ? 1 : page;

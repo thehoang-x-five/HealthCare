@@ -530,26 +530,38 @@ namespace HealthCare.Services.OutpatientCare
                 query = query.Where(h => h.MaPhong == filter.MaPhong);
             }
 
-            // ====== các filter còn lại giữ nguyên ======
+            // ====== các filter còn lại ======
             if (!string.IsNullOrWhiteSpace(filter.LoaiHangDoi))
                 query = query.Where(h => h.LoaiHangDoi == filter.LoaiHangDoi);
 
             if (!string.IsNullOrWhiteSpace(filter.TrangThai))
                 query = query.Where(h => h.TrangThai == filter.TrangThai);
 
-            if (filter.FromTime.HasValue)
+            // ✅ Filter theo Nguon
+            if (!string.IsNullOrWhiteSpace(filter.Nguon))
+                query = query.Where(h => h.Nguon == filter.Nguon);
+
+            // ✅ Keyword search: tìm trong tên BN, mã BN, tên BS, tên khoa, SĐT
+            if (!string.IsNullOrWhiteSpace(filter.Keyword))
             {
-                // ✅ Convert UTC to local time before comparing with DB datetime (which is stored as local)
-                var localFromTime = filter.FromTime.Value.ToLocalTime();
-                query = query.Where(h => h.ThoiGianCheckin >= localFromTime);
+                var kw = filter.Keyword.Trim();
+                query = query
+                    .Include(h => h.BenhNhan)
+                    .Include(h => h.Phong)
+                        .ThenInclude(p => p.KhoaChuyenMon)
+                    .Where(h =>
+                        (h.BenhNhan != null && h.BenhNhan.HoTen.Contains(kw)) ||
+                        (h.BenhNhan != null && h.BenhNhan.MaBenhNhan.Contains(kw)) ||
+                        (h.BenhNhan != null && h.BenhNhan.DienThoai != null && h.BenhNhan.DienThoai.Contains(kw)) ||
+                        (h.Phong != null && h.Phong.KhoaChuyenMon != null && h.Phong.KhoaChuyenMon.TenKhoa.Contains(kw)) ||
+                        (h.Nhan != null && h.Nhan.Contains(kw)));
             }
 
+            if (filter.FromTime.HasValue)
+                query = query.Where(h => h.ThoiGianCheckin >= filter.FromTime.Value);
+
             if (filter.ToTime.HasValue)
-            {
-                // ✅ Convert UTC to local time before comparing with DB datetime (which is stored as local)
-                var localToTime = filter.ToTime.Value.ToLocalTime();
-                query = query.Where(h => h.ThoiGianCheckin <= localToTime);
-            }
+                query = query.Where(h => h.ThoiGianCheckin <= filter.ToTime.Value);
 
             var sortBy = filter.SortBy?.ToLowerInvariant();
             var sortDir = (filter.SortDirection ?? "asc").ToLowerInvariant();

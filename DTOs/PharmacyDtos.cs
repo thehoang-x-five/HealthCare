@@ -38,6 +38,7 @@ namespace HealthCare.DTOs
     {
         public string? Keyword { get; set; }      // Tên, mã, số lô...
         public string? TrangThai { get; set; }    // hoat_dong, het_han, tam_ngung...
+        public string? DonViTinh { get; set; }    // Đơn vị tính
 
         public DateTime? HanSuDungFrom { get; set; }
         public DateTime? HanSuDungTo { get; set; }

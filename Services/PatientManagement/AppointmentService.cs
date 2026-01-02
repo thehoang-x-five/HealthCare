@@ -506,6 +506,11 @@ namespace HealthCare.Services.PatientManagement
                     if (l.NgayHen.Date != entity.NgayHen.Date)
                         return false;
 
+                    // ✅ CRITICAL: Chỉ check trùng giờ nếu CÙNG BÁC SĨ (cùng MaLichTruc)
+                    // Nếu khác bác sĩ thì không coi là trùng
+                    if (l.MaLichTruc != entity.MaLichTruc)
+                        return false;
+
                     var startA = l.GioHen;
                     var durA = l.ThoiLuongPhut > 0 ? l.ThoiLuongPhut : 30;
                     var endA = startA + TimeSpan.FromMinutes(durA);

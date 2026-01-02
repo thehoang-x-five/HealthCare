@@ -575,6 +575,7 @@ namespace HealthCare.Services.OutpatientCare
                 {
                     MaPhieuChanDoan = chanDoan.MaPhieuChanDoan,
                     MaPhieuKham = chanDoan.MaPhieuKham,
+                    MaBenhNhan = maBenhNhan,  // ✅ Thêm MaBenhNhan
                     MaDonThuoc = chanDoan.MaDonThuoc,
                     ChanDoanSoBo = chanDoan.ChanDoanSoBo,
                     ChanDoanCuoi = chanDoan.ChanDoanCuoi,
@@ -614,7 +615,7 @@ namespace HealthCare.Services.OutpatientCare
 
             var chanDoan = await _db.PhieuChanDoanCuois
                 .AsNoTracking()
-                .Include(c => c.PhieuKhamLamSang) // ✅ Include để lấy MaBenhNhan
+                .Include(c => c.PhieuKhamLamSang)  // ✅ Include để lấy MaBenhNhan
                 .FirstOrDefaultAsync(c => c.MaPhieuKham == maPhieuKham);
 
             if (chanDoan is null) return null;
@@ -623,7 +624,7 @@ namespace HealthCare.Services.OutpatientCare
             {
                 MaPhieuChanDoan = chanDoan.MaPhieuChanDoan,
                 MaPhieuKham = chanDoan.MaPhieuKham,
-                MaBenhNhan = chanDoan.PhieuKhamLamSang?.MaBenhNhan, // ✅ Lấy từ phiếu khám
+                MaBenhNhan = chanDoan.PhieuKhamLamSang?.MaBenhNhan,  // ✅ Lấy từ PhieuKhamLamSang
                 MaDonThuoc = chanDoan.MaDonThuoc,
                 ChanDoanSoBo = chanDoan.ChanDoanSoBo,
                 ChanDoanCuoi = chanDoan.ChanDoanCuoi,

@@ -96,6 +96,8 @@
 
         public string? LoaiHangDoi { get; set; }
         public string? TrangThai { get; set; }
+        public string? Nguon { get; set; }  // appointment, walkin, service_return...
+        public string? Keyword { get; set; }  // Tìm kiếm trong tên BN, mã BN, tên BS, tên khoa, SĐT
         public DateTime? FromTime { get; set; }
         public DateTime? ToTime { get; set; }
 

@@ -112,11 +112,12 @@ namespace HealthCare.Controllers
             [FromQuery] DateTime? fromDate,
             [FromQuery] DateTime? toDate,
             [FromQuery] string? trangThai,
+            [FromQuery] string? keyword,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 50)
         {
             var result = await _pharmacyService.TimKiemDonThuocAsync(
-                maBenhNhan, fromDate, toDate, trangThai, page, pageSize);
+                maBenhNhan, fromDate, toDate, trangThai, keyword, page, pageSize);
 
             return Ok(result);
         }

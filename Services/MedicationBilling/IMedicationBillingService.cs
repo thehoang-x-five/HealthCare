@@ -28,6 +28,7 @@ namespace HealthCare.Services.MedicationBilling
             DateTime? fromDate,
             DateTime? toDate,
             string? trangThai,
+            string? keyword,
             int page,
             int pageSize);
     }

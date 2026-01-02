@@ -175,14 +175,67 @@ namespace HealthCare.Services.UserInteraction
                 query = query.Where(x => x.tb.ThoiGianGui <= filter.ToTime.Value);
             }
 
+            // Keyword search (tìm trong tiêu đề và nội dung)
+            if (!string.IsNullOrWhiteSpace(filter.Keyword))
+            {
+                var kw = filter.Keyword.Trim();
+                query = query.Where(x =>
+                    (x.tb.TieuDe != null && x.tb.TieuDe.Contains(kw)) ||
+                    (x.tb.NoiDung != null && x.tb.NoiDung.Contains(kw)));
+            }
+
+            // LoaiThongBao filter
+            if (!string.IsNullOrWhiteSpace(filter.LoaiThongBao))
+            {
+                query = query.Where(x => x.tb.LoaiThongBao == filter.LoaiThongBao);
+            }
+
+            // MucDoUuTien filter (map từ filter.MucDoUuTien sang field DoUuTien trong DB)
+            if (!string.IsNullOrWhiteSpace(filter.MucDoUuTien))
+            {
+                query = query.Where(x => x.tb.DoUuTien == filter.MucDoUuTien);
+            }
+
             // -------------------------
-            // 3) Phân trang + map DTO
+            // 3) Sorting
+            // -------------------------
+            var sortBy = filter.SortBy?.Trim();
+            var sortDir = filter.SortDirection?.Trim().ToLowerInvariant() ?? "desc";
+
+            if (sortBy == "MucDoUuTien" || sortBy == "mucDoUuTien" || sortBy == "DoUuTien")
+            {
+                // Sort by priority: cao = 0, thuong = 1, others = 2
+                if (sortDir == "asc")
+                {
+                    query = query.OrderBy(x => x.tb.DoUuTien == "cao" ? 0 : x.tb.DoUuTien == "thuong" ? 1 : 2)
+                                 .ThenByDescending(x => x.tb.ThoiGianGui);
+                }
+                else
+                {
+                    query = query.OrderByDescending(x => x.tb.DoUuTien == "cao" ? 0 : x.tb.DoUuTien == "thuong" ? 1 : 2)
+                                 .ThenByDescending(x => x.tb.ThoiGianGui);
+                }
+            }
+            else
+            {
+                // Default: sort by ThoiGianGui
+                if (sortDir == "asc")
+                {
+                    query = query.OrderBy(x => x.tb.ThoiGianGui);
+                }
+                else
+                {
+                    query = query.OrderByDescending(x => x.tb.ThoiGianGui);
+                }
+            }
+
+            // -------------------------
+            // 4) Phân trang + map DTO
             // -------------------------
 
             var total = await query.CountAsync();
 
             var data = await query
-                .OrderByDescending(x => x.tb.ThoiGianGui)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
