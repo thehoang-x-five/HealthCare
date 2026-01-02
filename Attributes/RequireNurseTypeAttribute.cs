@@ -13,6 +13,14 @@ namespace HealthCare.Attributes
     {
         private readonly string[] _allowedNurseTypes;
 
+        // Mapping giữa tên mới và tên cũ trong database
+        private static readonly Dictionary<string, string[]> NurseTypeAliases = new()
+        {
+            { "hanhchinh", new[] { "hanhchinh", "hanh_chinh", "y_ta_hanh_chinh" } },
+            { "phong_kham", new[] { "phong_kham", "ls", "lam_sang", "y_ta_lam_sang" } },
+            { "can_lam_sang", new[] { "can_lam_sang", "cls", "y_ta_can_lam_sang" } }
+        };
+
         public RequireNurseTypeAttribute(params string[] allowedNurseTypes)
         {
             _allowedNurseTypes = allowedNurseTypes;
@@ -47,8 +55,31 @@ namespace HealthCare.Attributes
                 return;
             }
 
-            // Kiểm tra xem LoaiYTa có trong danh sách được phép không
-            if (!_allowedNurseTypes.Contains(loaiYTa))
+            // ✅ Kiểm tra xem LoaiYTa có khớp với bất kỳ alias nào không (case-insensitive)
+            bool isAllowed = false;
+            foreach (var allowedType in _allowedNurseTypes)
+            {
+                if (NurseTypeAliases.TryGetValue(allowedType, out var aliases))
+                {
+                    // Kiểm tra với tất cả các alias (case-insensitive)
+                    if (aliases.Any(alias => string.Equals(alias, loaiYTa, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        isAllowed = true;
+                        break;
+                    }
+                }
+                else
+                {
+                    // Fallback: so sánh trực tiếp (case-insensitive)
+                    if (string.Equals(allowedType, loaiYTa, StringComparison.OrdinalIgnoreCase))
+                    {
+                        isAllowed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!isAllowed)
             {
                 context.Result = new ObjectResult(new
                 {

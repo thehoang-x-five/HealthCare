@@ -17,10 +17,10 @@ namespace HealthCare.Controllers
     {
         private readonly IClinicalService _service = service;
 
-        // ✅ Y tá hành chính hoặc Bác sĩ có thể tạo phiếu khám
+        // ✅ CHỈ Y tá hành chính có thể tạo phiếu khám (Bác sĩ KHÔNG có quyền)
         [HttpPost]
-        [RequireRole("y_ta", "bac_si")]
-        [RequireNurseType("hanhchinh", "phong_kham")] // Chỉ Y tá hành chính hoặc phòng khám
+        [RequireRole("y_ta")]
+        [RequireNurseType("hanhchinh")] // Chỉ Y tá hành chính
         public async Task<ActionResult<ClinicalExamDto>> TaoPhieuKham(
             [FromBody] ClinicalExamCreateRequest request)
         {
@@ -48,10 +48,10 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
-        // ✅ Cập nhật trạng thái - Y tá hành chính/phòng khám và Bác sĩ
+        // ✅ Cập nhật trạng thái - CHỈ Y tá hành chính (Bác sĩ KHÔNG có quyền)
         [HttpPut("{maPhieuKham}/status")]
-        [RequireRole("y_ta", "bac_si")]
-        [RequireNurseType("hanhchinh", "phong_kham")]
+        [RequireRole("y_ta")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<ClinicalExamDto>> CapNhatTrangThai(
             string maPhieuKham,
             [FromBody] ClinicalExamStatusUpdateRequest request)
