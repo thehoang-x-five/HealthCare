@@ -1,0 +1,58 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\Migrations\\20260102093535_The.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Migrations\\20260102093535_The.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{6E3C9865-5399-40A5-A2D3-B71E19AA2961}|HealthCare.csproj|c:\\users\\thinkpad\\documents\\github\\healthcare\\datas\\dataseed.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{6E3C9865-5399-40A5-A2D3-B71E19AA2961}|HealthCare.csproj|solutionrelative:datas\\dataseed.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "20260102093535_The.cs",
+              "DocumentMoniker": "C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\Migrations\\20260102093535_The.cs",
+              "RelativeDocumentMoniker": "Migrations\\20260102093535_The.cs",
+              "ToolTip": "C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\Migrations\\20260102093535_The.cs",
+              "RelativeToolTip": "Migrations\\20260102093535_The.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-02T09:35:35.326Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "DataSeed.cs",
+              "DocumentMoniker": "C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\Datas\\DataSeed.cs",
+              "RelativeDocumentMoniker": "Datas\\DataSeed.cs",
+              "ToolTip": "C:\\Users\\THINKPAD\\Documents\\GitHub\\HealthCare\\Datas\\DataSeed.cs",
+              "RelativeToolTip": "Datas\\DataSeed.cs",
+              "ViewState": "AgIAAF4CAAAAAAAAAAAwwGcCAACdAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-02T09:34:57.347Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{eefa5220-e298-11d0-8f78-00a0c9110057}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

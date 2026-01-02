@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using HealthCare.Attributes;
 using HealthCare.DTOs;
 using HealthCare.Services.PatientManagement;
 using Microsoft.AspNetCore.Authorization;
@@ -77,10 +78,12 @@ namespace HealthCare.Controllers
         }
 
         /// <summary>
-        /// Tạo lịch hẹn mới
+        /// Tạo lịch hẹn mới - CHỈ Y tá HC + Admin
         /// </summary>
         [HttpPost]
         [Authorize]
+        [RequireRole("y_ta")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<AppointmentReadRequestDto>> Create(
             [FromBody] AppointmentCreateRequestDto request)
         {
@@ -117,10 +120,12 @@ namespace HealthCare.Controllers
         }
 
         /// <summary>
-        /// Cập nhật trạng thái lịch hẹn (dang_cho / da_xac_nhan / da_checkin / da_huy)
+        /// Cập nhật trạng thái lịch hẹn (dang_cho / da_xac_nhan / da_checkin / da_huy) - CHỈ Y tá HC + Admin
         /// </summary>
         [HttpPut("{maLichHen}/status")]
         [Authorize]
+        [RequireRole("y_ta")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<AppointmentReadRequestDto>> UpdateStatus(
             string maLichHen,
             [FromBody] AppointmentStatusUpdateRequest request)
@@ -159,10 +164,12 @@ namespace HealthCare.Controllers
         }
 
         /// <summary>
-        /// Cập nhật thông tin lịch hẹn (ngày, giờ, ghi chú...)
+        /// Cập nhật thông tin lịch hẹn (ngày, giờ, ghi chú...) - CHỈ Y tá HC + Admin
         /// </summary>
         [HttpPut("{maLichHen}")]
         [Authorize]
+        [RequireRole("y_ta")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<AppointmentReadRequestDto>> Update(
             string maLichHen,
             [FromBody] AppointmentUpdateRequest request)

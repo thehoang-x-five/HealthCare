@@ -19,7 +19,8 @@ namespace HealthCare.Controllers
         // ===== PHIẾU CLS =====
 
         [HttpPost("orders")]
-        [RequireRole("bac_si")]
+        [RequireRole("bac_si", "y_ta")]
+        [RequireNurseType("phong_kham")]
         public async Task<ActionResult<ClsOrderDto>> TaoPhieuCls(
             [FromBody] ClsOrderCreateRequest request)
         {
@@ -36,6 +37,8 @@ namespace HealthCare.Controllers
         }
 
         [HttpPut("orders/{maPhieuKhamCls}/status")]
+        [RequireRole("ky_thuat_vien", "y_ta")]
+        [RequireNurseType("can_lam_sang")]
         public async Task<ActionResult<ClsOrderDto>> CapNhatTrangThaiPhieu(
             string maPhieuKhamCls,
             [FromBody] string trangThai)
@@ -88,7 +91,8 @@ namespace HealthCare.Controllers
         // ===== KẾT QUẢ CLS =====
 
         [HttpPost("results")]
-        [RequireRole("ky_thuat_vien")]
+        [RequireRole("ky_thuat_vien", "y_ta")]
+        [RequireNurseType("can_lam_sang")]
         public async Task<ActionResult<ClsResultDto>> TaoKetQua(
             [FromBody] ClsResultCreateRequest request)
         {
@@ -107,6 +111,8 @@ namespace HealthCare.Controllers
         // ===== TỔNG HỢP KQ =====
 
         [HttpPost("summary/{maPhieuKhamCls}")]
+        [RequireRole("ky_thuat_vien", "y_ta")]
+        [RequireNurseType("can_lam_sang")]
         public async Task<ActionResult<ClsSummaryDto>> TaoTongHop(string maPhieuKhamCls)
         {
             var result = await _service.TaoTongHopAsync(maPhieuKhamCls);
@@ -155,6 +161,8 @@ namespace HealthCare.Controllers
         }
 
         [HttpPut("summary/{maPhieuTongHop}")]
+        [RequireRole("ky_thuat_vien", "y_ta")]
+        [RequireNurseType("can_lam_sang")]
         public async Task<ActionResult<ClsSummaryDto>> CapNhatSummary(
             string maPhieuTongHop,
             [FromBody] ClsSummaryUpdateRequest request)

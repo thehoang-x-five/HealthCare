@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using HealthCare.Attributes;
 using HealthCare.DTOs;
 using HealthCare.Services.PatientManagement;
 using Microsoft.AspNetCore.Authorization;
@@ -15,9 +16,11 @@ namespace HealthCare.Controllers
         private readonly IPatientService _patients = patients;
 
         /// <summary>
-        /// Tạo mới hoặc cập nhật bệnh nhân.
+        /// Tạo mới hoặc cập nhật bệnh nhân - CHỈ Y tá HC + Admin
         /// </summary>
         [HttpPost]
+        [RequireRole("y_ta")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<PatientDto>> UpsertPatient(
             [FromBody] PatientCreateUpdateRequest request)
         {
@@ -92,9 +95,11 @@ namespace HealthCare.Controllers
 
 
         /// <summary>
-        /// Cập nhật trạng thái trong ngày của bệnh nhân (cho_tiep_nhan, cho_kham, dang_kham, ...).
+        /// Cập nhật trạng thái trong ngày của bệnh nhân (cho_tiep_nhan, cho_kham, dang_kham, ...) - CHỈ Y tá HC + Admin
         /// </summary>
         [HttpPut("{maBenhNhan}/status")]
+        [RequireRole("y_ta")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<PatientDto>> UpdateDailyStatus(
             [FromRoute] string maBenhNhan,
             [FromBody] PatientStatusUpdateRequest request)

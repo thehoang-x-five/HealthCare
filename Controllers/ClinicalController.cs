@@ -11,12 +11,16 @@ namespace HealthCare.Controllers
     [ApiController]
     [Route("api/clinical")]
     [Authorize]
-    [RequireRole("bac_si")]
+    // ❌ REMOVED: [RequireRole("bac_si")] - Không áp dụng cho toàn controller
+    // ✅ Sẽ áp dụng RequireRole riêng cho từng endpoint theo vai trò phù hợp
     public class ClinicalController(IClinicalService service) : ControllerBase
     {
         private readonly IClinicalService _service = service;
 
+        // ✅ Y tá hành chính hoặc Bác sĩ có thể tạo phiếu khám
         [HttpPost]
+        [RequireRole("y_ta", "bac_si")]
+        [RequireNurseType("hanhchinh", "phong_kham")] // Chỉ Y tá hành chính hoặc phòng khám
         public async Task<ActionResult<ClinicalExamDto>> TaoPhieuKham(
             [FromBody] ClinicalExamCreateRequest request)
         {
@@ -35,6 +39,7 @@ namespace HealthCare.Controllers
             }
         }
 
+        // ✅ Xem phiếu khám - tất cả vai trò có thể xem
         [HttpGet("{maPhieuKham}")]
         public async Task<ActionResult<ClinicalExamDto>> LayPhieuKham(string maPhieuKham)
         {
@@ -43,7 +48,10 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
+        // ✅ Cập nhật trạng thái - Y tá hành chính/phòng khám và Bác sĩ
         [HttpPut("{maPhieuKham}/status")]
+        [RequireRole("y_ta", "bac_si")]
+        [RequireNurseType("hanhchinh", "phong_kham")]
         public async Task<ActionResult<ClinicalExamDto>> CapNhatTrangThai(
             string maPhieuKham,
             [FromBody] ClinicalExamStatusUpdateRequest request)
@@ -53,7 +61,10 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
+        // ✅ Chẩn đoán - Bác sĩ + Y tá LS
         [HttpPost("final-diagnosis")]
+        [RequireRole("bac_si", "y_ta")]
+        [RequireNurseType("phong_kham")]
         public async Task<ActionResult<FinalDiagnosisDto>> TaoHoacCapNhatChanDoan(
             [FromBody] FinalDiagnosisCreateRequest request)
         {
@@ -61,6 +72,7 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
+        // ✅ Xem chẩn đoán - tất cả vai trò
         [HttpGet("{maPhieuKham}/final-diagnosis")]
         public async Task<ActionResult<FinalDiagnosisDto>> LayChanDoanCuoi(string maPhieuKham)
         {
@@ -69,7 +81,10 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
+        // ✅ Hoàn tất khám - Bác sĩ + Y tá LS
         [HttpPost("{maPhieuKham}/complete")]
+        [RequireRole("bac_si", "y_ta")]
+        [RequireNurseType("phong_kham")]
         public async Task<ActionResult<ClinicalExamDto>> CompleteExam(
             string maPhieuKham,
             [FromBody] CompleteExamRequest? request = null)
@@ -90,6 +105,7 @@ namespace HealthCare.Controllers
             }
         }
 
+        // ✅ Tìm kiếm - tất cả vai trò
         [HttpGet("search")]
         public async Task<ActionResult<PagedResult<ClinicalExamDto>>> Search(
             [FromQuery] string? maBenhNhan,

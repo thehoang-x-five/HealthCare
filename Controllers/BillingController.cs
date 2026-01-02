@@ -11,7 +11,7 @@ namespace HealthCare.Controllers
     [ApiController]
     [Route("api/billing")]
     [Authorize]
-    [RequireRole("y_ta_hanh_chinh")]
+    [RequireRole("y_ta_hanh_chinh", "bac_si", "y_ta", "admin", "quan_tri_vien")]
     public class BillingController(IBillingService billingService) : ControllerBase
     {
         private readonly IBillingService _billingService = billingService;

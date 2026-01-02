@@ -6,6 +6,7 @@ namespace HealthCare.Attributes
 {
     /// <summary>
     /// Attribute để kiểm tra quyền truy cập dựa trên ChucVu của nhân viên
+    /// Admin luôn có quyền truy cập
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
     public class RequireRoleAttribute : Attribute, IAuthorizationFilter
@@ -32,13 +33,19 @@ namespace HealthCare.Attributes
                 return;
             }
 
+            // ✅ Admin luôn có quyền
+            if (chucVuClaim == "admin")
+            {
+                return; // Bypass kiểm tra
+            }
+
             // Kiểm tra xem ChucVu có trong danh sách được phép không
             if (!_allowedRoles.Contains(chucVuClaim))
             {
                 // Không có quyền -> Forbidden
                 context.Result = new ObjectResult(new
                 {
-                    message = $"Bạn không có quyền truy cập. Yêu cầu chức vụ: {string.Join(", ", _allowedRoles)}"
+                    message = $"Bạn không có quyền truy cập. Yêu cầu chức vụ: {string.Join(", ", _allowedRoles)} hoặc admin"
                 })
                 {
                     StatusCode = 403
