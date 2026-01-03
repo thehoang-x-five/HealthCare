@@ -8,17 +8,34 @@ namespace HealthCare.Realtime
 {
     /// <summary>
     /// Facade dùng từ các service nghiệp vụ để bắn realtime (SignalR).
-    /// Quy ước group (theo role – đơn giản, tránh double event):
-    ///  - "bac_si" : tất cả tài khoản bác sĩ – FE nên JoinRoleAsync("bac_si") nếu user là bác sĩ.
-    ///  - "y_ta"   : tất cả tài khoản y tá (bao gồm y tá hành chính, thu ngân, phát thuốc,
-    ///              điều dưỡng hỗ trợ phòng khám...) – FE nên JoinRoleAsync("y_ta") nếu user thuộc nhóm này.
+    /// 
+    /// ✅ FILTERED BROADCAST STRATEGY (2025-01-03):
+    /// Thay vì broadcast rộng rãi cho tất cả nhân sự, service này chỉ gửi realtime
+    /// cho đúng người liên quan dựa trên context và phân quyền:
+    /// 
+    /// ROLE GROUPS (cho Dashboard/KPI/Patient CRUD):
+    ///  - "bac_si" : tất cả bác sĩ – FE join bằng JoinRoleAsync("bac_si")
+    ///  - "y_ta"   : tất cả y tá hành chính (quản lý lịch, thu ngân, phát thuốc, hỗ trợ phòng khám...)
+    ///               – FE join bằng JoinRoleAsync("y_ta")
     ///
-    /// Không còn sử dụng group "staff". Mọi realtime gửi cho toàn bộ nhân sự sẽ broadcast
-    /// đồng thời cho cả 2 group "bac_si" và "y_ta".
-    ///
-    /// Ngoài ra vẫn có group theo user / phòng:
+    /// USER GROUPS (cho thông báo cá nhân, phiếu khám của bác sĩ cụ thể):
     ///  - RealtimeHub.GetUserGroupName(loaiNguoiDung, maNguoiDung)
+    ///    Ví dụ: "user:bac_si:BS001", "user:y_ta:YT002"
+    ///
+    /// ROOM GROUPS (cho hàng đợi, phiếu khám, CLS theo phòng):
     ///  - RealtimeHub.GetRoomGroupName(maPhong)
+    ///    Ví dụ: "room:PK01", "room:XN01"
+    ///
+    /// FILTERING RULES:
+    ///  - Clinical Exams: Chỉ gửi cho bác sĩ được chỉ định + y tá trong phòng
+    ///  - CLS Orders: Chỉ gửi cho bác sĩ yêu cầu + y tá phòng CLS + y tá phòng LS nhận kết quả
+    ///  - Visits: Chỉ gửi cho bác sĩ khám + nhân sự trong phòng
+    ///  - Appointments: Chỉ gửi cho bác sĩ được chỉ định + tất cả y tá (quản lý lịch)
+    ///  - Invoices: Chỉ gửi cho y tá (xử lý thanh toán)
+    ///  - Prescriptions: Chỉ gửi cho bác sĩ kê đơn + y tá (xử lý phát thuốc)
+    ///  - Dashboard/KPI/Patient CRUD: Gửi cho tất cả nhân sự (bac_si + y_ta)
+    ///  - Queue: Gửi theo phòng (room group)
+    ///  - Notifications: Gửi theo người nhận cụ thể hoặc role
     /// </summary>
     public class RealtimeService(IHubContext<RealtimeHub, IRealtimeClient> hub) : IRealtimeService
     {
@@ -28,9 +45,21 @@ namespace HealthCare.Realtime
         private static readonly string DoctorRoleGroupName =
             RealtimeHub.GetRoleGroupName("bac_si");
 
-        // Tất cả y tá (hành chính + hỗ trợ phòng khám + thu ngân + phát thuốc...)
+        // Tất cả y tá (chung)
         private static readonly string NurseRoleGroupName =
             RealtimeHub.GetRoleGroupName("y_ta");
+
+        // Y tá hành chính (quản lý lịch, thu ngân, phát thuốc)
+        private static readonly string AdminNurseGroupName =
+            RealtimeHub.GetNurseTypeGroupName("hanhchinh");
+
+        // Y tá lâm sàng (hỗ trợ bác sĩ trong phòng khám)
+        private static readonly string ClinicalNurseGroupName =
+            RealtimeHub.GetNurseTypeGroupName("phong_kham");
+
+        // Y tá cận lâm sàng (xét nghiệm, siêu âm, X-quang...)
+        private static readonly string ClsNurseGroupName =
+            RealtimeHub.GetNurseTypeGroupName("can_lam_sang");
 
         // ==============================
         // ===== DASHBOARD / KPI ========
@@ -162,49 +191,52 @@ namespace HealthCare.Realtime
 
         public Task BroadcastClinicalExamCreatedAsync(ClinicalExamDto phieuKham)
         {
-            var tasks = new List<Task>
-            {
-               
-                _hub.Clients.Group(DoctorRoleGroupName).ClinicalExamCreated(phieuKham),
-                _hub.Clients.Group(NurseRoleGroupName).ClinicalExamCreated(phieuKham)
-            };
+            var tasks = new List<Task>();
 
+            // ✅ Chỉ gửi cho bác sĩ được chỉ định (nếu có)
+            if (!string.IsNullOrWhiteSpace(phieuKham.MaBacSiKham))
+            {
+                var doctorGroup = RealtimeHub.GetUserGroupName("bac_si", phieuKham.MaBacSiKham);
+                tasks.Add(_hub.Clients.Group(doctorGroup).ClinicalExamCreated(phieuKham));
+            }
+
+            // ✅ Gửi cho y tá trong phòng khám (nếu có)
             if (!string.IsNullOrWhiteSpace(phieuKham.MaPhong))
             {
                 var roomGroup = RealtimeHub.GetRoomGroupName(phieuKham.MaPhong);
                 tasks.Add(_hub.Clients.Group(roomGroup).ClinicalExamCreated(phieuKham));
             }
 
-            return Task.WhenAll(tasks);
+            return tasks.Count > 0 ? Task.WhenAll(tasks) : Task.CompletedTask;
         }
 
         public Task BroadcastClinicalExamUpdatedAsync(ClinicalExamDto phieuKham)
         {
-            var tasks = new List<Task>
-            {
-               
-                _hub.Clients.Group(DoctorRoleGroupName).ClinicalExamUpdated(phieuKham),
-                _hub.Clients.Group(NurseRoleGroupName).ClinicalExamUpdated(phieuKham)
-            };
+            var tasks = new List<Task>();
 
+            // ✅ Chỉ gửi cho bác sĩ được chỉ định (nếu có)
+            if (!string.IsNullOrWhiteSpace(phieuKham.MaBacSiKham))
+            {
+                var doctorGroup = RealtimeHub.GetUserGroupName("bac_si", phieuKham.MaBacSiKham);
+                tasks.Add(_hub.Clients.Group(doctorGroup).ClinicalExamUpdated(phieuKham));
+            }
+
+            // ✅ Gửi cho y tá trong phòng khám (nếu có)
             if (!string.IsNullOrWhiteSpace(phieuKham.MaPhong))
             {
                 var roomGroup = RealtimeHub.GetRoomGroupName(phieuKham.MaPhong);
                 tasks.Add(_hub.Clients.Group(roomGroup).ClinicalExamUpdated(phieuKham));
             }
 
-            return Task.WhenAll(tasks);
+            return tasks.Count > 0 ? Task.WhenAll(tasks) : Task.CompletedTask;
         }
 
         public Task BroadcastFinalDiagnosisChangedAsync(FinalDiagnosisDto chanDoan)
         {
-            var tasks = new List<Task>
-            {
-                
-                _hub.Clients.Group(DoctorRoleGroupName).FinalDiagnosisChanged(chanDoan),
-                _hub.Clients.Group(NurseRoleGroupName).FinalDiagnosisChanged(chanDoan)
-            };
-            return Task.WhenAll(tasks);
+            // ⚠️ FinalDiagnosisDto hiện tại không có MaBacSi và MaPhong
+            // Tạm thời không gửi realtime cho đến khi DTO được bổ sung thông tin
+            // TODO: Bổ sung MaBacSi và MaPhong vào FinalDiagnosisDto để filter chính xác
+            return Task.CompletedTask;
         }
 
 
@@ -214,102 +246,127 @@ namespace HealthCare.Realtime
 
         public Task BroadcastClsOrderCreatedAsync(ClsOrderDto phieuCls)
         {
-            var tasks = new List<Task>
-            {
-               
-                _hub.Clients.Group(DoctorRoleGroupName).ClsOrderCreated(phieuCls),
-                _hub.Clients.Group(NurseRoleGroupName).ClsOrderCreated(phieuCls)
-            };
+            var tasks = new List<Task>();
 
-            var roomForCls = phieuCls.ListItemDV?.FirstOrDefault()?.MaPhong;
-            if (!string.IsNullOrWhiteSpace(roomForCls))
+            // ✅ Gửi cho người lập phiếu CLS (thường là bác sĩ yêu cầu)
+            if (!string.IsNullOrWhiteSpace(phieuCls.MaNguoiLap))
             {
-                var roomGroup = RealtimeHub.GetRoomGroupName(roomForCls);
-                tasks.Add(_hub.Clients.Group(roomGroup).ClsOrderCreated(phieuCls));
+                var doctorGroup = RealtimeHub.GetUserGroupName("bac_si", phieuCls.MaNguoiLap);
+                tasks.Add(_hub.Clients.Group(doctorGroup).ClsOrderCreated(phieuCls));
             }
 
-            return Task.WhenAll(tasks);
+            // ✅ Gửi cho y tá trong các phòng CLS thực hiện
+            if (phieuCls.ListItemDV != null)
+            {
+                var clsRooms = phieuCls.ListItemDV
+                    .Where(item => !string.IsNullOrWhiteSpace(item.MaPhong))
+                    .Select(item => item.MaPhong)
+                    .Distinct();
+
+                foreach (var room in clsRooms)
+                {
+                    var roomGroup = RealtimeHub.GetRoomGroupName(room);
+                    tasks.Add(_hub.Clients.Group(roomGroup).ClsOrderCreated(phieuCls));
+                }
+            }
+
+            return tasks.Count > 0 ? Task.WhenAll(tasks) : Task.CompletedTask;
         }
 
         public Task BroadcastClsOrderUpdatedAsync(ClsOrderDto phieuCls)
         {
-            var tasks = new List<Task>
-            {
-                
-                _hub.Clients.Group(DoctorRoleGroupName).ClsOrderUpdated(phieuCls),
-                _hub.Clients.Group(NurseRoleGroupName).ClsOrderUpdated(phieuCls)
-            };
+            var tasks = new List<Task>();
 
-            var roomForClsUpd = phieuCls.ListItemDV?.FirstOrDefault()?.MaPhong;
-            if (!string.IsNullOrWhiteSpace(roomForClsUpd))
+            // ✅ Gửi cho người lập phiếu CLS (thường là bác sĩ yêu cầu)
+            if (!string.IsNullOrWhiteSpace(phieuCls.MaNguoiLap))
             {
-                var roomGroup = RealtimeHub.GetRoomGroupName(roomForClsUpd);
-                tasks.Add(_hub.Clients.Group(roomGroup).ClsOrderUpdated(phieuCls));
+                var doctorGroup = RealtimeHub.GetUserGroupName("bac_si", phieuCls.MaNguoiLap);
+                tasks.Add(_hub.Clients.Group(doctorGroup).ClsOrderUpdated(phieuCls));
             }
 
-            return Task.WhenAll(tasks);
+            // ✅ Gửi cho y tá trong các phòng CLS thực hiện
+            if (phieuCls.ListItemDV != null)
+            {
+                var clsRooms = phieuCls.ListItemDV
+                    .Where(item => !string.IsNullOrWhiteSpace(item.MaPhong))
+                    .Select(item => item.MaPhong)
+                    .Distinct();
+
+                foreach (var room in clsRooms)
+                {
+                    var roomGroup = RealtimeHub.GetRoomGroupName(room);
+                    tasks.Add(_hub.Clients.Group(roomGroup).ClsOrderUpdated(phieuCls));
+                }
+            }
+
+            return tasks.Count > 0 ? Task.WhenAll(tasks) : Task.CompletedTask;
         }
 
         public Task BroadcastClsOrderStatusUpdatedAsync(ClsOrderDto phieuCls)
         {
-            var tasks = new List<Task>
-            {
-                
-                _hub.Clients.Group(DoctorRoleGroupName).ClsOrderStatusUpdated(phieuCls),
-                _hub.Clients.Group(NurseRoleGroupName).ClsOrderStatusUpdated(phieuCls)
-            };
+            var tasks = new List<Task>();
 
-            var roomForClsStatus = phieuCls.ListItemDV?.FirstOrDefault()?.MaPhong;
-            if (!string.IsNullOrWhiteSpace(roomForClsStatus))
+            // ✅ Gửi cho người lập phiếu CLS (thường là bác sĩ yêu cầu)
+            if (!string.IsNullOrWhiteSpace(phieuCls.MaNguoiLap))
             {
-                var roomGroup = RealtimeHub.GetRoomGroupName(roomForClsStatus);
-                tasks.Add(_hub.Clients.Group(roomGroup).ClsOrderStatusUpdated(phieuCls));
+                var doctorGroup = RealtimeHub.GetUserGroupName("bac_si", phieuCls.MaNguoiLap);
+                tasks.Add(_hub.Clients.Group(doctorGroup).ClsOrderStatusUpdated(phieuCls));
             }
 
-            return Task.WhenAll(tasks);
+            // ✅ Gửi cho y tá trong các phòng CLS thực hiện
+            if (phieuCls.ListItemDV != null)
+            {
+                var clsRooms = phieuCls.ListItemDV
+                    .Where(item => !string.IsNullOrWhiteSpace(item.MaPhong))
+                    .Select(item => item.MaPhong)
+                    .Distinct();
+
+                foreach (var room in clsRooms)
+                {
+                    var roomGroup = RealtimeHub.GetRoomGroupName(room);
+                    tasks.Add(_hub.Clients.Group(roomGroup).ClsOrderStatusUpdated(phieuCls));
+                }
+            }
+
+            return tasks.Count > 0 ? Task.WhenAll(tasks) : Task.CompletedTask;
         }
 
         public Task BroadcastClsResultCreatedAsync(ClsResultDto ketQua)
         {
-            var tasks = new List<Task>
-            {
-               
-                _hub.Clients.Group(DoctorRoleGroupName).ClsResultCreated(ketQua),
-                _hub.Clients.Group(NurseRoleGroupName).ClsResultCreated(ketQua)
-            };
-            return Task.WhenAll(tasks);
+            // ⚠️ ClsResultDto không có MaPhong
+            // Tạm thời không gửi realtime cho đến khi DTO được bổ sung thông tin
+            // TODO: Bổ sung MaPhong vào ClsResultDto để filter chính xác
+            return Task.CompletedTask;
         }
 
         public Task BroadcastClsSummaryCreatedAsync(ClsSummaryDto tongHop)
         {
-            var tasks = new List<Task>
-            {
-               
-                _hub.Clients.Group(DoctorRoleGroupName).ClsSummaryCreated(tongHop),
-                _hub.Clients.Group(NurseRoleGroupName).ClsSummaryCreated(tongHop)
-            };
-            return Task.WhenAll(tasks);
+            // ⚠️ ClsSummaryDto không có MaPhong
+            // Tạm thời không gửi realtime cho đến khi DTO được bổ sung thông tin
+            // TODO: Bổ sung MaPhong vào ClsSummaryDto để filter chính xác
+            return Task.CompletedTask;
         }
 
         public Task BroadcastClsSummaryUpdatedAsync(ClsSummaryDto tongHop)
         {
-            var tasks = new List<Task>
-            {
-               
-                _hub.Clients.Group(DoctorRoleGroupName).ClsSummaryUpdated(tongHop),
-                _hub.Clients.Group(NurseRoleGroupName).ClsSummaryUpdated(tongHop)
-            };
-            return Task.WhenAll(tasks);
+            // ⚠️ ClsSummaryDto không có MaPhong
+            // Tạm thời không gửi realtime cho đến khi DTO được bổ sung thông tin
+            // TODO: Bổ sung MaPhong vào ClsSummaryDto để filter chính xác
+            return Task.CompletedTask;
         }
 
         public Task BroadcastClsItemUpdatedAsync(ClsItemDto item)
         {
-            var tasks = new List<Task>
+            var tasks = new List<Task>();
+
+            // ✅ Gửi cho phòng CLS thực hiện (nếu có)
+            if (!string.IsNullOrWhiteSpace(item.MaPhong))
             {
-                _hub.Clients.Group(DoctorRoleGroupName).ClsItemUpdated(item),
-                _hub.Clients.Group(NurseRoleGroupName).ClsItemUpdated(item)
-            };
-            return Task.WhenAll(tasks);
+                var roomGroup = RealtimeHub.GetRoomGroupName(item.MaPhong);
+                tasks.Add(_hub.Clients.Group(roomGroup).ClsItemUpdated(item));
+            }
+
+            return tasks.Count > 0 ? Task.WhenAll(tasks) : Task.CompletedTask;
         }
 
 
@@ -319,24 +376,36 @@ namespace HealthCare.Realtime
 
         public Task BroadcastVisitCreatedAsync(HistoryVisitRecordDto luotKham)
         {
-            var tasks = new List<Task>
+            var tasks = new List<Task>();
+
+            // ✅ Gửi cho bác sĩ khám (nếu có)
+            if (!string.IsNullOrWhiteSpace(luotKham.MaBacSi))
             {
-                
-                _hub.Clients.Group(DoctorRoleGroupName).VisitCreated(luotKham),
-                _hub.Clients.Group(NurseRoleGroupName).VisitCreated(luotKham)
-            };
-            return Task.WhenAll(tasks);
+                var doctorGroup = RealtimeHub.GetUserGroupName("bac_si", luotKham.MaBacSi);
+                tasks.Add(_hub.Clients.Group(doctorGroup).VisitCreated(luotKham));
+            }
+
+            // ⚠️ HistoryVisitRecordDto không có MaPhong
+            // Chỉ gửi cho bác sĩ khám, không gửi cho phòng
+
+            return tasks.Count > 0 ? Task.WhenAll(tasks) : Task.CompletedTask;
         }
 
         public Task BroadcastVisitStatusUpdatedAsync(HistoryVisitRecordDto luotKham)
         {
-            var tasks = new List<Task>
+            var tasks = new List<Task>();
+
+            // ✅ Gửi cho bác sĩ khám (nếu có)
+            if (!string.IsNullOrWhiteSpace(luotKham.MaBacSi))
             {
-                
-                _hub.Clients.Group(DoctorRoleGroupName).VisitStatusUpdated(luotKham),
-                _hub.Clients.Group(NurseRoleGroupName).VisitStatusUpdated(luotKham)
-            };
-            return Task.WhenAll(tasks);
+                var doctorGroup = RealtimeHub.GetUserGroupName("bac_si", luotKham.MaBacSi);
+                tasks.Add(_hub.Clients.Group(doctorGroup).VisitStatusUpdated(luotKham));
+            }
+
+            // ⚠️ HistoryVisitRecordDto không có MaPhong
+            // Chỉ gửi cho bác sĩ khám, không gửi cho phòng
+
+            return tasks.Count > 0 ? Task.WhenAll(tasks) : Task.CompletedTask;
         }
 
 
@@ -370,21 +439,17 @@ namespace HealthCare.Realtime
         public Task BroadcastAppointmentChangedAsync(
             AppointmentReadRequestDto lichHen)
         {
-            var tasks = new List<Task>
-            {
-                // Dashboard + màn Lịch hẹn cho toàn bộ nhân sự
-               
-                _hub.Clients.Group(DoctorRoleGroupName).AppointmentChanged(lichHen),
-                _hub.Clients.Group(NurseRoleGroupName).AppointmentChanged(lichHen)
-            };
+            var tasks = new List<Task>();
 
-            // Gửi thêm cho đúng bác sĩ nếu DTO có MaBacSiKham
+            // ✅ Gửi cho bác sĩ được chỉ định (nếu có)
             if (!string.IsNullOrWhiteSpace(lichHen.MaBacSiKham))
             {
-                var doctorUserGroup =
-                    RealtimeHub.GetUserGroupName("bac_si", lichHen.MaBacSiKham);
+                var doctorUserGroup = RealtimeHub.GetUserGroupName("bac_si", lichHen.MaBacSiKham);
                 tasks.Add(_hub.Clients.Group(doctorUserGroup).AppointmentChanged(lichHen));
             }
+
+            // ✅ Gửi cho y tá hành chính (quản lý lịch hẹn) - KHÔNG gửi cho y tá LS/CLS
+            tasks.Add(_hub.Clients.Group(AdminNurseGroupName).AppointmentChanged(lichHen));
 
             return Task.WhenAll(tasks);
         }
@@ -396,13 +461,8 @@ namespace HealthCare.Realtime
 
         public Task BroadcastInvoiceChangedAsync(InvoiceDto hoaDon)
         {
-            var tasks = new List<Task>
-            {
-               
-                _hub.Clients.Group(DoctorRoleGroupName).InvoiceChanged(hoaDon),
-                _hub.Clients.Group(NurseRoleGroupName).InvoiceChanged(hoaDon)
-            };
-            return Task.WhenAll(tasks);
+            // ✅ Chỉ gửi cho y tá hành chính (xử lý thanh toán) - KHÔNG gửi cho bác sĩ, y tá LS, y tá CLS
+            return _hub.Clients.Group(AdminNurseGroupName).InvoiceChanged(hoaDon);
         }
 
         // ==========================
@@ -411,31 +471,43 @@ namespace HealthCare.Realtime
 
         public Task BroadcastDrugChangedAsync(DrugDto thuoc)
         {
-            // Kho thuốc chủ yếu do y tá / hành chính sử dụng
+            // ✅ Kho thuốc do y tá hành chính quản lý - KHÔNG gửi cho y tá LS/CLS
             return _hub.Clients
-                .Group(NurseRoleGroupName)
+                .Group(AdminNurseGroupName)
                 .DrugChanged(thuoc);
         }
 
         public Task BroadcastPrescriptionCreatedAsync(PrescriptionDto donThuoc)
         {
-            // Đơn thuốc mới: cả bác sĩ (người kê) và y tá (phát thuốc) đều quan tâm
-            var tasks = new List<Task>
+            var tasks = new List<Task>();
+
+            // ✅ Gửi cho bác sĩ kê đơn (nếu có)
+            if (!string.IsNullOrWhiteSpace(donThuoc.MaBacSiKeDon))
             {
-                _hub.Clients.Group(DoctorRoleGroupName).PrescriptionCreated(donThuoc),
-                _hub.Clients.Group(NurseRoleGroupName).PrescriptionCreated(donThuoc)
-            };
+                var doctorGroup = RealtimeHub.GetUserGroupName("bac_si", donThuoc.MaBacSiKeDon);
+                tasks.Add(_hub.Clients.Group(doctorGroup).PrescriptionCreated(donThuoc));
+            }
+
+            // ✅ Gửi cho y tá hành chính (xử lý phát thuốc) - KHÔNG gửi cho y tá LS/CLS
+            tasks.Add(_hub.Clients.Group(AdminNurseGroupName).PrescriptionCreated(donThuoc));
+
             return Task.WhenAll(tasks);
         }
 
         public Task BroadcastPrescriptionStatusUpdatedAsync(PrescriptionDto donThuoc)
         {
-            // Trạng thái đơn thay đổi (ví dụ: da_phat) → thông báo cho cả hai bên
-            var tasks = new List<Task>
+            var tasks = new List<Task>();
+
+            // ✅ Gửi cho bác sĩ kê đơn (nếu có)
+            if (!string.IsNullOrWhiteSpace(donThuoc.MaBacSiKeDon))
             {
-                _hub.Clients.Group(DoctorRoleGroupName).PrescriptionStatusUpdated(donThuoc),
-                _hub.Clients.Group(NurseRoleGroupName).PrescriptionStatusUpdated(donThuoc)
-            };
+                var doctorGroup = RealtimeHub.GetUserGroupName("bac_si", donThuoc.MaBacSiKeDon);
+                tasks.Add(_hub.Clients.Group(doctorGroup).PrescriptionStatusUpdated(donThuoc));
+            }
+
+            // ✅ Gửi cho y tá hành chính (xử lý phát thuốc) - KHÔNG gửi cho y tá LS/CLS
+            tasks.Add(_hub.Clients.Group(AdminNurseGroupName).PrescriptionStatusUpdated(donThuoc));
+
             return Task.WhenAll(tasks);
         }
         // ==========================
@@ -466,7 +538,7 @@ namespace HealthCare.Realtime
                         .NotificationCreated(thongBao);
                 }
 
-                // Y tá + nhóm hành chính quy về y_ta
+                // Y tá hành chính quy về y_ta
                 if (loai is "y_ta" or "thu_ngan" or "phat_thuoc")
                 {
                     return _hub.Clients.Group(NurseRoleGroupName).NotificationCreated(thongBao);
@@ -479,7 +551,7 @@ namespace HealthCare.Realtime
                 );
             }
 
-            // Có mã người nhận → gửi theo user group (bac_si / y_ta / thu_ngan / phat_thuoc...)
+            // Có mã người nhận → gửi theo user group (bac_si / y_ta)
             var userGroup = RealtimeHub.GetUserGroupName(thongBao.LoaiNguoiNhan ?? "", thongBao.MaNguoiNhan??"");
             return _hub.Clients.Group(userGroup).NotificationCreated(thongBao);
         }

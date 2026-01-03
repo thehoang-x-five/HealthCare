@@ -79,7 +79,7 @@ namespace HealthCare.Services.UserInteraction
                 }
                 else
                 {
-                    // Tất cả các loại nhân sự: bac_si, y_ta, thu_ngan, phat_thuoc, nhan_vien_y_te...
+                    // Tất cả các loại nhân sự: bac_si, y_ta, nhan_vien_y_te...
                     rec.MaNhanSu = r.MaNguoiNhan;
                     rec.MaBenhNhan = null;
                 }
@@ -143,7 +143,7 @@ namespace HealthCare.Services.UserInteraction
             }
             else
             {
-                // Nhân sự (bac_si / y_ta / thu_ngan / phat_thuoc / nhan_vien_y_te / staff / nhan_su...)
+                // Nhân sự (bac_si / y_ta / nhan_vien_y_te / staff / nhan_su...)
                 // -> Không filter theo LoaiNguoiNhan để tránh mismatch "staff" / "nhan_vien_y_te" / "bac_si"...
                 if (!string.IsNullOrWhiteSpace(filter.MaNguoiNhan))
                 {
@@ -411,7 +411,7 @@ namespace HealthCare.Services.UserInteraction
                 }
                 else
                 {
-                    // Các loại nhân sự: bac_si / y_ta / thu_ngan / phat_thuoc / nhan_vien_y_te...
+                    // Các loại nhân sự: bac_si / y_ta / nhan_vien_y_te...
                     maNguoiNhan = recipient.MaNhanSu ?? string.Empty;
                 }
 

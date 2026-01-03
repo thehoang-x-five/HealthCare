@@ -63,7 +63,12 @@ namespace HealthCare.Hubs
         /// <summary>
         /// FE gọi ngay sau khi connect để join group role tương ứng.
         /// - Bác sĩ    → JoinRoleAsync("bac_si")
-        /// - Y tá / thu ngân / phát thuốc / hành chính → JoinRoleAsync("y_ta")
+        /// - Y tá      → JoinRoleAsync("y_ta") (chung cho tất cả y tá)
+        /// 
+        /// Ngoài ra, y tá còn join thêm group chi tiết:
+        /// - Y tá hành chính → JoinNurseTypeAsync("hanhchinh")
+        /// - Y tá lâm sàng   → JoinNurseTypeAsync("phong_kham")
+        /// - Y tá CLS        → JoinNurseTypeAsync("can_lam_sang")
         /// </summary>
         public Task JoinRoleAsync(string role)
         {
@@ -72,6 +77,27 @@ namespace HealthCare.Hubs
 
             var groupName = GetRoleGroupName(role);
             return Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        }
+
+        /// <summary>
+        /// Join group theo loại y tá cụ thể (hanhchinh, phong_kham, can_lam_sang)
+        /// </summary>
+        public Task JoinNurseTypeAsync(string nurseType)
+        {
+            if (string.IsNullOrWhiteSpace(nurseType))
+                throw new ArgumentException("nurseType is required", nameof(nurseType));
+
+            var groupName = GetNurseTypeGroupName(nurseType);
+            return Groups.AddToGroupAsync(Context.ConnectionId, groupName);
+        }
+
+        public Task LeaveNurseTypeAsync(string nurseType)
+        {
+            if (string.IsNullOrWhiteSpace(nurseType))
+                throw new ArgumentException("nurseType is required", nameof(nurseType));
+
+            var groupName = GetNurseTypeGroupName(nurseType);
+            return Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
         }
 
         public Task LeaveRoleAsync(string role)
@@ -98,6 +124,9 @@ namespace HealthCare.Hubs
 
         public static string GetRoomGroupName(string maPhong)
             => $"room:{maPhong}";
+
+        public static string GetNurseTypeGroupName(string nurseType)
+            => $"nurse_type:{nurseType}";
 
         public static string GetUserGroupName(string loaiNguoiNhan, string maNguoiNhan)
             => $"user:{loaiNguoiNhan}:{maNguoiNhan}";

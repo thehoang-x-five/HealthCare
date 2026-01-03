@@ -525,7 +525,7 @@ namespace HealthCare.Services.MedicationBilling
 
         private async Task TaoThongBaoDonThuocMoiAsync(PrescriptionDto donThuoc)
         {
-            // Gửi cho toàn bộ nhân viên y tế (phát thuốc / y tá hành chính...)
+            // Gửi cho toàn bộ y tá hành chính (xử lý phát thuốc)
             var request = new NotificationCreateRequest
             {
                 LoaiThongBao = "don_thuoc",
@@ -561,7 +561,7 @@ namespace HealthCare.Services.MedicationBilling
                 : $"Bác sĩ {donThuoc.TenBacSiKeDon}";
 
             return $"Có đơn thuốc mới {donThuoc.MaDonThuoc} cho bệnh nhân {tenBn} do {bacSi} kê. " +
-                   "Vui lòng kiểm tra và phát thuốc.";
+                   "Vui lòng kiểm tra và xử lý.";
         }
 
         private async Task TaoThongBaoTrangThaiDonThuocAsync(PrescriptionDto donThuoc)
