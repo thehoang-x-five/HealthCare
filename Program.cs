@@ -19,6 +19,7 @@ using HealthCare.Services.OutpatientCare;
 using HealthCare.Services.MedicationBilling;
 using HealthCare.Services.Report;
 using HealthCare.Services.HttpClients;
+using HealthCare.Services.Background;
 
 
 
@@ -94,6 +95,8 @@ builder.Services.AddScoped<IClsService, ClsService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IQueueService, QueueService>();
 
+// ===== Background Services =====
+builder.Services.AddHostedService<DailyResetService>();
 
 // ===== Controllers & JSON =====
 builder.Services.AddHttpContextAccessor();

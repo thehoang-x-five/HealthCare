@@ -462,16 +462,16 @@ namespace HealthCare.Services.OutpatientCare
 
             var dto = MapToVisitRecord(saved);
 
-            // 🔥 Cập nhật trạng thái hôm nay của bệnh nhân = "dang_kham" (anh có thể sau này tách:
+            // 🔥 Cập nhật trạng thái hôm nay của bệnh nhân:
             //  - LS  -> "dang_kham"
-            //  - CLS -> "dang_cls"
+            //  - CLS -> "dang_kham_dv"
             if (!string.IsNullOrWhiteSpace(maBenhNhan) )
             {
                 await _patients.CapNhatTrangThaiBenhNhanAsync(
                     maBenhNhan!,
                     new PatientStatusUpdateRequest
                     {
-                        TrangThaiHomNay = !laPhongDichVu ? "dang_thuc_hien" : "dang_kham_dv"
+                        TrangThaiHomNay = !laPhongDichVu ? "dang_kham" : "dang_kham_dv"
                     });
             }
 
