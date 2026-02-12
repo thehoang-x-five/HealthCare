@@ -1,0 +1,243 @@
+@startuml ERD_06_MongoDB
+' ===========================
+' ERD_06: MONGODB DOCUMENT SCHEMAS
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam linetype ortho
+skinparam shadowing false
+
+title ERD_06: MongoDB Document Schemas (Schema Evolution)
+
+' ===========================
+' COLLECTION: MEDICAL_HISTORIES
+' ===========================
+object "medical_histories" as MedicalHistories #D1FAE5 {
+  _id : ObjectId
+  --
+  patient_id : String (MaBenhNhan)
+  event_type  : String (Enum)
+  event_date  : ISODate
+  --
+  metadata : Object
+  data     : Object (Flexible)
+}
+
+' ===========================
+' EVENT TYPES (Schema Templates)
+' ===========================
+object "event: kham_lam_sang" as EventExam #FEF3C7 {
+  event_type : "kham_lam_sang"
+  data       : Object
+}
+
+object "event: xet_nghiem" as EventLab #DBEAFE {
+  event_type : "xet_nghiem"
+  data       : Object
+}
+
+object "event: chan_doan_hinh_anh" as EventImaging #FCE7F3 {
+  event_type : "chan_doan_hinh_anh"
+  data       : Object
+}
+
+object "event: don_thuoc" as EventPrescription #F5F3FF {
+  event_type : "don_thuoc"
+  data       : Object
+}
+
+object "event: thanh_toan" as EventPayment #CFFAFE {
+  event_type : "thanh_toan"
+  data       : Object
+}
+
+' ===========================
+' COLLECTION: AUDIT_LOGS
+' ===========================
+object "audit_logs" as AuditLogs #E0E7FF {
+  _id : ObjectId
+  --
+  action    : String (CREATE/UPDATE/DELETE)
+  entity    : String
+  entity_id : String
+  --
+  user_id   : String
+  user_name : String
+  user_role : String
+  ip_address: String
+  --
+  timestamp : ISODate
+  --
+  old_value : Object (nullable)
+  new_value : Object (nullable)
+  changes   : Object (diff)
+}
+
+' ===========================
+' RELATIONSHIPS (Logical)
+' ===========================
+MedicalHistories --> EventExam
+MedicalHistories --> EventLab
+MedicalHistories --> EventImaging
+MedicalHistories --> EventPrescription
+MedicalHistories --> EventPayment
+
+' ===========================
+' NOTES: JSON-LIKE SCHEMAS (Put in notes to avoid syntax errors)
+' ===========================
+note right of MedicalHistories
+  Indexes:
+  - patient_id (asc)
+  - event_type (asc)
+  - event_date (desc)
+  - compound: (patient_id, event_type, event_date)
+
+  Schema Evolution:
+  Moi event_type co the co "data" khac nhau,
+  ho tro them truong moi ma khong can migration.
+
+  metadata schema:
+  <pre>{
+    "created_by": "String",
+    "created_at": "ISODate",
+    "updated_at": "ISODate",
+    "version": "Int"
+  }</pre>
+end note
+
+note right of EventExam
+  data schema (kham_lam_sang):
+  <pre>{
+    "ma_phieu_kham": "String",
+    "ma_bac_si": "String",
+    "ten_bac_si": "String",
+    "khoa": "String",
+    "sinh_hieu": {
+      "huyet_ap": "String",
+      "nhip_tim": "Int",
+      "nhiet_do": "Float",
+      "can_nang": "Float",
+      "chieu_cao": "Float",
+      "bmi": "Float"
+    },
+    "trieu_chung": "String",
+    "chan_doan_so_bo": "String",
+    "chan_doan_cuoi": "String",
+    "ma_icd10": "String",
+    "huong_xu_tri": "String",
+    "loi_khuyen": "String"
+  }</pre>
+end note
+
+note right of EventLab
+  data schema (xet_nghiem):
+  <pre>{
+    "ma_chi_tiet_dv": "String",
+    "ma_dich_vu": "String",
+    "ten_dich_vu": "String",
+    "ma_ky_thuat_vien": "String",
+    "chi_so": [
+      {
+        "ten": "String",
+        "gia_tri": "Number",
+        "don_vi": "String",
+        "nguong_min": "Number",
+        "nguong_max": "Number",
+        "bat_thuong": "Boolean"
+      }
+    ],
+    "ket_luan": "String",
+    "ghi_chu": "String"
+  }</pre>
+end note
+
+note right of EventImaging
+  data schema (chan_doan_hinh_anh):
+  <pre>{
+    "ma_chi_tiet_dv": "String",
+    "ma_dich_vu": "String",
+    "ten_dich_vu": "String",
+    "loai": "String (X-quang/SA/CT/MRI)",
+    "ma_ky_thuat_vien": "String",
+    "mo_ta_hinh_anh": "String",
+    "ket_luan": "String",
+    "de_xuat": "String",
+    "files": [
+      {
+        "url": "String",
+        "loai": "String (jpg/png/pdf/dicom)",
+        "size": "Int",
+        "uploaded_at": "ISODate"
+      }
+    ]
+  }</pre>
+end note
+
+note right of EventPrescription
+  data schema (don_thuoc):
+  <pre>{
+    "ma_don_thuoc": "String",
+    "ma_bac_si": "String",
+    "ten_bac_si": "String",
+    "thuoc": [
+      {
+        "ma_thuoc": "String",
+        "ten_thuoc": "String",
+        "hoat_chat": "String",
+        "so_luong": "Int",
+        "don_vi": "String",
+        "lieu_dung": "String",
+        "tan_suat": "String",
+        "so_ngay": "Int",
+        "ghi_chu": "String"
+      }
+    ],
+    "tong_tien": "Number",
+    "trang_thai": "String"
+  }</pre>
+end note
+
+note right of EventPayment
+  data schema (thanh_toan):
+  <pre>{
+    "ma_hoa_don": "String",
+    "loai_dot_thu": "String",
+    "chi_tiet": [
+      { "ten": "String", "so_tien": "Number" }
+    ],
+    "tong_tien": "Number",
+    
+    "so_tien_tra": "Number",
+    "phuong_thuc": "String",
+    "ma_giao_dich": "String",
+    "nhan_su_thu": "String"
+  }</pre>
+end note
+
+note right of AuditLogs
+  Indexes:
+  - timestamp (desc)
+  - user_id
+  - entity + entity_id
+
+  TTL Index:
+  - Tu dong xoa sau 365 ngay
+
+  Aggregation:
+  - Thong ke theo user/action/entity
+end note
+
+note bottom of EventLab
+  Aggregation Pipeline vi du:
+  <pre>
+  db.medical_histories.aggregate([
+    { $match: { event_type: "xet_nghiem" } },
+    { $unwind: "$data.chi_so" },
+    { $match: { "data.chi_so.bat_thuong": true } },
+    { $group: { _id: "$data.chi_so.ten", count: { $sum: 1 } } }
+  ])
+  </pre>
+end note
+
+@enduml

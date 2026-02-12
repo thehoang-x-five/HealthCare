@@ -1,0 +1,251 @@
+@startuml UC_03_Master
+' ===========================
+' UC_03: QUAN LY DANH MUC (MASTER DATA)
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+hide circle
+
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+
+left to right direction
+title UC_03: Quan ly Danh muc (Master Data)
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Admin" as Admin #LightCoral
+actor "Y ta Hanh chinh" as YTHC #LightBlue
+actor "Y ta Lam sang" as YTLS #LightGreen
+actor "Y ta Can lam sang" as YTCLS #Gold
+actor "Bac si" as BS #Lavender
+actor "Ky thuat vien" as KTV #PeachPuff
+
+' ===========================
+' 1) QUAN LY NGUOI DUNG (ADMIN ONLY)
+' ===========================
+rectangle "Quan ly Nguoi dung" as UserMgmt #FEE2E2 {
+  usecase "UC10.1 - Xem DS\nNguoi dung" as UC10_1
+  usecase "UC10.2 - Tim kiem\nNguoi dung" as UC10_2
+  usecase "UC10.3 - Loc theo\nVai tro/Khoa" as UC10_3
+  usecase "UC10.4 - Xem Chi tiet\nNguoi dung" as UC10_4
+  usecase "UC10.5 - Them\nNguoi dung moi" as UC10_5
+  usecase "UC10.6 - Nhap thong tin\n(Ho ten, Email, SDT)" as UC10_6
+  usecase "UC10.7 - Tao tai khoan\n(Username, MK)" as UC10_7
+  usecase "UC10.8 - Phan\nVai tro" as UC10_8
+  usecase "UC10.9 - Gan\nKhoa/Phong" as UC10_9
+  usecase "UC10.10 - Sua thong tin\nNguoi dung" as UC10_10
+  usecase "UC10.11 - Khoa/Mo khoa\nTai khoan" as UC10_11
+  usecase "UC10.12 - Reset\nMat khau" as UC10_12
+}
+
+' ===========================
+' 2) QUAN LY KHOA
+' ===========================
+rectangle "Quan ly Khoa" as DeptMgmt #FEF3C7 {
+  usecase "UC11.1 - Xem DS\nKhoa" as UC11_1
+  usecase "UC11.2 - Tim kiem\nKhoa" as UC11_2
+  usecase "UC11.3 - Loc theo\nTrang thai" as UC11_3
+  usecase "UC11.4 - Xem Chi tiet\nKhoa" as UC11_4
+  usecase "UC11.5 - Them\nKhoa moi" as UC11_5
+  usecase "UC11.6 - Nhap\nTen Khoa" as UC11_6
+  usecase "UC11.7 - Nhap\nMo ta" as UC11_7
+  usecase "UC11.8 - Sua\nthong tin Khoa" as UC11_8
+  usecase "UC11.9 - Kich hoat/\nVo hieu hoa Khoa" as UC11_9
+}
+
+' ===========================
+' 3) QUAN LY PHONG
+' ===========================
+rectangle "Quan ly Phong" as RoomMgmt #D1FAE5 {
+  usecase "UC12.1 - Xem DS\nPhong" as UC12_1
+  usecase "UC12.2 - Tim kiem\nPhong" as UC12_2
+  usecase "UC12.3 - Loc theo\nKhoa/Loai Phong" as UC12_3
+  usecase "UC12.4 - Xem Chi tiet\nPhong" as UC12_4
+  usecase "UC12.5 - Them\nPhong moi" as UC12_5
+  usecase "UC12.6 - Nhap\nTen Phong" as UC12_6
+  usecase "UC12.7 - Chon\nKhoa" as UC12_7
+  usecase "UC12.8 - Chon Loai Phong\n(Kham/XN/CDHA)" as UC12_8
+  usecase "UC12.9 - Sua\nthong tin Phong" as UC12_9
+  usecase "UC12.10 - Kich hoat/\nVo hieu hoa Phong" as UC12_10
+}
+
+' ===========================
+' 4) QUAN LY DICH VU Y TE
+' ===========================
+rectangle "Quan ly Dich vu Y te" as ServiceMgmt #CFFAFE {
+  usecase "UC13.1 - Xem DS\nDich vu" as UC13_1
+  usecase "UC13.2 - Tim kiem\nDich vu" as UC13_2
+  usecase "UC13.3 - Loc theo\nLoai DV/Khoa" as UC13_3
+  usecase "UC13.4 - Xem Chi tiet\nDich vu" as UC13_4
+  usecase "UC13.5 - Them\nDich vu moi" as UC13_5
+  usecase "UC13.6 - Nhap\nTen, Mo ta" as UC13_6
+  usecase "UC13.7 - Cau hinh\nGia dich vu" as UC13_7
+  usecase "UC13.8 - Gan DV vao\nKhoa/Phong" as UC13_8
+  usecase "UC13.9 - Sua\nDich vu" as UC13_9
+  usecase "UC13.10 - Kich hoat/\nVo hieu hoa DV" as UC13_10
+}
+
+' ===========================
+' 5) QUAN LY THUOC
+' ===========================
+rectangle "Quan ly Thuoc" as DrugMgmt #FCE7F3 {
+  usecase "UC14.1 - Xem DS\nThuoc" as UC14_1
+  usecase "UC14.2 - Tim kiem\nThuoc" as UC14_2
+  usecase "UC14.3 - Loc theo\nNhom/Hoat chat" as UC14_3
+  usecase "UC14.4 - Xem Chi tiet\nThuoc" as UC14_4
+  usecase "UC14.5 - Them\nThuoc moi" as UC14_5
+  usecase "UC14.6 - Nhap Ten,\nHoat chat, DVT" as UC14_6
+  usecase "UC14.7 - Cau hinh\nGia ban" as UC14_7
+  usecase "UC14.8 - Nhap\nTon kho" as UC14_8
+  usecase "UC14.9 - Nhap\nHan su dung" as UC14_9
+  usecase "UC14.10 - Sua\nThuoc" as UC14_10
+  usecase "UC14.11 - Kich hoat/\nVo hieu hoa Thuoc" as UC14_11
+}
+
+' ===========================
+' 6) QUAN LY LICH TRUC
+' ===========================
+rectangle "Quan ly Lich truc" as DutyMgmt #F5F3FF {
+  usecase "UC15.1 - Xem Lich truc\nTong hop" as UC15_1
+  usecase "UC15.2 - Loc theo\nNgay/Phong/Nhan vien" as UC15_2
+  usecase "UC15.3 - Xem Chi tiet\nCa truc" as UC15_3
+  usecase "UC15.4 - Tao\nCa truc moi" as UC15_4
+  usecase "UC15.5 - Chon\nNhan vien" as UC15_5
+  usecase "UC15.6 - Chon\nPhong" as UC15_6
+  usecase "UC15.7 - Chon\nNgay/Gio" as UC15_7
+  usecase "UC15.8 - Sua\nCa truc" as UC15_8
+  usecase "UC15.9 - Xoa\nCa truc" as UC15_9
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+UserMgmt -[hidden]-> DeptMgmt
+DeptMgmt -[hidden]-> RoomMgmt
+UserMgmt -[hidden]down-> ServiceMgmt
+ServiceMgmt -[hidden]-> DrugMgmt
+DrugMgmt -[hidden]-> DutyMgmt
+
+' ===========================
+' ACTOR -> USECASE (ADMIN - CRUD)
+' ===========================
+Admin --> UC10_1
+Admin --> UC10_5
+Admin --> UC10_10
+Admin --> UC10_11
+Admin --> UC10_12
+
+Admin --> UC11_1
+Admin --> UC11_5
+Admin --> UC11_8
+Admin --> UC11_9
+
+Admin --> UC12_1
+Admin --> UC12_5
+Admin --> UC12_9
+Admin --> UC12_10
+
+Admin --> UC13_1
+Admin --> UC13_5
+Admin --> UC13_9
+Admin --> UC13_10
+
+Admin --> UC14_1
+Admin --> UC14_5
+Admin --> UC14_10
+Admin --> UC14_11
+
+Admin --> UC15_1
+Admin --> UC15_4
+Admin --> UC15_8
+Admin --> UC15_9
+
+' ===========================
+' ACTOR -> USECASE (OTHERS - READ ONLY)
+' ===========================
+YTHC --> UC11_1
+YTHC --> UC12_1
+YTHC --> UC13_1
+YTHC --> UC14_1
+YTHC --> UC15_1
+
+YTLS --> UC11_1
+YTLS --> UC12_1
+YTLS --> UC13_1
+YTLS --> UC14_1
+YTLS --> UC15_1
+
+YTCLS --> UC11_1
+YTCLS --> UC12_1
+YTCLS --> UC13_1
+YTCLS --> UC15_1
+
+BS --> UC11_1
+BS --> UC12_1
+BS --> UC13_1
+BS --> UC14_1
+BS --> UC15_1
+
+KTV --> UC11_1
+KTV --> UC12_1
+KTV --> UC13_1
+KTV --> UC15_1
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC10_1 ..> UC10_2 : <<extend>>
+UC10_1 ..> UC10_3 : <<extend>>
+UC10_5 ..> UC10_6 : <<include>>
+UC10_5 ..> UC10_7 : <<include>>
+UC10_5 ..> UC10_8 : <<include>>
+UC10_5 ..> UC10_9 : <<extend>>
+
+UC11_1 ..> UC11_2 : <<extend>>
+UC11_1 ..> UC11_3 : <<extend>>
+UC11_5 ..> UC11_6 : <<include>>
+UC11_5 ..> UC11_7 : <<extend>>
+
+UC12_1 ..> UC12_2 : <<extend>>
+UC12_1 ..> UC12_3 : <<extend>>
+UC12_5 ..> UC12_6 : <<include>>
+UC12_5 ..> UC12_7 : <<include>>
+UC12_5 ..> UC12_8 : <<include>>
+
+UC13_1 ..> UC13_2 : <<extend>>
+UC13_1 ..> UC13_3 : <<extend>>
+UC13_5 ..> UC13_6 : <<include>>
+UC13_5 ..> UC13_7 : <<include>>
+UC13_5 ..> UC13_8 : <<include>>
+
+UC14_1 ..> UC14_2 : <<extend>>
+UC14_1 ..> UC14_3 : <<extend>>
+UC14_5 ..> UC14_6 : <<include>>
+UC14_5 ..> UC14_7 : <<include>>
+UC14_5 ..> UC14_8 : <<extend>>
+UC14_5 ..> UC14_9 : <<include>>
+
+UC15_1 ..> UC15_2 : <<extend>>
+UC15_4 ..> UC15_5 : <<include>>
+UC15_4 ..> UC15_6 : <<include>>
+UC15_4 ..> UC15_7 : <<include>>
+
+' ===========================
+' NOTES
+' ===========================
+note bottom of UserMgmt
+  Admin: CRUD
+  Others: Khong truy cap
+end note
+
+note bottom of DeptMgmt
+  Admin: CRUD
+  Others: Chi xem
+end note
+
+@enduml

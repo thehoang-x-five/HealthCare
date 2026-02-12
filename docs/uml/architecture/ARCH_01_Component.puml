@@ -1,0 +1,248 @@
+
+@startuml ARCH_01_Component
+' ===========================
+' ARCH_01: SO DO THANH PHAN CHI TIET
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam linetype ortho
+skinparam componentStyle rectangle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam padding 5
+skinparam margin 10
+skinparam nodesep 10
+skinparam ranksep 10
+skinparam usecase {
+  Padding 4
+}
+
+left to right direction
+title ARCH_01: So do Thanh phan Chi tiet
+
+' ===========================
+' PRESENTATION LAYER
+' ===========================
+package "Presentation Layer" as PL #E0F2FE {
+  package "React SPA (Vite)" {
+    [App.jsx] as App
+    
+    package "Pages" {
+      [LoginPage] as LoginPage
+      [DashboardPage] as DashPage
+      [PatientPage] as PatientPage
+      [AppointmentPage] as ApptPage
+      [QueuePage] as QueuePage
+      [ExamPage] as ExamPage
+      [CLSPage] as CLSPage
+      [PrescriptionPage] as PrescPage
+      [BillingPage] as BillPage
+      [ReportPage] as ReportPage
+      [AdminPage] as AdminPage
+    }
+    
+    package "Components" {
+      [Header] as Header
+      [Sidebar] as Sidebar
+      [DataTable] as DataTable
+      [Form Components] as FormComp
+      [Modal] as Modal
+      [Toast] as Toast
+    }
+    
+    package "Hooks" {
+      [useAuth] as UseAuth
+      [useApi] as UseApi
+      [useSignalR] as UseSignalR
+      [useQueue] as UseQueue
+    }
+    
+    package "Services" {
+      [ApiService] as ApiSvc
+      [AuthService] as AuthClientSvc
+      [SignalRService] as SignalRSvc
+    }
+    
+    package "Store (Context/Redux)" {
+      [AuthContext] as AuthCtx
+      [QueueContext] as QueueCtx
+      [NotificationContext] as NotifCtx
+    }
+  }
+}
+
+' ===========================
+' API LAYER
+' ===========================
+package "API Layer (ASP.NET Core)" as AL #DBEAFE {
+  package "Controllers" {
+    [AuthController] as AuthCtrl
+    [PatientController] as PatientCtrl
+    [AppointmentController] as ApptCtrl
+    [QueueController] as QueueCtrl
+    [ExamController] as ExamCtrl
+    [CLSController] as CLSCtrl
+    [PrescriptionController] as PrescCtrl
+    [BillingController] as BillCtrl
+    [ReportController] as ReportCtrl
+    [AdminController] as AdminCtrl
+  }
+  
+  package "Middleware" {
+    [JwtAuthMiddleware] as JwtMW
+    [ExceptionMiddleware] as ExcMW
+    [LoggingMiddleware] as LogMW
+    [CorsMiddleware] as CorsMW
+  }
+  
+  package "Hubs" {
+    [NotificationHub] as NotifHub
+    [QueueHub] as QueueHub
+  }
+  
+  package "DTOs" {
+    [Request DTOs] as ReqDTO
+    [Response DTOs] as ResDTO
+  }
+}
+
+' ===========================
+' BUSINESS LAYER
+' ===========================
+package "Business Layer" as BL #D1FAE5 {
+  package "Services" {
+    [IAuthService] as IAuthSvc
+    [AuthService] as AuthSvcImpl
+    
+    [IPatientService] as IPatientSvc
+    [PatientService] as PatientSvcImpl
+    
+    [IAppointmentService] as IApptSvc
+    [AppointmentService] as ApptSvcImpl
+    
+    [IQueueService] as IQueueSvc
+    [QueueService] as QueueSvcImpl
+    
+    [IClinicalService] as IClinSvc
+    [ClinicalService] as ClinSvcImpl
+    
+    [ICLSService] as ICLSSvc
+    [CLSService] as CLSSvcImpl
+    
+    [IPrescriptionService] as IPrescSvc
+    [PrescriptionService] as PrescSvcImpl
+    
+    [IBillingService] as IBillSvc
+    [BillingService] as BillSvcImpl
+    
+    [INotificationService] as INotifSvc
+    [NotificationService] as NotifSvcImpl
+    
+    [IReportService] as IReportSvc
+    [ReportService] as ReportSvcImpl
+  }
+  
+  package "Validators" {
+    [PatientValidator] as PatientVal
+    [AppointmentValidator] as ApptVal
+    [PrescriptionValidator] as PrescVal
+  }
+  
+  package "Mappers" {
+    [AutoMapper Profiles] as Mapperrs
+  }
+}
+
+' ===========================
+' DATA ACCESS LAYER
+' ===========================
+package "Data Access Layer" as DAL #FEF3C7 {
+  package "EF Core (MySQL)" {
+    [DataContext] as DbCtx
+    
+    package "Entities" {
+      [NhanSu] as ENhanSu
+      [BenhNhan] as EBenhNhan
+      [LichHen] as ELichHen
+      [PhieuKham] as EPhieuKham
+      [DonThuoc] as EDonThuoc
+      [HoaDon] as EHoaDon
+      [KhoThuoc] as EKhoThuoc
+      [ThongBao] as EThongBao
+    }
+    
+    package "Repositories" {
+      [IRepository<T>] as IRepo
+      [Repository<T>] as RepoImpl
+
+    }
+    
+    package "Configurations" {
+      [Entity Configurations] as EntityConfig
+    }
+  }
+  
+  package "MongoDB Driver" {
+    [MongoContext] as MongoCtx
+    
+    package "Collections" {
+      [MedicalHistoryCollection] as MedHistColl
+      [AuditLogCollection] as AuditColl
+    }
+    
+    package "Documents" {
+      [MedicalHistoryDoc] as MedHistDoc
+      [AuditLogDoc] as AuditDoc
+    }
+  }
+}
+
+' ===========================
+' CONNECTIONS
+' ===========================
+App --> LoginPage
+App --> DashPage
+App --> PatientPage
+
+ApiSvc --> AuthCtrl
+ApiSvc --> PatientCtrl
+SignalRSvc --> NotifHub
+SignalRSvc --> QueueHub
+
+AuthCtrl --> IAuthSvc
+PatientCtrl --> IPatientSvc
+ApptCtrl --> IApptSvc
+QueueCtrl --> IQueueSvc
+ExamCtrl --> IClinSvc
+CLSCtrl --> ICLSSvc
+PrescCtrl --> IPrescSvc
+BillCtrl --> IBillSvc
+ReportCtrl --> IReportSvc
+
+IAuthSvc <|.. AuthSvcImpl
+IPatientSvc <|.. PatientSvcImpl
+IApptSvc <|.. ApptSvcImpl
+IQueueSvc <|.. QueueSvcImpl
+IClinSvc <|.. ClinSvcImpl
+ICLSSvc <|.. CLSSvcImpl
+IPrescSvc <|.. PrescSvcImpl
+IBillSvc <|.. BillSvcImpl
+INotifSvc <|.. NotifSvcImpl
+IReportSvc <|.. ReportSvcImpl
+
+PatientSvcImpl --> IRepo
+PatientSvcImpl --> MongoCtx
+ApptSvcImpl --> IRepo
+ClinSvcImpl --> IRepo
+ClinSvcImpl --> MongoCtx
+
+IRepo --> DbCtx
+DbCtx --> ENhanSu
+DbCtx --> EBenhNhan
+DbCtx --> ELichHen
+
+MongoCtx --> MedHistColl
+MongoCtx --> AuditColl
+
+@enduml

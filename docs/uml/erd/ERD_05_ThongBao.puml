@@ -1,0 +1,132 @@
+@startuml ERD_05_ThongBao
+' ===========================
+' ERD_05: THONG BAO
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+left to right direction
+title ERD_05: Thong bao
+
+' ===========================
+' ENTITY: THONG BAO
+' ===========================
+entity "ThongBao" as ThongBao #F5F3FF {
+  + MaThongBao : VARCHAR(20) <<PK>>
+  --
+  # MaNguoiTao : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaLuotKham : VARCHAR(20) <<FK>> <<NULLABLE>>
+  # MaPhieuKham : VARCHAR(20) <<FK>> <<NULLABLE>>
+  --
+  TieuDe : NVARCHAR(200) <<NOT NULL>>
+  NoiDung : NVARCHAR(2000) <<NOT NULL>>
+  --
+  LoaiThongBao : ENUM(HeThong,LichHen,KetQuaCLS,DonThuoc,ThanhToan,ChungChung) <<NOT NULL>>
+  DoUuTien : ENUM(Thap,TrungBinh,Cao,KhanCap) <<DEFAULT 'TrungBinh'>>
+  --
+  ThoiGianTao : DATETIME <<NOT NULL>>
+  ThoiGianHenGui : DATETIME <<NULLABLE>>
+  ThoiGianGui : DATETIME <<NULLABLE>>
+  --
+  TrangThai : ENUM(Nhap,ChoGui,DangGui,DaGui,DaHuy) <<DEFAULT 'Nhap'>>
+  --
+  PhuongThucGui : JSON
+}
+
+' ===========================
+' ENTITY: THONG BAO NGUOI NHAN
+' ===========================
+entity "ThongBaoNguoiNhan" as TbNguoiNhan #DBEAFE {
+  + MaTbNguoiNhan : BIGINT <<PK>> <<AUTO_INCREMENT>>
+  --
+  # MaThongBao : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  LoaiNguoiNhan : ENUM(BenhNhan,NhanSu,VaiTro) <<NOT NULL>>
+  # MaBenhNhan : VARCHAR(20) <<FK>> <<NULLABLE>>
+  # MaNhanSu : VARCHAR(20) <<FK>> <<NULLABLE>>
+  VaiTroNhan : ENUM(Admin,BacSi,YTaHanhChinh,YTaLamSang,YTaCanLamSang,KyThuatVien) <<NULLABLE>>
+  --
+  DaDoc : BOOLEAN <<DEFAULT FALSE>>
+  ThoiGianDoc : DATETIME <<NULLABLE>>
+  --
+  DaNhan : BOOLEAN <<DEFAULT FALSE>>
+  ThoiGianNhan : DATETIME <<NULLABLE>>
+  PhuongThucNhan : ENUM(System,Email,SMS) <<NULLABLE>>
+}
+
+' ===========================
+' ENTITY: THONG BAO MAU
+' ===========================
+entity "ThongBaoMau" as ThongBaoMau #D1FAE5 {
+  + MaMau : VARCHAR(20) <<PK>>
+  --
+  TenMau : NVARCHAR(100) <<NOT NULL>>
+  LoaiThongBao : ENUM(HeThong,LichHen,KetQuaCLS,DonThuoc,ThanhToan,ChungChung) <<NOT NULL>>
+  --
+  TieuDeMau : NVARCHAR(200) <<NOT NULL>>
+  NoiDungMau : NVARCHAR(2000) <<NOT NULL>>
+  --
+  BienDong : JSON
+  --
+  TrangThai : ENUM(HoatDong,TamDung) <<DEFAULT 'HoatDong'>>
+  --
+  NgayTao : DATETIME <<DEFAULT NOW>>
+  NgayCapNhat : DATETIME
+}
+
+' ===========================
+' RELATIONSHIPS
+' ===========================
+ThongBao ||--|{ TbNguoiNhan : "1 Thong bao -> Nhieu nguoi nhan"
+
+' ===========================
+' NOTES
+' ===========================
+note right of ThongBao
+  PhuongThucGui (JSON):
+  {
+    "system": true,
+    "email": true,
+    "sms": false
+  }
+  
+  Tich hop SignalR de push
+  real-time notification
+  
+  INDEX idx_loai ON LoaiThongBao
+  INDEX idx_thoigian ON ThoiGianGui
+  INDEX idx_trangthai ON TrangThai
+end note
+
+note right of TbNguoiNhan
+  Gui cho:
+  - 1 BenhNhan cu the
+  - 1 NhanSu cu the
+  - Tat ca NhanSu co VaiTro cu the
+  
+  INDEX idx_thongbao ON MaThongBao
+  INDEX idx_benhnhan ON MaBenhNhan
+  INDEX idx_nhansu ON MaNhanSu
+  INDEX idx_dadoc ON (MaThongBao, DaDoc)
+end note
+
+note bottom of ThongBaoMau
+  BienDong (JSON):
+  {
+    "placeholders": [
+      "{{TenBenhNhan}}",
+      "{{NgayHen}}",
+      "{{GioHen}}",
+      "{{TenBacSi}}"
+    ]
+  }
+  
+  Vi du NoiDungMau:
+  "Kinh gui {{TenBenhNhan}},
+   Ban co lich hen vao ngay {{NgayHen}}
+   luc {{GioHen}} voi Bac si {{TenBacSi}}."
+end note
+
+@enduml

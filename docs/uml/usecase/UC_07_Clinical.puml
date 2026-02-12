@@ -1,0 +1,170 @@
+@startuml UC_07_Clinical
+' ===========================
+' UC_07: KHAM LAM SANG
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+hide circle
+
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+
+left to right direction
+title UC_07: Kham Lam sang
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Y ta Lam sang" as YTLS #LightGreen
+actor "Bac si" as BS #Lavender
+
+' ===========================
+' 1) CHUAN BI KHAM (Y TA LS)
+' ===========================
+rectangle "Chuan bi Kham" as PrepareExam #E0F2FE {
+  usecase "UC50.1 - Goi BN\nthu hang doi" as UC50_1
+  usecase "UC50.2 - Xac nhan\nBN vao phong" as UC50_2
+  usecase "UC50.3 - Do\nSinh hieu" as UC50_3
+  usecase "UC50.4 - Nhap\nHuyet ap" as UC50_4
+  usecase "UC50.5 - Nhap\nNhip tim" as UC50_5
+  usecase "UC50.6 - Nhap\nNhiet do" as UC50_6
+  usecase "UC50.7 - Nhap\nCan nang" as UC50_7
+  usecase "UC50.8 - Nhap\nChieu cao" as UC50_8
+  usecase "UC50.9 - Tinh\nBMI (tu dong)" as UC50_9
+}
+
+' ===========================
+' 2) TAO PHIEU KHAM
+' ===========================
+rectangle "Tao Phieu kham" as CreateExam #D1FAE5 {
+  usecase "UC51.1 - Tao\nPhieu kham LS" as UC51_1
+  usecase "UC51.2 - Gan Ma phieu\n(auto-generate)" as UC51_2
+  usecase "UC51.3 - Gan\nBenh nhan" as UC51_3
+  usecase "UC51.4 - Gan\nBac si kham" as UC51_4
+  usecase "UC51.5 - Ghi nhan\nNgay/Gio tao" as UC51_5
+  usecase "UC51.6 - Nhap\nTrieu chung ban dau" as UC51_6
+  usecase "UC51.7 - Nhap\nTien su benh" as UC51_7
+  usecase "UC51.8 - Nhap\nTien su di ung" as UC51_8
+}
+
+' ===========================
+' 3) KHAM BENH (BAC SI)
+' ===========================
+rectangle "Kham benh" as Examine #FEF3C7 {
+  usecase "UC52.1 - Xem DS\nBN cho kham" as UC52_1
+  usecase "UC52.2 - Chon BN\nde kham" as UC52_2
+  usecase "UC52.3 - Xem Ho so\nBenh an (MongoDB)" as UC52_3
+  usecase "UC52.4 - Xem\nTien su benh ly" as UC52_4
+  usecase "UC52.5 - Xem\nTien su di ung" as UC52_5
+  usecase "UC52.6 - Tra cuu\nPha he di truyen" as UC52_6
+  usecase "UC52.7 - Xem\nLich su kham cu" as UC52_7
+  usecase "UC52.8 - Kham\nLam sang" as UC52_8
+  usecase "UC52.9 - Nhap\nTrieu chung chi tiet" as UC52_9
+  usecase "UC52.10 - Nhap Mo ta\nKham thuc the" as UC52_10
+}
+
+' ===========================
+' 4) CHAN DOAN
+' ===========================
+rectangle "Chan doan" as Diagnosis #FCE7F3 {
+  usecase "UC53.1 - Nhap\nChan doan so bo" as UC53_1
+  usecase "UC53.2 - Chi dinh\nXet nghiem" as UC53_2
+  usecase "UC53.3 - Chi dinh\nCDHA" as UC53_3
+  usecase "UC53.4 - Chon DV XN\nthu danh muc" as UC53_4
+  usecase "UC53.5 - Chon DV CDHA\nthu danh muc" as UC53_5
+  usecase "UC53.6 - Nhap\nGhi chu chi dinh" as UC53_6
+  usecase "UC53.7 - Xem\nKet qua CLS" as UC53_7
+  usecase "UC53.8 - Nhap\nChan doan cuoi" as UC53_8
+  usecase "UC53.9 - Chon\nMa ICD-10" as UC53_9
+  usecase "UC53.10 - Nhap\nHuong xu tri" as UC53_10
+}
+
+' ===========================
+' 5) HOAN TAT (Y TA LS)
+' ===========================
+rectangle "Hoan tat Phieu kham" as CompleteExam #F5F3FF {
+  usecase "UC54.1 - Cap nhat\nTrang thai Phieu kham" as UC54_1
+  usecase "UC54.2 - Hoan tat\nPhieu kham" as UC54_2
+  usecase "UC54.3 - Huong dan BN\nra Quay le tan" as UC54_3
+  usecase "UC54.4 - In\nPhieu kham" as UC54_4
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+PrepareExam -[hidden]-> CreateExam
+CreateExam -[hidden]-> Examine
+PrepareExam -[hidden]down-> Diagnosis
+Diagnosis -[hidden]-> CompleteExam
+
+' ===========================
+' ACTOR -> USECASE
+' ===========================
+YTLS --> UC50_1
+YTLS --> UC50_3
+YTLS --> UC51_1
+YTLS --> UC51_6
+YTLS --> UC51_7
+YTLS --> UC54_1
+YTLS --> UC54_2
+
+BS --> UC52_1
+BS --> UC52_3
+BS --> UC52_8
+BS --> UC53_1
+BS --> UC53_2
+BS --> UC53_3
+BS --> UC53_7
+BS --> UC53_8
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC50_1 ..> UC50_2 : <<include>>
+UC50_3 ..> UC50_4 : <<include>>
+UC50_3 ..> UC50_5 : <<include>>
+UC50_3 ..> UC50_6 : <<include>>
+UC50_3 ..> UC50_7 : <<include>>
+UC50_3 ..> UC50_8 : <<extend>>
+UC50_8 ..> UC50_9 : <<include>>
+
+UC51_1 ..> UC51_2 : <<include>>
+UC51_1 ..> UC51_3 : <<include>>
+UC51_1 ..> UC51_4 : <<include>>
+UC51_1 ..> UC51_5 : <<include>>
+UC51_1 ..> UC50_3 : <<include>>
+
+UC52_1 ..> UC52_2 : <<include>>
+UC52_3 ..> UC52_4 : <<include>>
+UC52_3 ..> UC52_5 : <<include>>
+UC52_3 ..> UC52_6 : <<extend>>
+UC52_3 ..> UC52_7 : <<include>>
+UC52_8 ..> UC52_9 : <<include>>
+UC52_8 ..> UC52_10 : <<include>>
+
+UC53_2 ..> UC53_4 : <<include>>
+UC53_2 ..> UC53_6 : <<extend>>
+UC53_3 ..> UC53_5 : <<include>>
+UC53_8 ..> UC53_9 : <<extend>>
+UC53_8 ..> UC53_10 : <<include>>
+
+UC54_2 ..> UC54_3 : <<include>>
+UC54_2 ..> UC54_4 : <<extend>>
+
+' ===========================
+' NOTES
+' ===========================
+note right of UC52_6
+  Recursive CTE (MySQL)
+  Truy van Pha he
+end note
+
+note right of UC52_3
+  MongoDB
+  Medical Histories
+end note
+
+@enduml

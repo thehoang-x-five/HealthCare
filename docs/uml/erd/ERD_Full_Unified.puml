@@ -1,0 +1,671 @@
+@startuml ERD_Full_Unified
+' ===================================================================
+' ERD TONG HOP: HEALTHCARE+ POLYGLOT PERSISTENCE
+' Tat ca Entity MySQL + MongoDB trong 1 file duy nhat
+' ===================================================================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 9
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+left to right direction
+title HealthCare+ - ERD Tong hop (Polyglot Persistence)\n\n
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║                   01. DU LIEU NEN (MASTER DATA)                ║
+' ╚══════════════════════════════════════════════════════════════════╝
+package "01_DuLieuNen" as P01 #E0F2FE {
+
+  entity "Khoa" as Khoa #E0F2FE {
+    + MaKhoa : VARCHAR(20) <<PK>>
+    --
+    TenKhoa : NVARCHAR(100) <<NOT NULL>>
+    MoTa : NVARCHAR(500)
+    DienThoai : VARCHAR(15)
+    Email : VARCHAR(100)
+    DiaDiem : NVARCHAR(200)
+    GioBatDau : TIME
+    GioKetThuc : TIME
+    TrangThai : ENUM(HoatDong,TamDung)
+    GhiChu : NVARCHAR(500)
+    --
+    NgayTao : DATETIME
+    NgayCapNhat : DATETIME
+  }
+
+  entity "Phong" as Phong #DBEAFE {
+    + MaPhong : VARCHAR(20) <<PK>>
+    --
+    # MaKhoa : VARCHAR(20) <<FK>>
+    # MaBacSiPhuTrach : VARCHAR(20) <<FK>> <<NULLABLE>>
+    --
+    TenPhong : NVARCHAR(100) <<NOT NULL>>
+    LoaiPhong : ENUM(PhongKham,PhongDichVu)
+    SucChua : INT
+    ViTri : NVARCHAR(100)
+    Email : VARCHAR(100)
+    DienThoai : VARCHAR(15)
+    GioMoCua : TIME
+    GioDongCua : TIME
+    ThietBi : JSON
+    TrangThai : ENUM(HoatDong,TamDung)
+    --
+    NgayTao : DATETIME
+    NgayCapNhat : DATETIME
+  }
+
+  entity "NhanSu" as NhanSu #D1FAE5 {
+    + MaNhanVien : VARCHAR(20) <<PK>>
+    --
+    # MaKhoa : VARCHAR(20) <<FK>>
+    --
+    TenDangNhap : VARCHAR(50) <<UNIQUE>>
+    MatKhauHash : VARCHAR(255)
+    HoTen : NVARCHAR(100) <<NOT NULL>>
+    VaiTro : ENUM(Admin,BacSi,YTaHC,YTaLS,YTaCLS,KTV)
+    ChucVu : NVARCHAR(50)
+    ChuyenMon : NVARCHAR(100)
+    HocVi : NVARCHAR(50)
+    SoNamKinhNghiem : INT
+    --
+    Email : VARCHAR(100)
+    DienThoai : VARCHAR(15)
+    AnhDaiDien : VARCHAR(255)
+    MoTa : NVARCHAR(500)
+    --
+    TrangThaiCongTac : ENUM(Online,Pause,Offline)
+    TrangThaiTaiKhoan : ENUM(HoatDong,TamKhoa)
+    --
+    NgayTao : DATETIME
+    NgayCapNhat : DATETIME
+    LanDangNhapCuoi : DATETIME
+  }
+
+  entity "RefreshToken" as RefreshToken #CFFAFE {
+    + Id : VARCHAR(36) <<PK>>
+    --
+    # MaNhanVien : VARCHAR(20) <<FK>>
+    --
+    Token : VARCHAR(500)
+    TimeCreateToken : DATETIME
+    TimeEndToken : DATETIME
+    IsTrangThai : BOOLEAN
+    CreatedIp : VARCHAR(45)
+    --
+    TimeRevoke : DATETIME <<NULLABLE>>
+    RevokedIp : VARCHAR(45) <<NULLABLE>>
+    ReplacedToken : VARCHAR(500) <<NULLABLE>>
+  }
+
+  entity "LichTruc" as LichTruc #FEF3C7 {
+    + MaLichTruc : VARCHAR(20) <<PK>>
+    --
+    # MaPhong : VARCHAR(20) <<FK>>
+    # MaYTaTruc : VARCHAR(20) <<FK>>
+    --
+    Ngay : DATE
+    CaTruc : ENUM(Sang,Chieu,Toi)
+    GioBatDau : TIME
+    GioKetThuc : TIME
+    NghiTruc : BOOLEAN
+    GhiChu : NVARCHAR(200)
+    --
+    NgayTao : DATETIME
+  }
+
+  entity "DichVu" as DichVu #FCE7F3 {
+    + MaDichVu : VARCHAR(20) <<PK>>
+    --
+    # MaPhongThucHien : VARCHAR(20) <<FK>>
+    --
+    TenDichVu : NVARCHAR(200) <<NOT NULL>>
+    LoaiDichVu : ENUM(KhamLS,KhamCK,XetNghiem,CDHA)
+    MoTa : NVARCHAR(500)
+    DonGia : DECIMAL(12,0) <<NOT NULL>>
+    ThoiGianDuKienPhut : INT
+    --
+    TrangThai : ENUM(HoatDong,TamDung)
+    NgayTao : DATETIME
+    NgayCapNhat : DATETIME
+  }
+}
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║               02. BENH NHAN & TIEP NHAN                        ║
+' ╚══════════════════════════════════════════════════════════════════╝
+package "02_TiepNhanVaBenhNhan" as P02 #D1FAE5 {
+
+  entity "BenhNhan" as BenhNhan #D1FAE5 {
+    + MaBenhNhan : VARCHAR(20) <<PK>>
+    --
+    HoTen : NVARCHAR(100) <<NOT NULL>>
+    NgaySinh : DATE <<NOT NULL>>
+    GioiTinh : ENUM(Nam,Nu,Khac)
+    CCCD : VARCHAR(12) <<UNIQUE>>
+    --
+    DienThoai : VARCHAR(15) <<NOT NULL>>
+    Email : VARCHAR(100)
+    DiaChi : NVARCHAR(200)
+    --
+    NhomMau : ENUM(A,B,AB,O)
+    DiUng : NVARCHAR(500)
+    ChongChiDinh : NVARCHAR(500)
+    ThuocDangDung : NVARCHAR(500)
+    TieuSuBenh : NVARCHAR(1000)
+    TienSuPhauThuat : NVARCHAR(500)
+    BenhManTinh : NVARCHAR(500)
+    SinhHieu : JSON
+    --
+    MaCha : VARCHAR(20) <<FK>> <<NULLABLE>>
+    MaMe : VARCHAR(20) <<FK>> <<NULLABLE>>
+    --
+    TrangThaiTaiKhoan : ENUM(HoatDong,KhongHoatDong,DaXoa)
+    TrangThaiHomNay : ENUM(ChoKham,DangKham,DaKham) <<NULLABLE>>
+    NgayTrangThai : DATETIME
+    --
+    NgayTao : DATETIME
+    NgayCapNhat : DATETIME
+  }
+
+  entity "LichHen" as LichHen #DBEAFE {
+    + MaLichHen : VARCHAR(20) <<PK>>
+    --
+    # MaBenhNhan : VARCHAR(20) <<FK>> <<NULLABLE>>
+    # MaLichTruc : VARCHAR(20) <<FK>>
+    --
+    NgayHen : DATE
+    GioHen : TIME
+    ThoiLuongPhut : INT
+    --
+    TenBenhNhan : NVARCHAR(100)
+    SoDienThoai : VARCHAR(15)
+    --
+    LoaiHen : ENUM(KhamMoi,TaiKham,DichVu)
+    TrangThai : ENUM(DangCho,DaXacNhan,DaCheckin,DaHuy,DaKham)
+    CoHieuLuc : BOOLEAN
+    GhiChu : NVARCHAR(500)
+    --
+    NgayTao : DATETIME
+    NgayHuy : DATETIME <<NULLABLE>>
+    LyDoHuy : NVARCHAR(200) <<NULLABLE>>
+  }
+
+  entity "PhieuKham" as PhieuKham #FEF3C7 {
+    + MaPhieuKham : VARCHAR(20) <<PK>>
+    --
+    # MaBenhNhan : VARCHAR(20) <<FK>>
+    # MaBacSiKham : VARCHAR(20) <<FK>>
+    # MaNguoiLap : VARCHAR(20) <<FK>>
+    # MaLichHen : VARCHAR(20) <<FK>> <<NULLABLE>>
+    # MaDichVuKham : VARCHAR(20) <<FK>>
+    # MaPhieuKhamClsNguon : VARCHAR(20) <<FK>> <<NULLABLE>>
+    --
+    HinhThucTiepNhan : ENUM(Walkin,Appointment,ServiceReturn)
+    NgayLap : DATE
+    GioLap : TIME
+    --
+    TrieuChung : NVARCHAR(1000)
+    TieuSuBenh : NVARCHAR(1000)
+    TieuSuDiUng : NVARCHAR(500)
+    --
+    TrangThai : ENUM(DaLap,DangKham,DaHoanTat,DaHuy)
+    --
+    NgayTao : DATETIME
+    NgayCapNhat : DATETIME
+  }
+
+  entity "PhieuKhamCls" as PhieuKhamCls #FCE7F3 {
+    + MaPhieuKhamCls : VARCHAR(20) <<PK>>
+    --
+    # MaPhieuKhamLs : VARCHAR(20) <<FK>> <<UNIQUE>>
+    --
+    NgayGioLap : DATETIME
+    AutoPublishEnabled : BOOLEAN
+    TrangThai : ENUM(DaLap,DangThucHien,DaHoanTat)
+    GhiChu : NVARCHAR(500)
+    --
+    NgayTao : DATETIME
+    NgayCapNhat : DATETIME
+  }
+
+  entity "ChiTietDichVu" as ChiTietDV #F5F3FF {
+    + MaChiTietDv : VARCHAR(20) <<PK>>
+    --
+    # MaPhieuKhamCls : VARCHAR(20) <<FK>>
+    # MaDichVu : VARCHAR(20) <<FK>>
+    --
+    TrangThai : ENUM(ChuaThucHien,...,DaCoKetQua)
+    GhiChu : NVARCHAR(500)
+    --
+    ThoiGianChiDinh : DATETIME
+    ThoiGianThucHien : DATETIME <<NULLABLE>>
+    ThoiGianHoanTat : DATETIME <<NULLABLE>>
+  }
+
+  entity "KetQuaDichVu" as KetQuaDV #CFFAFE {
+    + MaKetQua : VARCHAR(20) <<PK>>
+    --
+    # MaChiTietDv : VARCHAR(20) <<FK>> <<UNIQUE>>
+    # MaNguoiTao : VARCHAR(20) <<FK>>
+    --
+    LoaiKetQua : ENUM(XetNghiem,HinhAnh)
+    KetLuanChuyen : NVARCHAR(1000)
+    GhiChu : NVARCHAR(500)
+    --
+    TepDinhKem : JSON
+    TrangThaiChot : ENUM(Nhap,DaChot,HoanTat)
+    --
+    ThoiGianTao : DATETIME
+    ThoiGianChot : DATETIME <<NULLABLE>>
+  }
+}
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║                 03. HANG DOI & LUOT KHAM                        ║
+' ╚══════════════════════════════════════════════════════════════════╝
+package "03_HangDoiVaKham" as P03 #FEF3C7 {
+
+  entity "HangDoi" as HangDoi #FEF3C7 {
+    + MaHangDoi : VARCHAR(20) <<PK>>
+    --
+    # MaBenhNhan : VARCHAR(20) <<FK>>
+    # MaPhong : VARCHAR(20) <<FK>>
+    # MaPhieuKham : VARCHAR(20) <<FK>> <<NULLABLE>>
+    # MaChiTietDv : VARCHAR(20) <<FK>> <<NULLABLE>>
+    --
+    LoaiHangDoi : ENUM(KhamLamSang,CanLamSang)
+    Nguon : ENUM(Appointment,Walkin,ServiceReturn)
+    Nhan : ENUM(ServiceReturn,UuTien) <<NULLABLE>>
+    --
+    SoThuTu : INT
+    DoUuTien : INT
+    CapCuu : BOOLEAN
+    PhanLoaiDen : ENUM(DungGio,DenSom,DenMuon) <<NULLABLE>>
+    --
+    ThoiGianCheckin : DATETIME
+    ThoiGianLichHen : DATETIME <<NULLABLE>>
+    ThoiGianGoiGanNhat : DATETIME <<NULLABLE>>
+    SoLanGoi : INT
+    --
+    TrangThai : ENUM(ChoGoi,...,VangMat)
+    GhiChu : NVARCHAR(500)
+  }
+
+  entity "LuotKham" as LuotKham #D1FAE5 {
+    + MaLuotKham : VARCHAR(20) <<PK>>
+    --
+    # MaHangDoi : VARCHAR(20) <<FK>> <<UNIQUE>>
+    # MaNhanSuThucHien : VARCHAR(20) <<FK>> <<NULLABLE>>
+    # MaYTaHoTro : VARCHAR(20) <<FK>>
+    --
+    LoaiLuot : ENUM(KhamMoi,TaiKham,DichVu)
+    --
+    ThoiGianBatDau : DATETIME
+    ThoiGianKetThuc : DATETIME <<NULLABLE>>
+    ThoiGianThucTe : INT <<NULLABLE>>
+    --
+    TrangThai : ENUM(DangKham,DaKham,HoanTat,TamDung)
+    --
+    SinhHieuTruocKham : JSON
+    GhiChu : NVARCHAR(500)
+  }
+
+  entity "PhieuTongHop" as PhieuTongHop #DBEAFE {
+    + MaPhieuTongHop : VARCHAR(20) <<PK>>
+    --
+    # MaPhieuKhamCls : VARCHAR(20) <<FK>> <<UNIQUE>>
+    # MaNhanSuXuLy : VARCHAR(20) <<FK>>
+    --
+    LoaiPhieu : ENUM(TongHopCls)
+    --
+    TrangThai : ENUM(DangThucHien,ChoXuLy,DaHoanTat)
+    ThoiGianTao : DATETIME
+    ThoiGianXuLy : DATETIME <<NULLABLE>>
+    ThoiGianHoanTat : DATETIME <<NULLABLE>>
+    --
+    GhiChu : NVARCHAR(500)
+  }
+
+  entity "PhieuChanDoan" as PhieuChanDoan #FCE7F3 {
+    + MaPhieuChanDoan : VARCHAR(20) <<PK>>
+    --
+    # MaPhieuKham : VARCHAR(20) <<FK>> <<UNIQUE>>
+    # MaDonThuoc : VARCHAR(20) <<FK>> <<NULLABLE>>
+    --
+    ChanDoanSoBo : NVARCHAR(500)
+    ChanDoanCuoi : NVARCHAR(500) <<NOT NULL>>
+    MaICD10 : VARCHAR(10) <<NULLABLE>>
+    --
+    NoiDungKham : NVARCHAR(2000)
+    HuongXuTri : NVARCHAR(1000)
+    LoiKhuyen : NVARCHAR(1000)
+    PhatDoDieuTri : NVARCHAR(1000)
+    --
+    NgayTaiKham : DATE <<NULLABLE>>
+    GhiChuTaiKham : NVARCHAR(500) <<NULLABLE>>
+    --
+    ThoiGianTao : DATETIME
+    ThoiGianCapNhat : DATETIME
+  }
+}
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║               04. KE DON & THU VIEN PHI                         ║
+' ╚══════════════════════════════════════════════════════════════════╝
+package "04_KeDonVaThuVienPhi" as P04 #FCE7F3 {
+
+  entity "KhoThuoc" as KhoThuoc #CFFAFE {
+    + MaThuoc : VARCHAR(20) <<PK>>
+    --
+    TenThuoc : NVARCHAR(200) <<NOT NULL>>
+    HoatChat : NVARCHAR(200)
+    NhomThuoc : NVARCHAR(100)
+    DonViTinh : NVARCHAR(20)
+    QuyCachDongGoi : NVARCHAR(100)
+    --
+    CongDung : NVARCHAR(500)
+    ChongChiDinh : NVARCHAR(500)
+    TuongTacThuoc : JSON
+    --
+    GiaNiemYet : DECIMAL(12,0)
+    GiaBan : DECIMAL(12,0)
+    --
+    SoLuongTon : INT
+    NgayNhapGanNhat : DATE
+    SoLo : VARCHAR(50)
+    HanSuDung : DATE
+    --
+    TrangThai : ENUM(HoatDong,...,HetHang)
+    --
+    NgayTao : DATETIME
+    NgayCapNhat : DATETIME
+  }
+
+  entity "DonThuoc" as DonThuoc #D1FAE5 {
+    + MaDonThuoc : VARCHAR(20) <<PK>>
+    --
+    # MaBacSiKeDon : VARCHAR(20) <<FK>>
+    # MaBenhNhan : VARCHAR(20) <<FK>>
+    # MaPhieuChanDoan : VARCHAR(20) <<FK>> <<NULLABLE>>
+    --
+    ThoiGianKeDon : DATETIME
+    TongTienDon : DECIMAL(12,0)
+    GhiChu : NVARCHAR(500)
+    --
+    TrangThai : ENUM(DaKe,...,DaHuy)
+    --
+    ThoiGianThanhToan : DATETIME <<NULLABLE>>
+    ThoiGianPhat : DATETIME <<NULLABLE>>
+    MaNhanSuPhat : VARCHAR(20) <<FK>> <<NULLABLE>>
+  }
+
+  entity "ChiTietDonThuoc" as ChiTietDon #FEF3C7 {
+    + MaChiTietDon : VARCHAR(20) <<PK>>
+    --
+    # MaDonThuoc : VARCHAR(20) <<FK>>
+    # MaThuoc : VARCHAR(20) <<FK>>
+    --
+    SoLuong : INT
+    DonGia : DECIMAL(12,0)
+    ThanhTien : DECIMAL(12,0)
+    --
+    ChiDinhSuDung : NVARCHAR(200)
+    LieuDung : NVARCHAR(100)
+    TanSuatDung : ENUM(SangTruaToi,...,KhiCan) <<NULLABLE>>
+    SoNgayDung : INT <<NULLABLE>>
+    --
+    GhiChu : NVARCHAR(200)
+  }
+
+  entity "HoaDon" as HoaDon #FCE7F3 {
+    + MaHoaDon : VARCHAR(20) <<PK>>
+    --
+    # MaBenhNhan : VARCHAR(20) <<FK>>
+    # MaNhanSuThu : VARCHAR(20) <<FK>>
+    --
+    # MaPhieuKham : VARCHAR(20) <<FK>> <<NULLABLE>>
+    # MaPhieuKhamCls : VARCHAR(20) <<FK>> <<NULLABLE>>
+    # MaDonThuoc : VARCHAR(20) <<FK>> <<NULLABLE>>
+    --
+    LoaiDotThu : ENUM(KhamLS,CanLamSang,Thuoc,TongHop)
+    --
+    NoiDung : NVARCHAR(500)
+    SoTien : DECIMAL(12,0)
+    SoTienPhaiTra : DECIMAL(12,0)
+    --
+    PhuongThucThanhToan : ENUM(TienMat,The,ChuyenKhoan,VietQR)
+    MaGiaoDich : VARCHAR(50) <<NULLABLE>>
+    --
+    ThoiGian : DATETIME
+    TrangThai : ENUM(ChoThanhToan,DaThu,DaHuy)
+    --
+    LyDoHuy : NVARCHAR(200) <<NULLABLE>>
+    ThoiGianHuy : DATETIME <<NULLABLE>>
+    MaNhanSuHuy : VARCHAR(20) <<FK>> <<NULLABLE>>
+  }
+
+  entity "LichSuXuatKho" as LichSuXuat #F5F3FF {
+    + MaLichSuXuat : VARCHAR(20) <<PK>>
+    --
+    # MaThuoc : VARCHAR(20) <<FK>>
+    # MaDonThuoc : VARCHAR(20) <<FK>>
+    # MaNhanSuXuat : VARCHAR(20) <<FK>>
+    --
+    LoaiGiaoDich : ENUM(XuatBan,XuatHuy,NhapKho,DieuChinh)
+    SoLuong : INT
+    SoLuongConLai : INT
+    --
+    ThoiGianGiaoDich : DATETIME
+    GhiChu : NVARCHAR(200)
+  }
+}
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║                     05. THONG BAO                               ║
+' ╚══════════════════════════════════════════════════════════════════╝
+package "05_ThongBao" as P05 #F5F3FF {
+
+  entity "ThongBao" as ThongBao #F5F3FF {
+    + MaThongBao : VARCHAR(20) <<PK>>
+    --
+    # MaNguoiTao : VARCHAR(20) <<FK>>
+    # MaLuotKham : VARCHAR(20) <<FK>> <<NULLABLE>>
+    # MaPhieuKham : VARCHAR(20) <<FK>> <<NULLABLE>>
+    --
+    TieuDe : NVARCHAR(200)
+    NoiDung : NVARCHAR(2000)
+    --
+    LoaiThongBao : ENUM(HeThong,LichHen,KetQuaCLS,DonThuoc,ThanhToan,ChungChung)
+    DoUuTien : ENUM(Thap,TrungBinh,Cao,KhanCap)
+    --
+    ThoiGianTao : DATETIME
+    ThoiGianHenGui : DATETIME <<NULLABLE>>
+    ThoiGianGui : DATETIME <<NULLABLE>>
+    --
+    TrangThai : ENUM(Nhap,ChoGui,DangGui,DaGui,DaHuy)
+    PhuongThucGui : JSON
+  }
+
+  entity "ThongBaoNguoiNhan" as TbNguoiNhan #DBEAFE {
+    + MaTbNguoiNhan : BIGINT <<PK>>
+    --
+    # MaThongBao : VARCHAR(20) <<FK>>
+    --
+    LoaiNguoiNhan : ENUM(BenhNhan,NhanSu,VaiTro)
+    # MaBenhNhan : VARCHAR(20) <<FK>> <<NULLABLE>>
+    # MaNhanSu : VARCHAR(20) <<FK>> <<NULLABLE>>
+    VaiTroNhan : ENUM(Admin,...,KTV) <<NULLABLE>>
+    --
+    DaDoc : BOOLEAN
+    ThoiGianDoc : DATETIME <<NULLABLE>>
+    --
+    DaNhan : BOOLEAN
+    ThoiGianNhan : DATETIME <<NULLABLE>>
+    PhuongThucNhan : ENUM(System,Email,SMS) <<NULLABLE>>
+  }
+
+  entity "ThongBaoMau" as ThongBaoMau #D1FAE5 {
+    + MaMau : VARCHAR(20) <<PK>>
+    --
+    TenMau : NVARCHAR(100)
+    LoaiThongBao : ENUM(HeThong,...,ChungChung)
+    --
+    TieuDeMau : NVARCHAR(200)
+    NoiDungMau : NVARCHAR(2000)
+    --
+    BienDong : JSON
+    --
+    TrangThai : ENUM(HoatDong,TamDung)
+    --
+    NgayTao : DATETIME
+    NgayCapNhat : DATETIME
+  }
+}
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║              06. MONGODB (Document Database)                    ║
+' ╚══════════════════════════════════════════════════════════════════╝
+package "06_MongoDB" as P06 #FFF7ED {
+
+  entity "medical_histories" as MedHist #FFEDD5 {
+    + _id : ObjectId <<PK>>
+    --
+    patient_id : String <<INDEX>>
+    visit_id : String <<INDEX>>
+    doctor_id : String
+    --
+    event_type : String <<INDEX>>
+    event_date : DateTime <<INDEX>>
+    --
+    data : Object (Schema-flexible)
+    metadata : Object
+    created_at : DateTime
+  }
+
+  entity "audit_logs" as AuditLog #FEF3C7 {
+    + _id : ObjectId <<PK>>
+    --
+    actor_id : String <<INDEX>>
+    actor_role : String
+    --
+    action : String <<INDEX>>
+    resource_type : String <<INDEX>>
+    resource_id : String
+    --
+    changes : Object
+    ip_address : String
+    timestamp : DateTime <<INDEX>> <<TTL>>
+  }
+}
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║              QUAN HE CHINH (RELATIONSHIPS)                      ║
+' ╚══════════════════════════════════════════════════════════════════╝
+
+' === 01. Master Data (Internal) ===
+Khoa      ||--|{ Phong
+Khoa      ||--|{ NhanSu
+
+Phong     |o--o| NhanSu          : BsPhuTrach
+Phong     ||--o{ LichTruc
+NhanSu    ||--o{ LichTruc        : YTaTruc
+NhanSu    ||--o{ RefreshToken
+
+Phong     ||--|{ DichVu           : ThucHien
+
+' === 02. Dich vu & Phieu kham ===
+DichVu    ||--o{ PhieuKham        : DvKhamLs
+DichVu    ||--o{ ChiTietDV        : DvCls
+
+' === 03. Lich hen & Tiep nhan ===
+LichTruc  ||--o{ LichHen
+BenhNhan  ||--o{ LichHen
+LichHen   |o--o| PhieuKham        : FromAppt
+BenhNhan  ||--o{ PhieuKham
+NhanSu    ||--o{ PhieuKham        : LapPhieu
+NhanSu    ||--o{ PhieuKham        : BacSiKham
+
+' === 04. Phieu kham -> CLS -> Ket qua ===
+PhieuKham      ||--o| PhieuKhamCls
+PhieuKhamCls   ||--|{ ChiTietDV
+ChiTietDV      ||--|| KetQuaDV
+NhanSu         ||--o{ KetQuaDV    : NhapKq
+
+' === 05. Hang doi & Luot kham ===
+BenhNhan       ||--|{ HangDoi
+Phong          ||--o{ HangDoi
+PhieuKham      |o--|| HangDoi     : QueueLS
+ChiTietDV      |o--|| HangDoi     : QueueCLS
+HangDoi        ||--|| LuotKham
+
+NhanSu    |o--o{ LuotKham         : BsThucHien
+NhanSu    ||--o{ LuotKham         : YTaHoTro
+
+' === 06. Phieu Tong Hop & Chan Doan ===
+PhieuKhamCls   ||--|| PhieuTongHop : GomAll
+NhanSu         ||--o{ PhieuTongHop : NhanSuXuLy
+
+PhieuKham      ||--|| PhieuChanDoan
+PhieuChanDoan  ||--o| DonThuoc
+
+' === 07. Ke don & Hoa don ===
+DonThuoc  ||--|{ ChiTietDon
+KhoThuoc  ||--o{ ChiTietDon
+BenhNhan  ||--o{ DonThuoc
+NhanSu    ||--o{ DonThuoc         : BsKe
+
+BenhNhan  ||--o{ HoaDon
+NhanSu    ||--o{ HoaDon           : NhanSuThu
+PhieuKhamCls |o--|| HoaDon        : DotCls
+PhieuKham    |o--o| HoaDon        : DotLs
+DonThuoc     |o--|| HoaDon        : DotThuoc
+
+' === 08. Lich su xuat kho ===
+KhoThuoc  ||--o{ LichSuXuat
+DonThuoc  ||--o{ LichSuXuat
+
+' === 09. Thong bao ===
+ThongBao            ||--|{ TbNguoiNhan
+TbNguoiNhan         }o--o| BenhNhan   : Bn
+TbNguoiNhan         }o--o| NhanSu     : Ns
+
+PhieuKham |o--o{ ThongBao
+LuotKham  |o--o{ ThongBao
+
+' === 10. MongoDB: Lien ket logic (khong co FK) ===
+BenhNhan .. MedHist   : "patient_id"
+BenhNhan .. AuditLog  : "actor_id"
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║                        NOTES                                    ║
+' ╚══════════════════════════════════════════════════════════════════╝
+
+note as PolyglotNote #E8F5E9
+  **POLYGLOT PERSISTENCE**
+  ==
+  **MySQL** (5 Domain, 22 Table):
+  ACID, FK, Transaction
+  
+  **MongoDB** (2 Collection):
+  Schema-flexible, Append-only
+  
+  **Hybrid Data Flow:**
+  MySQL = Metadata + Workflow
+  MongoDB = Clinical Content + Audit
+end note
+
+note as StatsNote #FFF3E0
+  **THONG KE:**
+  --
+  01_DuLieuNen:    6 tables
+  02_TiepNhan:     6 tables
+  03_HangDoi:      4 tables
+  04_KeDon:        5 tables
+  05_ThongBao:     3 tables
+  06_MongoDB:      2 collections
+  --
+  **Tong: 22 tables + 2 collections**
+end note
+
+@enduml

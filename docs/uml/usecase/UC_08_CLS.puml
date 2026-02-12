@@ -1,0 +1,190 @@
+@startuml UC_08_CLS
+' ===========================
+' UC_08: CAN LAM SANG (XET NGHIEM / CDHA)
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+hide circle
+
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+
+left to right direction
+title UC_08: Can lam sang (Xet nghiem / CDHA)
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Bac si" as BS #Lavender
+actor "Y ta Can lam sang" as YTCLS #Gold
+actor "Ky thuat vien" as KTV #PeachPuff
+
+' ===========================
+' 1) TIEP NHAN CHI DINH
+' ===========================
+rectangle "Tiep nhan Chi dinh" as ReceiveOrder #E0F2FE {
+  usecase "UC60.1 - Xem DS\nChi dinh moi" as UC60_1
+  usecase "UC60.2 - Loc theo\nLoai (XN/CDHA)" as UC60_2
+  usecase "UC60.3 - Loc theo\nTrang thai" as UC60_3
+  usecase "UC60.4 - Tim kiem\nChi dinh" as UC60_4
+  usecase "UC60.5 - Xem Chi tiet\nChi dinh" as UC60_5
+  usecase "UC60.6 - Xac nhan\nTiep nhan" as UC60_6
+  usecase "UC60.7 - Cap nhat\n'Dang thuc hien'" as UC60_7
+}
+
+' ===========================
+' 2) TIEP NHAN BENH NHAN
+' ===========================
+rectangle "Tiep nhan Benh nhan" as ReceivePatient #D1FAE5 {
+  usecase "UC61.1 - Tiep nhan\nBenh nhan" as UC61_1
+  usecase "UC61.2 - Xac minh\nThong tin BN" as UC61_2
+  usecase "UC61.3 - Huong dan\nChuan bi" as UC61_3
+  usecase "UC61.4 - Lay Mau\nBenh pham" as UC61_4
+  usecase "UC61.5 - Chon Loai mau\n(Mau/Nuoc tieu/...)" as UC61_5
+  usecase "UC61.6 - Dan Nhan mau\n(Barcode)" as UC61_6
+  usecase "UC61.7 - Ghi nhan\nThoi gian lay mau" as UC61_7
+}
+
+' ===========================
+' 3) THUC HIEN XET NGHIEM
+' ===========================
+rectangle "Thuc hien Xet nghiem" as DoLab #FEF3C7 {
+  usecase "UC62.1 - Chay\nMay xet nghiem" as UC62_1
+  usecase "UC62.2 - Nhap Ket qua XN" as UC62_2
+  usecase "UC62.3 - Nhap tung Chi so\n(Glucose, WBC,...)" as UC62_3
+  usecase "UC62.4 - Nhap Gia tri\nva Don vi" as UC62_4
+  usecase "UC62.5 - So sanh voi\nNguong binh thuong" as UC62_5
+  usecase "UC62.6 - Danh dau\nBat thuong" as UC62_6
+}
+
+' ===========================
+' 4) THUC HIEN CDHA
+' ===========================
+rectangle "Thuc hien CDHA" as DoImaging #FCE7F3 {
+  usecase "UC63.1 - Chup\nX-quang" as UC63_1
+  usecase "UC63.2 - Thuc hien\nSieu am" as UC63_2
+  usecase "UC63.3 - Thuc hien\nCT Scan" as UC63_3
+  usecase "UC63.4 - Thuc hien\nMRI" as UC63_4
+  usecase "UC63.5 - Thuc hien\nNoi soi" as UC63_5
+  usecase "UC63.6 - Thuc hien\nDien tam do (ECG)" as UC63_6
+  usecase "UC63.7 - Viet\nKet luan hinh anh" as UC63_7
+  usecase "UC63.8 - Mo ta\nHinh anh chi tiet" as UC63_8
+  usecase "UC63.9 - Nhap\nKet luan chan doan" as UC63_9
+  usecase "UC63.10 - Nhap\nDe xuat" as UC63_10
+}
+
+' ===========================
+' 5) NHAP & TRA KET QUA
+' ===========================
+rectangle "Nhap & Tra Ket qua" as ReturnResult #F5F3FF {
+  usecase "UC64.1 - Upload\nFile ket qua" as UC64_1
+  usecase "UC64.2 - Upload\nAnh X-quang/SA" as UC64_2
+  usecase "UC64.3 - Upload\nPDF bao cao" as UC64_3
+  usecase "UC64.4 - Tong hop\nKet qua" as UC64_4
+  usecase "UC64.5 - Tao Phieu\nTong hop CLS" as UC64_5
+  usecase "UC64.6 - Gui Ket qua\nve Bac si" as UC64_6
+  usecase "UC64.7 - Push Notification\n(SignalR)" as UC64_7
+  usecase "UC64.8 - Cap nhat\n'Da co ket qua'" as UC64_8
+}
+
+' ===========================
+' 6) XEM KET QUA (BAC SI)
+' ===========================
+rectangle "Xem Ket qua (Bac si)" as ViewResult #CFFAFE {
+  usecase "UC65.1 - Nhan Thong bao\nKet qua moi" as UC65_1
+  usecase "UC65.2 - Xem DS\nKet qua CLS" as UC65_2
+  usecase "UC65.3 - Loc theo\nLoai XN/CDHA" as UC65_3
+  usecase "UC65.4 - Xem Chi tiet\nKet qua" as UC65_4
+  usecase "UC65.5 - Xem\nChi so XN" as UC65_5
+  usecase "UC65.6 - Xem\nKet luan CDHA" as UC65_6
+  usecase "UC65.7 - Xem/Tai\nFile dinh kem" as UC65_7
+  usecase "UC65.8 - Xem Phieu\nTong hop" as UC65_8
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+ReceiveOrder -[hidden]-> ReceivePatient
+ReceivePatient -[hidden]-> DoLab
+ReceiveOrder -[hidden]down-> DoImaging
+DoImaging -[hidden]-> ReturnResult
+ReturnResult -[hidden]-> ViewResult
+
+' ===========================
+' ACTOR -> USECASE
+' ===========================
+YTCLS --> UC60_1
+YTCLS --> UC60_6
+YTCLS --> UC61_1
+YTCLS --> UC61_4
+
+KTV --> UC60_1
+KTV --> UC60_6
+KTV --> UC62_1
+KTV --> UC62_2
+KTV --> UC63_1
+KTV --> UC63_2
+KTV --> UC63_7
+KTV --> UC64_1
+KTV --> UC64_4
+KTV --> UC64_6
+
+BS --> UC65_1
+BS --> UC65_2
+BS --> UC65_4
+BS --> UC65_8
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC60_1 ..> UC60_2 : <<extend>>
+UC60_1 ..> UC60_3 : <<extend>>
+UC60_1 ..> UC60_4 : <<extend>>
+UC60_6 ..> UC60_7 : <<include>>
+
+UC61_1 ..> UC61_2 : <<include>>
+UC61_1 ..> UC61_3 : <<include>>
+UC61_4 ..> UC61_5 : <<include>>
+UC61_4 ..> UC61_6 : <<include>>
+UC61_4 ..> UC61_7 : <<include>>
+
+UC62_1 ..> UC62_2 : <<include>>
+UC62_2 ..> UC62_3 : <<include>>
+UC62_3 ..> UC62_4 : <<include>>
+UC62_2 ..> UC62_5 : <<include>>
+UC62_5 ..> UC62_6 : <<extend>>
+
+UC63_1 ..> UC63_7 : <<include>>
+UC63_2 ..> UC63_7 : <<include>>
+UC63_7 ..> UC63_8 : <<include>>
+UC63_7 ..> UC63_9 : <<include>>
+UC63_7 ..> UC63_10 : <<extend>>
+
+UC64_1 ..> UC64_2 : <<extend>>
+UC64_1 ..> UC64_3 : <<extend>>
+UC64_4 ..> UC64_5 : <<include>>
+UC64_6 ..> UC64_7 : <<include>>
+UC64_6 ..> UC64_8 : <<include>>
+
+UC65_2 ..> UC65_3 : <<extend>>
+UC65_4 ..> UC65_5 : <<extend>>
+UC65_4 ..> UC65_6 : <<extend>>
+UC65_4 ..> UC65_7 : <<extend>>
+
+' ===========================
+' NOTES
+' ===========================
+note right of UC64_1
+  MongoDB
+  Luu tru file linh hoat
+end note
+
+note right of UC64_7
+  SignalR WebSocket
+  Real-time notification
+end note
+
+@enduml

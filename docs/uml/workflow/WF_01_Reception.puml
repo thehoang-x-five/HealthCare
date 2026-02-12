@@ -1,0 +1,60 @@
+@startuml WF_01_Reception
+' ===========================
+' WF_01: QUY TRINH TIEP DON & DIEU PHOI
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam linetype ortho
+
+skinparam activityBackgroundColor #EEF2FF
+skinparam activityBorderColor #4F46E5
+skinparam activityDiamondBackgroundColor #F0FDFA
+skinparam activityDiamondBorderColor #0D9488
+skinparam noteBackgroundColor #FEFCE8
+skinparam noteBorderColor #EAB308
+
+title WF_01: Quy trinh Tiep don & Dieu phoi (Automation & Real-time)
+
+|Benh Nhan|
+start
+:Den Benh vien (Dat lich / Vang lai);
+
+|Y ta Hanh chinh|
+:Tiep nhan CCCD / SDT;
+
+|He Thong (System)|
+:Tim kiem & Dong bo Lich su (Elastic/SQL);
+
+if (Co Lich hen truoc?) then (Co)
+  :Kiem tra Check-in Dung gio;
+  :Uu tien Xep hang;
+else (Vang lai)
+  :Tao Luot Tiep Nhan Moi;
+endif
+
+:TU DONG: Tao Hang Doi (Queue);
+note right
+  **Automation:**
+  He thong tu tinh Do uu tien:
+  1. Cap cuu (Emergency)
+  2. Quay lai sau CLS (Return)
+  3. Dat lich dung gio (Booking)
+  4. Vang lai / Den muon (Walk-in)
+end note
+
+:TU DONG: Tao Hoa don Kham;
+note right
+  **Automation:**
+  Phi kham duoc them ngay
+  vao gio thanh toan
+end note
+
+:Broadcast "QueueUpdated" (Realtime);
+
+|Benh Nhan|
+:Xem STT tren Bang dien tu;
+
+stop
+
+@enduml

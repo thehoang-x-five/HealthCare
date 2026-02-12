@@ -1,0 +1,251 @@
+@startuml SEQ_FULL_VISIT_UPGRADED
+title HEALTHCARE+ FULL VISIT SEQUENCE (QUY TRINH TOAN TRINH CHI TIET)
+
+' ==========================================
+' 1. CONFIGURATION & ACTORS
+' ==========================================
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+skinparam wrapWidth 300
+
+actor "Benh Nhan" as BN
+actor "Y ta Hanh chinh" as HC
+actor "Y ta Lam sang" as LS
+actor "Bac Si" as BS
+actor "Y ta CLS" as CLS_N
+actor "Ky Thuat Vien" as KTV
+
+box "System Application" #F3F4F6
+  participant "Frontend (React)" as FE
+  participant "Backend API\n(Controllers + Services)" as API
+  participant "SignalR Hub" as Hub
+end box
+
+box "Data Persistence (Polyglot)" #DBEAFE
+  database "MySQL\n(Core Data)" as SQL
+  database "MongoDB\n(History/Logs)" as NoSQL
+end box
+
+' ==========================================
+' 2. PHASE 1: RECEPTION (TIEP DON)
+' ==========================================
+group #EEF2FF PHASE 1: RECEPTION & QUEUE (TIEP DON)
+
+  BN -> HC: Cung cap CCCD / SDT
+  HC -> FE: Nhap thong tin tim kiem (Patients.jsx)
+  FE -> API: GET /api/patients/search?keyword=...
+  API -> SQL: Query BenhNhan (Index: CCCD, SDT)
+  SQL --> API: Result List
+  API --> FE: JSON Data
+
+  alt Benh Nhan Cu (Exist)
+    HC -> FE: Chon Benh Nhan
+    FE -> API: GET /api/patients/{id}/history
+    API -> NoSQL: Query PatientHistory (Collection)
+    NoSQL --> API: History Doc
+    API --> FE: History Data
+  else Benh Nhan Moi (New)
+    HC -> FE: Nhap thong tin moi
+    FE -> API: POST /api/patients
+    API -> SQL: Insert BenhNhan
+    API -> NoSQL: Init Empty History
+  end
+
+  HC -> FE: Dang ky Kham (Chon Phong/Dich vu)
+  FE -> API: POST /api/clinical
+  activate API
+  
+  API -> SQL: Insert PhieuKhamLamSang
+  
+  note right API
+    **Automation:**
+    Tinh Do Uu Tien (Priority Logic):
+    1. Cap Cuu (0)
+    2. Service Return (10)
+    3. Booking (20)
+    4. Walk-in (30)
+  end note
+  
+  API -> SQL: Insert HangDoi (Queue)
+  API -> NoSQL: Log Event "RegisterExam"
+  
+  API -> Hub: Broadcast "QueueUpdated"
+  activate Hub
+  Hub --> BS: Update Queue List (Real-time)
+  Hub --> FE: Update Waiting Screen (Real-time)
+  deactivate Hub
+  
+  API --> FE: Register Success (Queue Number)
+  deactivate API
+end
+
+' ==========================================
+' 3. PHASE 2: PRE-EXAM (CHUAN BI KHAM)
+' ==========================================
+group #ECFDF5 PHASE 2: VITALS & PREPARATION (CHUAN BI)
+  
+  LS -> FE: Xem danh sach cho (Staff.jsx)
+  LS -> FE: Goi Benh Nhan
+  FE -> API: POST /api/queue/call
+  API -> Hub: Broadcast "CallPatient"
+  Hub --> BN: Loa phat thanh / TV hien thi
+  
+  BN -> LS: Vao khu vuc do sinh hieu
+  LS -> FE: Nhap Mach, Huyet ap, Nhiet do
+  FE -> API: PUT /api/clinical/{id}/vitals
+  API -> SQL: Update PhieuKham (Vitals)
+  API -> NoSQL: Log Vitals History
+  API -> SQL: Update Queue Status ("cho_kham")
+  API --> FE: Success
+end
+
+' ==========================================
+' 4. PHASE 3: EXAMINATION (KHAM LAM SANG)
+' ==========================================
+group #FEF3C7 PHASE 3: EXAMINATION (KHAM BENH)
+  
+  BS -> FE: Nhan thong bao "BN San sang" (Examination.jsx)
+  BS -> FE: Click "Bat dau kham"
+  FE -> API: PUT /api/clinical/{id}/start
+  API -> SQL: Update Status "dang_kham"
+  API -> Hub: Broadcast "ExamStarted"
+  
+  BS -> FE: Kham & Xem Lich su (MongoDB)
+  FE -> API: GET /api/clinical/history (Timeline)
+  API -> NoSQL: Aggregation Query (Timeline)
+  API --> FE: Timeline Data
+  
+  alt #White Case: Chi Dinh CLS (Can Xet Nghiem)
+    BS -> FE: Chi dinh Xet nghiem Mau / X-Quang
+    FE -> API: POST /api/cls/orders
+    activate API
+    API -> SQL: Insert PhieuCls & ChiTietDv
+    
+    note right API
+      **Automation:**
+      Auto-Bill Service Fee (Pending) 
+      -> Add to Billing Basket
+    end note
+    
+    API -> Hub: Broadcast "NewLabRequest"
+    activate Hub
+    Hub --> CLS_N: Notify New Order
+    Hub --> KTV: Notify New Order
+    deactivate Hub
+    
+    API --> FE: Order Created
+    deactivate API
+    
+    ' --- CLS SUB-PROCESS ---
+    group #F3E8FF SUB-PHASE: CLS EXECUTION
+      CLS_N -> FE: Tiep nhan & Lay mau (ClsOrders.jsx)
+      FE -> API: PUT /api/cls/orders/{id}/status (Sampling)
+      
+      KTV -> FE: Thuc hien & Nhap Ket qua
+      FE -> API: POST /api/cls/results
+      activate API
+      
+      API -> NoSQL: Save Result Doc (Dynamic Schema)
+      
+      note right API
+        **Automation:**
+        Analyze Result vs Ranges
+        -> Highlight Abnormal (Red/Yellow)
+      end note
+      
+      API -> SQL: Update Status "da_co_ket_qua"
+      API -> Hub: Broadcast "ResultAvailable"
+      deactivate API
+      
+      Hub --> BS: Popup "Co Ket Qua CLS"
+    end
+    ' -----------------------
+  end
+
+  BS -> FE: Chan doan & Ke Don Thuoc
+  
+  alt #White Case: Co Don Thuoc
+    BS -> FE: Nhap Don Thuoc
+    FE -> API: POST /api/prescriptions
+    activate API
+    
+    note right API
+      **Automation:**
+      Transaction (SERIALIZABLE):
+      Check Inventory -> Lock -> Deduct
+    end note
+    
+    API -> SQL: Check & Update KhoThuoc
+    
+    alt Stock Available
+      API -> SQL: Create DonThuoc Record
+      API -> SQL: Create Billing Item (Drug)
+      API -> Hub: Broadcast "PrescriptionReady"
+      Hub --> HC: Notify Pharmacy
+      API --> FE: Success
+    else Out of Stock
+      API --> FE: Error "Het hang"
+    end
+    deactivate API
+  else Case: Khong Don Thuoc
+    BS -> FE: Chi dinh Loi khuyen
+  end
+
+  BS -> FE: Ket thuc Kham
+  FE -> API: POST /api/clinical/{id}/complete
+  activate API
+  API -> SQL: Update Status "hoan_thanh"
+  API -> NoSQL: Save Medical Event (Doctor Notes, Diagnosis)
+  API -> Hub: Broadcast "ExamFinished"
+  deactivate API
+end
+
+' ==========================================
+' 5. PHASE 4 & 5: PHARMACY & BILLING
+' ==========================================
+parallel #E0F2FE
+  group PHASE 4: PHARMACY (DUOC)
+    HC -> FE: Nhan Don Thuoc (Prescriptions.jsx)
+    FE -> API: GET /api/pharmacy/pending
+    HC -> HC: Soan thuoc
+    HC -> FE: Xac nhan Phat
+    FE -> API: PUT /api/pharmacy/dispense
+    API -> SQL: Update DonThuoc Status "da_phat"
+    API -> NoSQL: Log Inventory Transaction
+  end
+  
+  group PHASE 5: BILLING (THANH TOAN)
+    HC -> FE: Chon Hoa Don (Billing.jsx)
+    FE -> API: GET /api/billing/invoice/{id}
+    API -> SQL: Sum(Kham + CLS + Thuoc)
+    API --> FE: Total Amount
+    
+    alt QR Payment
+      HC -> FE: Chon VietQR
+      FE -> API: POST /api/billing/qr
+      API -> External: Generate QR String
+      API --> FE: QR Image
+      BN -> FE: Scan QR & Pay
+      External -> API: Webhook Success
+      
+      note right API
+        **Automation:**
+        Auto-Confirm Invoice
+        upon Webhook
+      end note
+      
+      API -> SQL: Update Invoice "da_thu"
+      API -> Hub: Broadcast "PaymentSuccess"
+    else Cash
+      HC -> FE: Xac nhan Thu tien mat
+      FE -> API: PUT /api/billing/confirm
+      API -> SQL: Update Invoice "da_thu"
+    end
+    
+    API -> NoSQL: Log Transaction (Audit)
+    API -> NoSQL: Update Revenue Analytics
+  end
+end
+
+@enduml

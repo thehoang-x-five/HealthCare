@@ -1,0 +1,59 @@
+@startuml WF_04_Pharmacy
+' ===========================
+' WF_04: QUY TRINH DUOC & CAP PHAT THUOC
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam linetype ortho
+
+skinparam activityBackgroundColor #EEF2FF
+skinparam activityBorderColor #4F46E5
+skinparam activityDiamondBackgroundColor #F0FDFA
+skinparam activityDiamondBorderColor #0D9488
+skinparam noteBackgroundColor #FEFCE8
+skinparam noteBorderColor #EAB308
+
+title WF_04: Quy trinh Duoc & Cap phat thuoc (Unified Actors)
+
+|Y ta Hanh chinh|
+start
+:Nhan Don thuoc moi (SignalR);
+:Chuan bi thuoc theo Don;
+
+if (Thuoc co san trong kho?) then (Co)
+  :Xac nhan Phat thuoc;
+  
+  |He Thong (System)|
+  start
+  :Bat dau Transaction (SERIALIZABLE);
+    :Kiem tra So luong ton;
+    if (Ton kho >= So luong ke?) then (Du)
+      :Tru Ton kho;
+      :Tao Phieu Xuat;
+      :Cap nhat trang thai "Da Phat";
+      :Commit Transaction;
+    else (Thieu)
+      :Rollback Transaction;
+      :Bao loi "Het hang";
+      detach
+      end
+    endif
+  stop
+  
+  |Y ta Hanh chinh|
+  :In Tem nhan & HDSD;
+  :Giao thuoc cho BN;
+  
+else (Khong / Het hang)
+  :Thong bao Bac si Dieu chinh;
+  stop
+endif
+
+|He Thong (System)|
+:Luu Lich su Xuat kho;
+:Cap nhat Analytics Doanh thu;
+
+stop
+
+@enduml

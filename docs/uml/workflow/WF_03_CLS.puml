@@ -1,0 +1,48 @@
+@startuml WF_03_CLS
+' ===========================
+' WF_03: QUY TRINH CAN LAM SANG (CLS)
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam linetype ortho
+
+skinparam activityBackgroundColor #EEF2FF
+skinparam activityBorderColor #4F46E5
+skinparam activityDiamondBackgroundColor #F0FDFA
+skinparam activityDiamondBorderColor #0D9488
+skinparam noteBackgroundColor #FEFCE8
+skinparam noteBorderColor #EAB308
+
+title WF_03: Quy trinh Can lam sang (Tu dong hoa Real-time)
+
+|Y ta Can lam sang|
+start
+:Nhan thong bao "Yeu cau CLS moi" (SignalR);
+:Tiep nhan BN & Lay Mau / Huong dan;
+
+|He Thong (System)|
+:Cap nhat Trang thai "Dang thuc hien";
+:Thong bao KTV;
+
+|Ky Thuat Vien|
+:Thuc hien Xet nghiem / Chup chieu;
+:Nhap Ket qua vao Form dong;
+
+|He Thong (System)|
+:Luu Ket qua (MongoDB Dynamic Schema);
+:Phan tich Chi so & Highlight Bat thuong;
+note right
+  **Automation:**
+  So sanh voi nguong chuan
+  -> Danh dau Do/Vang
+end note
+
+:Broadcast "ResultAvailable" (SignalR)\nden Bac si chi dinh;
+
+|Bac Si|
+:Nhan thong bao & Xem ket qua ngay;
+
+stop
+
+@enduml

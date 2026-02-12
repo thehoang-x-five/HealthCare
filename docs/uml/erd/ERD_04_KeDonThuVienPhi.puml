@@ -1,0 +1,185 @@
+@startuml ERD_04_KeDonThuVienPhi
+' ===========================
+' ERD_04: KE DON & THU VIEN PHI
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+left to right direction
+title ERD_04: Ke don & Thu vien phi
+
+' ===========================
+' ENTITY: KHO THUOC
+' ===========================
+entity "KhoThuoc" as KhoThuoc #CFFAFE {
+  + MaThuoc : VARCHAR(20) <<PK>>
+  --
+  TenThuoc : NVARCHAR(200) <<NOT NULL>>
+  HoatChat : NVARCHAR(200)
+  NhomThuoc : NVARCHAR(100)
+  DonViTinh : NVARCHAR(20) <<NOT NULL>>
+  QuyCachDongGoi : NVARCHAR(100)
+  --
+  CongDung : NVARCHAR(500)
+  ChongChiDinh : NVARCHAR(500)
+  TuongTacThuoc : JSON
+  --
+  GiaNiemYet : DECIMAL(12,0) <<NOT NULL>>
+  GiaBan : DECIMAL(12,0) <<NOT NULL>>
+  --
+  SoLuongTon : INT <<DEFAULT 0>>
+  NgayNhapGanNhat : DATE
+  SoLo : VARCHAR(50)
+  HanSuDung : DATE <<NOT NULL>>
+  --
+  TrangThai : ENUM(HoatDong,TamDung,SapHetHan,SapHetTon,HetHang) <<DEFAULT 'HoatDong'>>
+  --
+  NgayTao : DATETIME <<DEFAULT NOW>>
+  NgayCapNhat : DATETIME
+}
+
+' ===========================
+' ENTITY: DON THUOC
+' ===========================
+entity "DonThuoc" as DonThuoc #D1FAE5 {
+  + MaDonThuoc : VARCHAR(20) <<PK>>
+  --
+  # MaBacSiKeDon : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaBenhNhan : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaPhieuChanDoan : VARCHAR(20) <<FK>> <<NULLABLE>>
+  --
+  ThoiGianKeDon : DATETIME <<NOT NULL>>
+  TongTienDon : DECIMAL(12,0) <<DEFAULT 0>>
+  GhiChu : NVARCHAR(500)
+  --
+  TrangThai : ENUM(DaKe,ChoThanhToan,DaThanhToan,ChoPhat,DangPhat,DaPhat,DaHuy) <<DEFAULT 'DaKe'>>
+  --
+  ThoiGianThanhToan : DATETIME <<NULLABLE>>
+  ThoiGianPhat : DATETIME <<NULLABLE>>
+  MaNhanSuPhat : VARCHAR(20) <<FK>> <<NULLABLE>>
+}
+
+' ===========================
+' ENTITY: CHI TIET DON THUOC
+' ===========================
+entity "ChiTietDonThuoc" as ChiTietDon #FEF3C7 {
+  + MaChiTietDon : VARCHAR(20) <<PK>>
+  --
+  # MaDonThuoc : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaThuoc : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  SoLuong : INT <<NOT NULL>>
+  DonGia : DECIMAL(12,0) <<NOT NULL>>
+  ThanhTien : DECIMAL(12,0) <<NOT NULL>>
+  --
+  ChiDinhSuDung : NVARCHAR(200)
+  LieuDung : NVARCHAR(100)
+  TanSuatDung : ENUM(SangTruaToi,Sang,Trua,Toi,KhiCan) <<NULLABLE>>
+  SoNgayDung : INT <<NULLABLE>>
+  --
+  GhiChu : NVARCHAR(200)
+}
+
+' ===========================
+' ENTITY: HOA DON
+' ===========================
+entity "HoaDon" as HoaDon #FCE7F3 {
+  + MaHoaDon : VARCHAR(20) <<PK>>
+  --
+  # MaBenhNhan : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaNhanSuThu : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  # MaPhieuKham : VARCHAR(20) <<FK>> <<NULLABLE>>
+  # MaPhieuKhamCls : VARCHAR(20) <<FK>> <<NULLABLE>>
+  # MaDonThuoc : VARCHAR(20) <<FK>> <<NULLABLE>>
+  --
+  LoaiDotThu : ENUM(KhamLamSang,CanLamSang,Thuoc,TongHop) <<NOT NULL>>
+  --
+  NoiDung : NVARCHAR(500)
+  SoTien : DECIMAL(12,0) <<NOT NULL>>
+
+
+  SoTienPhaiTra : DECIMAL(12,0) <<NOT NULL>>
+  --
+  PhuongThucThanhToan : ENUM(TienMat,The,ChuyenKhoan,VietQR) <<NOT NULL>>
+  MaGiaoDich : VARCHAR(50) <<NULLABLE>>
+  --
+  ThoiGian : DATETIME <<NOT NULL>>
+  TrangThai : ENUM(ChoThanhToan,DaThu,DaHuy) <<DEFAULT 'ChoThanhToan'>>
+  --
+  LyDoHuy : NVARCHAR(200) <<NULLABLE>>
+  ThoiGianHuy : DATETIME <<NULLABLE>>
+  MaNhanSuHuy : VARCHAR(20) <<FK>> <<NULLABLE>>
+}
+
+' ===========================
+' ENTITY: LICH SU XUAT KHO
+' ===========================
+entity "LichSuXuatKho" as LichSuXuat #F5F3FF {
+  + MaLichSuXuat : VARCHAR(20) <<PK>>
+  --
+  # MaThuoc : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaDonThuoc : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaNhanSuXuat : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  LoaiGiaoDich : ENUM(XuatBan,XuatHuy,NhapKho,DieuChinh) <<NOT NULL>>
+  SoLuong : INT <<NOT NULL>>
+  SoLuongConLai : INT <<NOT NULL>>
+  --
+  ThoiGianGiaoDich : DATETIME <<NOT NULL>>
+  GhiChu : NVARCHAR(200)
+}
+
+' ===========================
+' RELATIONSHIPS
+' ===========================
+KhoThuoc ||--o{ ChiTietDon : "1 Thuoc co nhieu Chi tiet"
+DonThuoc ||--|{ ChiTietDon : "1 Don co nhieu Chi tiet"
+DonThuoc ||--o| HoaDon : "Don thuoc -> Hoa don"
+KhoThuoc ||--o{ LichSuXuat : "1 Thuoc co nhieu Lich su"
+DonThuoc ||--o{ LichSuXuat : "1 Don co nhieu Lich su"
+
+' ===========================
+' NOTES
+' ===========================
+note right of KhoThuoc
+  TuongTacThuoc (JSON):
+  {
+    "canh_bao": [
+      {
+        "ma_thuoc": "TH002",
+        "ten": "Aspirin",
+        "muc_do": "Cao",
+        "mo_ta": "Tang nguy co xuat huyet"
+      }
+    ]
+  }
+  
+  INDEX idx_hansudung ON HanSuDung
+  INDEX idx_ton ON SoLuongTon
+  INDEX idx_trangthai ON TrangThai
+end note
+
+note right of HoaDon
+  VietQR:
+  - Bank ID
+  - Account No
+  - Amount
+  - Content = MaHoaDon
+  
+  INDEX idx_benhnhan ON MaBenhNhan
+  INDEX idx_thoigian ON ThoiGian
+  INDEX idx_trangthai ON TrangThai
+end note
+
+note bottom of LichSuXuat
+  Tracking moi thay doi ton kho
+  de dam bao tinh nhat quan
+  
+  Transaction SERIALIZABLE
+  khi xuat thuoc
+end note
+
+@enduml

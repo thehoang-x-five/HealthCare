@@ -1,0 +1,175 @@
+
+@startuml ARCH_00_Overview
+' ===========================
+' ARCH_00: TONG QUAN KIEN TRUC HE THONG
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam linetype ortho
+skinparam shadowing false
+skinparam linetype ortho
+skinparam shadowing false
+skinparam padding 5
+skinparam margin 20
+skinparam nodesep 10
+skinparam ranksep 100
+skinparam usecase {
+  Padding 4
+}
+title HealthCare+ - Kien truc Tong quan (Polyglot Persistence)
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Admin" as Admin #LightCoral
+actor "Y ta" as Nurse #LightBlue
+actor "Bac si" as Doctor #Lavender
+actor "Ky thuat vien" as Tech #PeachPuff
+
+' ===========================
+' FRONTEND
+' ===========================
+package "Frontend" as FE #E0F2FE {
+  node "React/Vite SPA" as ReactApp {
+    [Dashboard]
+    [Tiep nhan]
+    [Kham benh]
+    [CLS]
+    [Thanh toan]
+    [Bao cao]
+  }
+}
+
+' ===========================
+' API GATEWAY
+' ===========================
+package "Web API (Monolith Host)" as APIGateway #DBEAFE {
+  [ASP.NET Core 8.0] as ASPNET
+  [JWT Auth Middleware] as JWTAuth
+  [CORS Middleware] as CORS
+  [SignalR Hub] as SignalR
+}
+
+' ===========================
+' BUSINESS SERVICES
+' ===========================
+package "Business Services" as Services #D1FAE5 {
+  [Auth Service] as AuthSvc
+  [Patient Service] as PatientSvc
+  [Appointment Service] as ApptSvc
+  [Queue Service] as QueueSvc
+  [Clinical Service] as ClinicalSvc
+  [CLS Service] as CLSSvc
+  [Prescription Service] as PrescSvc
+  [Billing Service] as BillingSvc
+  [Notification Service] as NotifSvc
+  [Report Service] as ReportSvc
+}
+
+' ===========================
+' DATA ACCESS
+' ===========================
+package "Data Access Layer" as DAL #FEF3C7 {
+  [EF Core DbContext] as EFCore
+  [MongoDB.Driver] as MongoDriver
+  [Repository Pattern] as Repo
+}
+
+' ===========================
+' DATABASES
+' ===========================
+package "Database Layer" as DB #FCE7F3 {
+  database "MySQL 8.0\n(RDBMS - ACID)" as MySQL {
+    [nhan_su]
+    [benh_nhan]
+    [lich_hen]
+    [phieu_kham]
+    [don_thuoc]
+    [hoa_don]
+    [kho_thuoc]
+  }
+  
+  database "MongoDB Atlas\n(NoSQL - BASE)" as MongoDB {
+    [medical_histories]
+    [ket_qua_cls]
+    [audit_logs]
+  }
+}
+
+' ===========================
+' EXTERNAL SERVICES
+' ===========================
+package "External Services" as External #F5F3FF {
+  cloud "VietQR API" as VietQR
+  cloud "SMTP Server" as SMTP
+  cloud "SMS Gateway" as SMS
+}
+
+' ===========================
+' CONNECTIONS
+' ===========================
+Admin --> ReactApp
+Nurse --> ReactApp
+Doctor --> ReactApp
+Tech --> ReactApp
+
+ReactApp --> ASPNET : HTTPS/REST
+ReactApp <--> SignalR : WebSocket
+
+ASPNET --> JWTAuth
+JWTAuth --> Services
+
+AuthSvc --> EFCore
+PatientSvc --> EFCore
+PatientSvc --> MongoDriver
+ApptSvc --> EFCore
+QueueSvc --> EFCore
+ClinicalSvc --> EFCore
+ClinicalSvc --> MongoDriver
+CLSSvc --> EFCore
+CLSSvc --> MongoDriver
+PrescSvc --> EFCore
+BillingSvc --> EFCore
+NotifSvc --> SignalR
+ReportSvc --> EFCore
+ReportSvc --> MongoDriver
+
+EFCore --> MySQL
+MongoDriver --> MongoDB
+
+BillingSvc --> VietQR
+NotifSvc --> SMTP
+NotifSvc --> SMS
+
+' ===========================
+' NOTES
+' ===========================
+note right of MySQL
+  **ACID Transactions**
+  - Dat lich (SERIALIZABLE)
+  - Xuat thuoc
+  - Thanh toan
+  
+  **Recursive CTE**
+  - Pha he benh nhan
+end note
+
+note right of MongoDB
+  **Schema Evolution**
+  - Flexible Medical Events
+  - File attachments
+  
+  **Aggregation Pipeline**
+  - Bao cao thong ke
+end note
+
+note bottom of SignalR
+  Real-time:
+  - Hang doi
+  - Thong bao
+  - Ket qua CLS
+end note
+
+@enduml

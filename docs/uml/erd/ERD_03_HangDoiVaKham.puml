@@ -1,0 +1,166 @@
+
+@startuml ERD_03_HangDoiVaKham
+' ===========================
+' ERD_03: HANG DOI & LUOT KHAM
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam linetype ortho
+skinparam linetype ortho
+skinparam linetype ortho
+skinparam padding 5
+skinparam margin 20
+skinparam nodesep 10
+skinparam ranksep 100
+skinparam usecase {
+  Padding 4
+}
+left to right direction
+title ERD_03: Hang doi & Luot kham
+
+' ===========================
+' ENTITY: HANG DOI
+' ===========================
+entity "HangDoi" as HangDoi #FEF3C7 {
+  + MaHangDoi : VARCHAR(20) <<PK>>
+  --
+  # MaBenhNhan : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaPhong : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaPhieuKham : VARCHAR(20) <<FK>> <<NULLABLE>>
+  # MaChiTietDv : VARCHAR(20) <<FK>> <<NULLABLE>>
+  --
+  LoaiHangDoi : ENUM(KhamLamSang,CanLamSang) <<NOT NULL>>
+  Nguon : ENUM(Appointment,Walkin,ServiceReturn) <<NOT NULL>>
+  Nhan : ENUM(ServiceReturn,UuTien) <<NULLABLE>>
+  --
+  SoThuTu : INT <<NOT NULL>>
+  DoUuTien : INT <<DEFAULT 0>>
+  CapCuu : BOOLEAN <<DEFAULT FALSE>>
+  PhanLoaiDen : ENUM(DungGio,DenSom,DenMuon) <<NULLABLE>>
+  --
+  ThoiGianCheckin : DATETIME <<NOT NULL>>
+  ThoiGianLichHen : DATETIME <<NULLABLE>>
+  ThoiGianGoiGanNhat : DATETIME <<NULLABLE>>
+  SoLanGoi : INT <<DEFAULT 0>>
+  --
+  TrangThai : ENUM(ChoGoi,DangGoi,DaGoi,DangPhucVu,DaPhucVu,VangMat) <<DEFAULT 'ChoGoi'>>
+  GhiChu : NVARCHAR(500)
+}
+
+' ===========================
+' ENTITY: LUOT KHAM
+' ===========================
+entity "LuotKham" as LuotKham #D1FAE5 {
+  + MaLuotKham : VARCHAR(20) <<PK>>
+  --
+  # MaHangDoi : VARCHAR(20) <<FK>> <<UNIQUE>> <<NOT NULL>>
+  # MaNhanSuThucHien : VARCHAR(20) <<FK>> <<NULLABLE>>
+  # MaYTaHoTro : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  LoaiLuot : ENUM(KhamMoi,TaiKham,DichVu) <<NOT NULL>>
+  --
+  ThoiGianBatDau : DATETIME <<NOT NULL>>
+  ThoiGianKetThuc : DATETIME <<NULLABLE>>
+  ThoiGianThucTe : INT <<NULLABLE>>
+  --
+  TrangThai : ENUM(DangKham,DaKham,HoanTat,TamDung) <<DEFAULT 'DangKham'>>
+  --
+  SinhHieuTruocKham : JSON
+  GhiChu : NVARCHAR(500)
+}
+
+' ===========================
+' ENTITY: PHIEU TONG HOP
+' ===========================
+entity "PhieuTongHop" as PhieuTongHop #DBEAFE {
+  + MaPhieuTongHop : VARCHAR(20) <<PK>>
+  --
+  # MaPhieuKhamCls : VARCHAR(20) <<FK>> <<UNIQUE>> <<NOT NULL>>
+  # MaNhanSuXuLy : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  LoaiPhieu : ENUM(TongHopCls) <<DEFAULT 'TongHopCls'>>
+  --
+  TrangThai : ENUM(DangThucHien,ChoXuLy,DaHoanTat) <<DEFAULT 'DangThucHien'>>
+  ThoiGianTao : DATETIME <<NOT NULL>>
+  ThoiGianXuLy : DATETIME <<NULLABLE>>
+  ThoiGianHoanTat : DATETIME <<NULLABLE>>
+  --
+  GhiChu : NVARCHAR(500)
+}
+
+' ===========================
+' ENTITY: PHIEU CHAN DOAN
+' ===========================
+entity "PhieuChanDoan" as PhieuChanDoan #FCE7F3 {
+  + MaPhieuChanDoan : VARCHAR(20) <<PK>>
+  --
+  # MaPhieuKham : VARCHAR(20) <<FK>> <<UNIQUE>> <<NOT NULL>>
+  # MaDonThuoc : VARCHAR(20) <<FK>> <<NULLABLE>>
+  --
+  ChanDoanSoBo : NVARCHAR(500)
+  ChanDoanCuoi : NVARCHAR(500) <<NOT NULL>>
+  MaICD10 : VARCHAR(10) <<NULLABLE>>
+  --
+  NoiDungKham : NVARCHAR(2000)
+  HuongXuTri : NVARCHAR(1000)
+  LoiKhuyen : NVARCHAR(1000)
+  PhatDoDieuTri : NVARCHAR(1000)
+  --
+  NgayTaiKham : DATE <<NULLABLE>>
+  GhiChuTaiKham : NVARCHAR(500) <<NULLABLE>>
+  --
+  ThoiGianTao : DATETIME <<DEFAULT NOW>>
+  ThoiGianCapNhat : DATETIME
+}
+
+' ===========================
+' RELATIONSHIPS
+' ===========================
+HangDoi ||--|| LuotKham : "1 Hang doi -> 1 Luot kham"
+
+' ===========================
+' NOTES
+' ===========================
+note right of HangDoi
+  INDEX idx_phong_trangthai ON (MaPhong, TrangThai)
+  INDEX idx_benhnhan ON MaBenhNhan
+  INDEX idx_checkin ON ThoiGianCheckin
+  
+  Do uu tien (cao -> thap):
+- CapCuu           -> group 0
+- service_return   -> group 1
+- appointment      -> group 2 (trừ khi đến muộn >30p thì xuống group 3)
+- walkin/khác      -> group 3
+  DoUuTien = group * 10
+end note
+
+note right of LuotKham
+  SinhHieuTruocKham (JSON):
+  {
+    "huyet_ap": "120/80",
+    "nhip_tim": 72,
+    "nhiet_do": 36.5,
+    "can_nang": 65,
+    "chieu_cao": 170,
+    "bmi": 22.5
+  }
+end note
+
+note right of PhieuTongHop
+  Hybrid Data Flow:
+  - MySQL: Chi luu TrangThai & ID quy trinh
+  - MongoDB: Luu chi tiet Ket qua CLS 
+    (medical_histories)
+  
+  -> Khi hien thi: Backend AGGREGATE tu 
+  ca MySQL (status) va MongoDB (content)
+end note
+
+note bottom of PhieuChanDoan
+  MaICD10: Ma benh
+  theo tieu chuan quoc te
+  VD: J00 (Viem mui cap)
+end note
+
+@enduml

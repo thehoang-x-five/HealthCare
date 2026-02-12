@@ -1,0 +1,126 @@
+@startuml ARCH_02_Deployment
+' ===========================
+' ARCH_02: SO DO TRIEN KHAI
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+title ARCH_02: So do Trien khai (Deployment Diagram)
+
+' ===========================
+' CLIENT LAYER
+' ===========================
+node "Client Devices" as Client #E0F2FE {
+  node "Web Browser" as Browser {
+    artifact "React SPA\n(Build: Vite)" as ReactBuild
+    artifact "SignalR Client" as SignalRClient
+  }
+}
+
+' ===========================
+' CDN / STATIC HOSTING
+' ===========================
+cloud "CDN / Static Hosting" as CDN #DBEAFE {
+  artifact "Static Assets\n(JS, CSS, Images)" as Assets
+}
+
+
+
+' ===========================
+' APPLICATION SERVER
+' ===========================
+node "Application Server" as AppServer #D1FAE5 {
+  node "Docker Container 1" as Container1 {
+    artifact "ASP.NET Core API\n(Kestrel)" as API1
+    artifact "SignalR Hub" as SigR1
+  }
+  
+
+  
+  node "Background Jobs" as BgJobs {
+    artifact "Hangfire\n(Scheduled Tasks)" as Hangfire
+    artifact "Notification Worker" as NotifWorker
+    artifact "Report Worker" as ReportWorker
+  }
+}
+
+
+
+' ===========================
+' DATABASE LAYER
+' ===========================
+node "Database Cluster" as DBCluster #F5F3FF {
+  node "MySQL Server" as MySQLNode {
+    database "MySQL 8.0" as MySQL {
+      artifact "healthcare_db" as MySQLDB
+    }
+    artifact "Binary Log\n(Replication)" as BinLog
+  }
+  
+
+}
+
+cloud "MongoDB Atlas" as MongoCloud #CFFAFE {
+  database "Cluster0" as MongoCluster {
+    artifact "medical_histories" as MedHistDB
+    artifact "audit_logs" as AuditDB
+  }
+}
+
+' ===========================
+' EXTERNAL SERVICES
+' ===========================
+cloud "External APIs" as ExtAPI #E0E7FF {
+  artifact "VietQR API" as VietQR
+  artifact "SMTP Server\n(Email)" as SMTP
+  artifact "Twilio\n(SMS)" as Twilio
+}
+
+' ===========================
+' MONITORING
+' ===========================
+
+
+' ===========================
+' CONNECTIONS
+' ===========================
+Browser --> CDN : HTTPS
+Browser --> API1 : HTTPS / REST
+Browser --> SigR1 : WebSocket
+
+API1 --> MySQL : TCP 3306
+API1 --> MongoCluster : TCP 27017
+
+Hangfire --> MySQL
+NotifWorker --> SMTP
+NotifWorker --> Twilio
+API1 --> VietQR
+
+
+
+
+
+' ===========================
+' NOTES
+' ===========================
+
+
+
+
+note right of MySQLNode
+  **MySQL Configuration**
+  - InnoDB Engine
+  - SERIALIZABLE cho Appointment
+  - Connection Pool: 100
+end note
+
+note right of MongoCloud
+  **MongoDB Atlas**
+  - M10 Cluster (Production)
+  - Auto-scaling
+  - Daily Backup
+end note
+
+@enduml

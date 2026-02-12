@@ -1,0 +1,193 @@
+@startuml UC_04_Patient
+' ===========================
+' UC_04: QUAN LY BENH NHAN
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+hide circle
+
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+
+left to right direction
+title UC_04: Quan ly Benh nhan
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Y ta Hanh chinh" as YTHC #LightBlue
+actor "Y ta Lam sang" as YTLS #LightGreen
+actor "Bac si" as BS #Lavender
+
+' ===========================
+' 1) TIM KIEM BENH NHAN
+' ===========================
+rectangle "Tim kiem Benh nhan" as SearchPatient #E0F2FE {
+  usecase "UC20.1 - Tim kiem\nBenh nhan" as UC20_1
+  usecase "UC20.2 - Tim theo\nMa Benh nhan" as UC20_2
+  usecase "UC20.3 - Tim theo\nHo ten" as UC20_3
+  usecase "UC20.4 - Tim theo\nSo dien thoai" as UC20_4
+  usecase "UC20.5 - Tim theo\nSo CCCD" as UC20_5
+  usecase "UC20.6 - Hien thi\nKet qua (Phan trang)" as UC20_6
+  usecase "UC20.7 - Loc theo\nGioi tinh/Do tuoi" as UC20_7
+}
+
+' ===========================
+' 2) DANG KY BENH NHAN MOI
+' ===========================
+rectangle "Dang ky Benh nhan" as RegisterPatient #D1FAE5 {
+  usecase "UC21.1 - Dang ky\nBenh nhan moi" as UC21_1
+  usecase "UC21.2 - Nhap\nHo ten (*)" as UC21_2
+  usecase "UC21.3 - Nhap\nNgay sinh (*)" as UC21_3
+  usecase "UC21.4 - Chon\nGioi tinh (*)" as UC21_4
+  usecase "UC21.5 - Nhap\nSo dien thoai" as UC21_5
+  usecase "UC21.6 - Nhap\nEmail" as UC21_6
+  usecase "UC21.7 - Nhap\nDia chi" as UC21_7
+  usecase "UC21.8 - Nhap\nSo CCCD" as UC21_8
+  usecase "UC21.9 - Validate\ntrung SDT/Email" as UC21_9
+  usecase "UC21.10 - Tao Ma BN\n(auto-generate)" as UC21_10
+  usecase "UC21.11 - Luu\nBenh nhan" as UC21_11
+}
+
+' ===========================
+' 3) XEM/CAP NHAT HO SO
+' ===========================
+rectangle "Xem/Cap nhat Ho so" as ViewPatient #FEF3C7 {
+  usecase "UC22.1 - Xem Chi tiet\nHo so BN" as UC22_1
+  usecase "UC22.2 - Tab: Thong tin\nCo ban" as UC22_2
+  usecase "UC22.3 - Tab: Lich su\nKham benh" as UC22_3
+  usecase "UC22.4 - Tab: Lich su\nGiao dich" as UC22_4
+  usecase "UC22.5 - Tab: Pha he\nDi truyen" as UC22_5
+  usecase "UC22.6 - Cap nhat\nThong tin BN" as UC22_6
+  usecase "UC22.7 - Cap nhat\nThong tin lien lac" as UC22_7
+}
+
+' ===========================
+' 4) PHA HE DI TRUYEN
+' ===========================
+rectangle "Pha he Di truyen" as Genealogy #FCE7F3 {
+  usecase "UC23.1 - Xem\nPha he BN" as UC23_1
+  usecase "UC23.2 - Tim kiem\nNguoi than" as UC23_2
+  usecase "UC23.3 - Lien ket\nBN voi Bo/Me" as UC23_3
+  usecase "UC23.4 - Hien thi\nCay pha he" as UC23_4
+  usecase "UC23.5 - Xem Tien su\nBenh ly gia dinh" as UC23_5
+  usecase "UC23.6 - Truy van\nRecursive CTE" as UC23_6
+}
+
+' ===========================
+' 5) LICH SU KHAM (MongoDB)
+' ===========================
+rectangle "Lich su Kham (MongoDB)" as History #F5F3FF {
+  usecase "UC24.1 - Xem Timeline\nLich su kham" as UC24_1
+  usecase "UC24.2 - Loc theo\nLoai su kien" as UC24_2
+  usecase "UC24.3 - Loc theo\nKhoang thoi gian" as UC24_3
+  usecase "UC24.4 - Xem Chi tiet\nMot luot kham" as UC24_4
+  usecase "UC24.5 - Xem Ket qua\nXN/CDHA cu" as UC24_5
+  usecase "UC24.6 - Xem Don thuoc\ncu" as UC24_6
+}
+
+' ===========================
+' 6) LICH SU GIAO DICH
+' ===========================
+rectangle "Lich su Giao dich" as TransactionHistory #EDF7ED {
+  usecase "UC25.1 - Xem Danh sach\nGiao dich" as UC25_1
+  usecase "UC25.2 - Loc theo\nTrang thai/Ngay" as UC25_2
+  usecase "UC25.3 - Xem Chi tiet\nHoa don" as UC25_3
+  usecase "UC25.4 - In lai\nHoa don" as UC25_4
+  usecase "UC25.5 - Xuat File\n(PDF/Excel)" as UC25_5
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+SearchPatient -[hidden]-> RegisterPatient
+RegisterPatient -[hidden]-> ViewPatient
+SearchPatient -[hidden]down-> Genealogy
+Genealogy -[hidden]-> History
+History -[hidden]-> TransactionHistory
+
+' ===========================
+' ACTOR -> USECASE
+' ===========================
+YTHC --> UC20_1
+YTHC --> UC21_1
+YTHC --> UC22_1
+YTHC --> UC22_6
+YTHC --> UC25_1
+
+YTLS --> UC20_1
+YTLS --> UC22_1
+
+BS --> UC20_1
+BS --> UC22_1
+BS --> UC23_1
+BS --> UC24_1
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC20_1 ..> UC20_2 : <<extend>>
+UC20_1 ..> UC20_3 : <<extend>>
+UC20_1 ..> UC20_4 : <<extend>>
+UC20_1 ..> UC20_5 : <<extend>>
+UC20_1 ..> UC20_6 : <<include>>
+UC20_1 ..> UC20_7 : <<extend>>
+
+UC21_1 ..> UC21_2 : <<include>>
+UC21_1 ..> UC21_3 : <<include>>
+UC21_1 ..> UC21_4 : <<include>>
+UC21_1 ..> UC21_5 : <<extend>>
+UC21_1 ..> UC21_6 : <<extend>>
+UC21_1 ..> UC21_7 : <<extend>>
+UC21_1 ..> UC21_8 : <<extend>>
+UC21_1 ..> UC21_9 : <<include>>
+UC21_1 ..> UC21_10 : <<include>>
+UC21_1 ..> UC21_11 : <<include>>
+
+UC22_1 ..> UC22_2 : <<include>>
+UC22_1 ..> UC22_3 : <<extend>>
+UC22_1 ..> UC22_4 : <<extend>>
+UC22_1 ..> UC22_5 : <<extend>>
+UC22_6 ..> UC22_7 : <<include>>
+
+UC22_4 ...> UC25_1 : <<include>>
+
+UC23_1 ..> UC23_4 : <<include>>
+UC23_1 ..> UC23_5 : <<extend>>
+UC23_3 ..> UC23_2 : <<include>>
+UC23_4 ..> UC23_6 : <<include>>
+
+UC24_1 ..> UC24_2 : <<extend>>
+UC24_1 ..> UC24_3 : <<extend>>
+UC24_1 ..> UC24_4 : <<extend>>
+UC24_4 ..> UC24_5 : <<extend>>
+UC24_4 ..> UC24_6 : <<extend>>
+
+UC25_1 ..> UC25_2 : <<extend>>
+UC25_1 ..> UC25_3 : <<extend>>
+UC25_3 ..> UC25_4 : <<extend>>
+UC25_1 ..> UC25_5 : <<extend>>
+
+' ===========================
+' NOTES
+' ===========================
+note right of UC23_6
+  Recursive CTE (MySQL)
+  Truy van theo ParentID
+end note
+
+note right of UC24_1
+  MongoDB
+  Schema Evolution
+  ho tro nhieu loai event
+end note
+
+note bottom of RegisterPatient
+  Y ta HC: Dang ky moi
+  YTLS, BS: Chi xem
+end note
+
+@enduml

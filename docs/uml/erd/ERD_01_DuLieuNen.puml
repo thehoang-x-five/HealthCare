@@ -1,0 +1,185 @@
+@startuml ERD_01_DuLieuNen
+' ===========================
+' ERD_01: DU LIEU NEN (MASTER DATA)
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+left to right direction
+title ERD_01: Du lieu nen (Master Data)
+
+' ===========================
+' ENTITY: KHOA
+' ===========================
+entity "Khoa" as Khoa #E0F2FE {
+  + MaKhoa : VARCHAR(20) <<PK>>
+  --
+  TenKhoa : NVARCHAR(100) <<NOT NULL>>
+  MoTa : NVARCHAR(500)
+  DienThoai : VARCHAR(15)
+  Email : VARCHAR(100)
+  DiaDiem : NVARCHAR(200)
+  GioBatDau : TIME
+  GioKetThuc : TIME
+  TrangThai : ENUM(HoatDong,TamDung) <<DEFAULT 'HoatDong'>>
+  GhiChu : NVARCHAR(500)
+  --
+  NgayTao : DATETIME <<DEFAULT NOW>>
+  NgayCapNhat : DATETIME
+}
+
+' ===========================
+' ENTITY: PHONG
+' ===========================
+entity "Phong" as Phong #DBEAFE {
+  + MaPhong : VARCHAR(20) <<PK>>
+  --
+  # MaKhoa : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaBacSiPhuTrach : VARCHAR(20) <<FK>> <<NULLABLE>>
+  --
+  TenPhong : NVARCHAR(100) <<NOT NULL>>
+  LoaiPhong : ENUM(PhongKham,PhongDichVu) <<NOT NULL>>
+  SucChua : INT <<DEFAULT 1>>
+  ViTri : NVARCHAR(100)
+  Email : VARCHAR(100)
+  DienThoai : VARCHAR(15)
+  GioMoCua : TIME
+  GioDongCua : TIME
+  ThietBi : JSON
+  TrangThai : ENUM(HoatDong,TamDung) <<DEFAULT 'HoatDong'>>
+  --
+  NgayTao : DATETIME <<DEFAULT NOW>>
+  NgayCapNhat : DATETIME
+}
+
+' ===========================
+' ENTITY: NHAN SU
+' ===========================
+entity "NhanSu" as NhanSu #D1FAE5 {
+  + MaNhanVien : VARCHAR(20) <<PK>>
+  --
+  # MaKhoa : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  TenDangNhap : VARCHAR(50) <<UNIQUE>> <<NOT NULL>>
+  MatKhauHash : VARCHAR(255) <<NOT NULL>>
+  HoTen : NVARCHAR(100) <<NOT NULL>>
+  VaiTro : ENUM(Admin,BacSi,YTaHanhChinh,YTaLamSang,YTaCanLamSang,KyThuatVien) <<NOT NULL>>
+  ChucVu : NVARCHAR(50)
+  ChuyenMon : NVARCHAR(100)
+  HocVi : NVARCHAR(50)
+  SoNamKinhNghiem : INT <<DEFAULT 0>>
+  --
+  Email : VARCHAR(100)
+  DienThoai : VARCHAR(15)
+  AnhDaiDien : VARCHAR(255)
+  MoTa : NVARCHAR(500)
+  --
+  TrangThaiCongTac : ENUM(Online,Pause,Offline) <<DEFAULT 'Offline'>>
+  TrangThaiTaiKhoan : ENUM(HoatDong,TamKhoa) <<DEFAULT 'HoatDong'>>
+  --
+  NgayTao : DATETIME <<DEFAULT NOW>>
+  NgayCapNhat : DATETIME
+  LanDangNhapCuoi : DATETIME
+}
+
+' ===========================
+' ENTITY: REFRESH TOKEN
+' ===========================
+entity "RefreshToken" as RefreshToken #CFFAFE {
+  + Id : VARCHAR(36) <<PK>> <<UUID>>
+  --
+  # MaNhanVien : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  Token : VARCHAR(500) <<NOT NULL>>
+  TimeCreateToken : DATETIME <<NOT NULL>>
+  TimeEndToken : DATETIME <<NOT NULL>>
+  IsTrangThai : BOOLEAN <<DEFAULT TRUE>>
+  CreatedIp : VARCHAR(45)
+  --
+  TimeRevoke : DATETIME <<NULLABLE>>
+  RevokedIp : VARCHAR(45) <<NULLABLE>>
+  ReplacedToken : VARCHAR(500) <<NULLABLE>>
+}
+
+' ===========================
+' ENTITY: LICH TRUC
+' ===========================
+entity "LichTruc" as LichTruc #FEF3C7 {
+  + MaLichTruc : VARCHAR(20) <<PK>>
+  --
+  # MaPhong : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaYTaTruc : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  Ngay : DATE <<NOT NULL>>
+  CaTruc : ENUM(Sang,Chieu,Toi) <<NOT NULL>>
+  GioBatDau : TIME <<NOT NULL>>
+  GioKetThuc : TIME <<NOT NULL>>
+  NghiTruc : BOOLEAN <<DEFAULT FALSE>>
+  GhiChu : NVARCHAR(200)
+  --
+  NgayTao : DATETIME <<DEFAULT NOW>>
+}
+
+' ===========================
+' ENTITY: DICH VU
+' ===========================
+entity "DichVu" as DichVu #FCE7F3 {
+  + MaDichVu : VARCHAR(20) <<PK>>
+  --
+  # MaPhongThucHien : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  TenDichVu : NVARCHAR(200) <<NOT NULL>>
+  LoaiDichVu : ENUM(KhamLamSang,KhamChuyenKhoa,XetNghiem,ChanDoanHinhAnh) <<NOT NULL>>
+  MoTa : NVARCHAR(500)
+  DonGia : DECIMAL(12,0) <<NOT NULL>>
+  ThoiGianDuKienPhut : INT <<DEFAULT 15>>
+  --
+  TrangThai : ENUM(HoatDong,TamDung) <<DEFAULT 'HoatDong'>>
+  NgayTao : DATETIME <<DEFAULT NOW>>
+  NgayCapNhat : DATETIME
+}
+
+' ===========================
+' RELATIONSHIPS
+' ===========================
+Khoa ||--|{ Phong : "1 Khoa co nhieu Phong"
+Khoa ||--|{ NhanSu : "1 Khoa co nhieu Nhan su"
+Phong |o--o| NhanSu : "Bac si phu trach"
+Phong ||--o{ LichTruc : "1 Phong co nhieu Lich truc"
+NhanSu ||--o{ LichTruc : "1 Y ta co nhieu Lich truc"
+NhanSu ||--o{ RefreshToken : "1 Nhan vien co nhieu Token"
+Phong ||--|{ DichVu : "1 Phong thuc hien nhieu DV"
+
+' ===========================
+' NOTES
+' ===========================
+note right of NhanSu
+  VaiTro:
+  - Admin: Quan tri he thong
+  - BacSi: Kham benh, ke don
+  - YTaHanhChinh: Tiep nhan, thu phi
+  - YTaLamSang: Ho tro Bac si
+  - YTaCanLamSang: Lay mau, tiep nhan CLS
+  - KyThuatVien: Thuc hien XN/CDHA
+end note
+
+note bottom of DichVu
+  LoaiDichVu:
+  - KhamLamSang: Kham tong quat
+  - KhamChuyenKhoa: Kham chuyen khoa
+  - XetNghiem: Xet nghiem mau, nuoc tieu...
+  - ChanDoanHinhAnh: X-quang, Sieu am, CT, MRI...
+end note
+
+' ===========================
+' INDEXES
+' ===========================
+note right of RefreshToken
+  INDEX idx_token ON Token
+  INDEX idx_nhanvien ON MaNhanVien
+  INDEX idx_expire ON TimeEndToken
+end note
+
+@enduml

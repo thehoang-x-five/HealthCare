@@ -1,0 +1,137 @@
+@startuml UC_00_Overview
+' ===========================
+' UC_00: TONG QUAN HE THONG
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+hide circle
+
+skinparam package {
+  BackgroundColor #F8FAFC
+  BorderColor #94A3B8
+}
+
+top to bottom direction
+title HealthCare+ - So do Use Case Tong quan
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Admin" as Admin #LightCoral
+actor "Y ta Hanh chinh" as YTHC #LightBlue
+actor "Y ta Lam sang" as YTLS #LightGreen
+actor "Y ta Can lam sang" as YTCLS #Gold
+actor "Bac si" as BS #Lavender
+actor "Ky thuat vien" as KTV #PeachPuff
+
+' ===========================
+' MODULES
+' ===========================
+package "UC_01: Xac thuc" as P01 #E0F2FE {
+  usecase "Dang nhap/Dang xuat" as M01
+}
+
+package "UC_02: Dashboard" as P02 #DBEAFE {
+  usecase "Dashboard & Thong bao" as M02
+}
+
+package "UC_03: Master Data" as P03 #FEE2E2 {
+  usecase "Quan ly Danh muc" as M03
+}
+
+package "UC_04: Benh nhan" as P04 #D1FAE5 {
+  usecase "Quan ly Benh nhan" as M04
+}
+
+package "UC_05: Lich hen" as P05 #CFFAFE {
+  usecase "Quan ly Lich hen" as M05
+}
+
+package "UC_06: Hang doi" as P06 #FCE7F3 {
+  usecase "Dieu phoi Hang doi" as M06
+}
+
+package "UC_07: Kham LS" as P07 #FEF3C7 {
+  usecase "Kham Lam sang" as M07
+}
+
+package "UC_08: Can lam sang" as P08 #F5F3FF {
+  usecase "Xet nghiem / CDHA" as M08
+}
+
+package "UC_09: Don thuoc" as P09 #E0E7FF {
+  usecase "Ke don & Phat thuoc" as M09
+}
+
+package "UC_10: Thanh toan" as P10 #FEF9C3 {
+  usecase "Thanh toan Vien phi" as M10
+}
+
+package "UC_11: Bao cao" as P11 #ECFCCB {
+  usecase "Bao cao & Thong ke" as M11
+}
+
+' ===========================
+' ACTOR -> MODULE
+' ===========================
+Admin --> M01
+Admin --> M02
+Admin --> M03
+Admin --> M11
+
+YTHC --> M01
+YTHC --> M02
+YTHC --> M04
+YTHC --> M05
+YTHC --> M06
+YTHC --> M09
+YTHC --> M10
+
+YTLS --> M01
+YTLS --> M02
+YTLS --> M06
+YTLS --> M07
+
+YTCLS --> M01
+YTCLS --> M02
+YTCLS --> M06
+YTCLS --> M08
+
+BS --> M01
+BS --> M02
+BS --> M04
+BS --> M07
+BS --> M08
+BS --> M09
+
+KTV --> M01
+KTV --> M02
+KTV --> M06
+KTV --> M08
+
+' ===========================
+' FLOW RELATIONSHIPS
+' ===========================
+M05 --> M06 : Check-in
+M06 --> M07 : Goi BN
+M07 --> M08 : Chi dinh CLS
+M08 --> M07 : Tra ket qua
+M07 --> M09 : Ke don
+M09 --> M10 : Thanh toan
+M10 --> M09 : Phat thuoc
+
+' ===========================
+' NOTES
+' ===========================
+note bottom of P03
+  Admin: CRUD
+  Others: Read only
+end note
+
+note right of M08
+  SignalR Real-time
+  MongoDB Storage
+end note
+
+@enduml

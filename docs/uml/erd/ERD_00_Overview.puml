@@ -1,0 +1,102 @@
+@startuml ERD_00_Overview
+' ===========================
+' ERD_00: TONG QUAN HE THONG - HEALTHCARE+
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam linetype ortho
+
+title HealthCare+ - ERD Tong quan
+
+' ===========================
+' PACKAGES (DOMAIN)
+' ===========================
+package "01_DuLieuNen" as P01 #E0F2FE {
+  entity "Khoa" as Khoa
+  entity "Phong" as Phong
+  entity "NhanSu" as NhanSu
+  entity "LichTruc" as LichTruc
+  entity "DichVu" as DichVu
+  entity "RefreshToken" as Token
+}
+
+package "02_TiepNhanVaBenhNhan" as P02 #D1FAE5 {
+  entity "BenhNhan" as BenhNhan
+  entity "LichHen" as LichHen
+  entity "PhieuKham" as PhieuKham
+  entity "PhieuKhamCls" as PhieuKhamCls
+  entity "ChiTietDichVu" as ChiTietDV
+  entity "KetQuaDichVu" as KetQuaDV
+}
+
+package "03_HangDoiVaKham" as P03 #FEF3C7 {
+  entity "HangDoi" as HangDoi
+  entity "LuotKham" as LuotKham
+  entity "PhieuTongHop" as PhieuTongHop
+  entity "PhieuChanDoan" as PhieuChanDoan
+}
+
+package "04_KeDonVaThuVienPhi" as P04 #FCE7F3 {
+  entity "DonThuoc" as DonThuoc
+  entity "ChiTietDonThuoc" as ChiTietDon
+  entity "KhoThuoc" as KhoThuoc
+  entity "HoaDon" as HoaDon
+}
+
+package "05_ThongBao" as P05 #F5F3FF {
+  entity "ThongBao" as ThongBao
+  entity "ThongBaoNguoiNhan" as TbNguoiNhan
+}
+
+' ===========================
+' MAIN RELATIONSHIPS
+' ===========================
+Khoa ||--|{ Phong
+Khoa ||--|{ NhanSu
+NhanSu ||--o{ LichTruc
+Phong ||--o{ LichTruc
+Phong ||--|{ DichVu
+
+BenhNhan ||--o{ LichHen
+LichTruc ||--o{ LichHen
+BenhNhan ||--o{ PhieuKham
+PhieuKham ||--o| PhieuKhamCls
+PhieuKhamCls ||--|{ ChiTietDV
+ChiTietDV ||--|| KetQuaDV
+
+BenhNhan ||--|{ HangDoi
+HangDoi ||--|| LuotKham
+PhieuKham ||--|| PhieuChanDoan
+PhieuChanDoan ||--o| DonThuoc
+
+DonThuoc ||--|{ ChiTietDon
+KhoThuoc ||--o{ ChiTietDon
+BenhNhan ||--o{ HoaDon
+
+ThongBao ||--|{ TbNguoiNhan
+
+' ===========================
+' NOTES
+' ===========================
+note bottom of P01
+  Du lieu nen (Master Data)
+  Quan ly boi Admin
+end note
+
+note bottom of P02
+  Tiep nhan & Quan ly
+  Benh nhan, Lich hen, Phieu kham
+end note
+
+note bottom of P03
+  Quy trinh Kham benh
+  Hang doi, Luot kham, Chan doan
+end note
+
+note bottom of P04
+  Don thuoc, Kho thuoc
+  Hoa don, Thanh toan
+end note
+
+@enduml

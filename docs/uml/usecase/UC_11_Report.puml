@@ -1,0 +1,165 @@
+@startuml UC_11_Report
+' ===========================
+' UC_11: BAO CAO & THONG KE
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+hide circle
+
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+
+left to right direction
+title UC_11: Bao cao & Thong ke
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Admin" as Admin #LightCoral
+actor "Y ta Hanh chinh" as YTHC #LightBlue
+actor "Bac si" as BS #Lavender
+
+' ===========================
+' 1) BAO CAO DOANH THU
+' ===========================
+rectangle "Bao cao Doanh thu" as RevenueReport #E0F2FE {
+  usecase "UC90.1 - Xem Bao cao\nDoanh thu" as UC90_1
+  usecase "UC90.2 - Loc theo\nNgay/Tuan/Thang/Nam" as UC90_2
+  usecase "UC90.3 - Loc theo\nDich vu" as UC90_3
+  usecase "UC90.4 - Loc theo\nPhuong thuc thanh toan" as UC90_4
+  usecase "UC90.5 - Xem Bieu do\nDoanh thu" as UC90_5
+  usecase "UC90.6 - So sanh voi\nKy truoc" as UC90_6
+}
+
+' ===========================
+' 2) BAO CAO LUOT KHAM
+' ===========================
+rectangle "Bao cao Luot kham" as VisitReport #D1FAE5 {
+  usecase "UC91.1 - Xem Bao cao\nSo luot kham" as UC91_1
+  usecase "UC91.2 - Loc theo\nKhoang thoi gian" as UC91_2
+  usecase "UC91.3 - Loc theo\nKhoa/Phong" as UC91_3
+  usecase "UC91.4 - Loc theo\nBac si" as UC91_4
+  usecase "UC91.5 - Xem Bieu do\nLuot kham" as UC91_5
+  usecase "UC91.6 - Phan tich theo\nNhom benh (ICD)" as UC91_6
+}
+
+' ===========================
+' 3) BAO CAO BENH NHAN
+' ===========================
+rectangle "Bao cao Benh nhan" as PatientReport #FEF3C7 {
+  usecase "UC92.1 - Xem Bao cao\nSo BN moi" as UC92_1
+  usecase "UC92.2 - Xem Bao cao\nBN tai kham" as UC92_2
+  usecase "UC92.3 - Loc theo\nKhoang thoi gian" as UC92_3
+  usecase "UC92.4 - Phan tich theo\nDo tuoi/Gioi tinh" as UC92_4
+  usecase "UC92.5 - Phan tich theo\nDia ly" as UC92_5
+}
+
+' ===========================
+' 4) BAO CAO NHAN VIEN
+' ===========================
+rectangle "Bao cao Nhan vien" as StaffReport #FCE7F3 {
+  usecase "UC93.1 - Xem Bao cao\nHieu suat Nhan vien" as UC93_1
+  usecase "UC93.2 - Loc theo\nKhoang thoi gian" as UC93_2
+  usecase "UC93.3 - Loc theo\nKhoa/Phong" as UC93_3
+  usecase "UC93.4 - Xem So luot phuc vu\ntheo Nhan vien" as UC93_4
+  usecase "UC93.5 - Xem Doanh thu\ntheo Nhan vien" as UC93_5
+  usecase "UC93.6 - Xem Thoi gian\nlam viec" as UC93_6
+}
+
+' ===========================
+' 5) BAO CAO THUOC/TON KHO
+' ===========================
+rectangle "Bao cao Thuoc/Ton kho" as DrugReport #F5F3FF {
+  usecase "UC94.1 - Xem Bao cao\nTon kho" as UC94_1
+  usecase "UC94.2 - Xem DS\nThuoc sap het" as UC94_2
+  usecase "UC94.3 - Xem DS\nThuoc het han" as UC94_3
+  usecase "UC94.4 - Xem Bao cao\nXuat/Nhap" as UC94_4
+  usecase "UC94.5 - Thong ke\nThuoc hay dung" as UC94_5
+}
+
+' ===========================
+' 6) XUAT BAO CAO
+' ===========================
+rectangle "Xuat Bao cao" as ExportReport #CFFAFE {
+  usecase "UC95.1 - Xuat\nExcel" as UC95_1
+  usecase "UC95.2 - Xuat\nPDF" as UC95_2
+  usecase "UC95.3 - In\nBao cao" as UC95_3
+  usecase "UC95.4 - Gui Bao cao\nqua Email" as UC95_4
+  usecase "UC95.5 - Hen gio\nGui tu dong" as UC95_5
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+RevenueReport -[hidden]-> VisitReport
+VisitReport -[hidden]-> PatientReport
+RevenueReport -[hidden]down-> StaffReport
+StaffReport -[hidden]-> DrugReport
+DrugReport -[hidden]-> ExportReport
+
+' ===========================
+' ACTOR -> USECASE
+' ===========================
+Admin --> UC90_1
+Admin --> UC91_1
+Admin --> UC92_1
+Admin --> UC93_1
+Admin --> UC94_1
+Admin --> UC95_1
+Admin --> UC95_2
+Admin --> UC95_4
+Admin --> UC95_5
+
+YTHC --> UC90_1
+YTHC --> UC94_1
+
+BS --> UC91_1
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC90_1 ..> UC90_2 : <<extend>>
+UC90_1 ..> UC90_3 : <<extend>>
+UC90_1 ..> UC90_4 : <<extend>>
+UC90_1 ..> UC90_5 : <<include>>
+UC90_1 ..> UC90_6 : <<extend>>
+
+UC91_1 ..> UC91_2 : <<extend>>
+UC91_1 ..> UC91_3 : <<extend>>
+UC91_1 ..> UC91_4 : <<extend>>
+UC91_1 ..> UC91_5 : <<include>>
+UC91_1 ..> UC91_6 : <<extend>>
+
+UC92_1 ..> UC92_3 : <<extend>>
+UC92_1 ..> UC92_4 : <<extend>>
+UC92_1 ..> UC92_5 : <<extend>>
+
+UC93_1 ..> UC93_2 : <<extend>>
+UC93_1 ..> UC93_3 : <<extend>>
+UC93_1 ..> UC93_4 : <<include>>
+UC93_1 ..> UC93_5 : <<extend>>
+UC93_1 ..> UC93_6 : <<extend>>
+
+UC94_1 ..> UC94_2 : <<include>>
+UC94_1 ..> UC94_3 : <<include>>
+UC94_1 ..> UC94_4 : <<extend>>
+UC94_1 ..> UC94_5 : <<extend>>
+
+' ===========================
+' NOTES
+' ===========================
+note bottom of RevenueReport
+  Admin: Full access
+  YTHC: Chi xem doanh thu
+  BS: Chi xem luot kham
+end note
+
+note right of UC91_6
+  MongoDB Aggregation
+  Pipeline
+end note
+
+@enduml

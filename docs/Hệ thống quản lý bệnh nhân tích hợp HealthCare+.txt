@@ -1,0 +1,156 @@
+Kế hoạch & Đặc tả Kỹ thuật Dự án: Hệ thống Quản lý Bệnh nhân Hợp nhất HealthCare+
+1.0 Tổng quan Dự án
+Trong bối cảnh chuyển đổi số y tế, các phòng khám ngoại trú hiện đại phải đối mặt với thách thức kép: vừa phải tối ưu hóa quy trình vận hành, vừa phải quản lý một khối lượng dữ liệu y tế ngày càng phức tạp và không đồng nhất. Dữ liệu giao dịch (lịch hẹn, viện phí) đòi hỏi sự chính xác tuyệt đối, trong khi hồ sơ bệnh án (kết quả xét nghiệm, chẩn đoán, ghi chú) lại liên tục phát triển về cấu trúc và định dạng.
+Dự án "Hệ thống Quản lý Bệnh nhân Hợp nhất HealthCare+" được định vị là một bước tiến hóa chiến lược, có mục đích phát triển một hệ thống quản lý phòng khám ngoại trú toàn diện (vốn được xây dựng trên nền tảng CSDL quan hệ nguyên khối) thành một kiến trúc Polyglot hiện đại. Sáng kiến này không chỉ đáp ứng các yêu cầu kỹ thuật tiên tiến của môn học Hệ thống Cơ sở dữ liệu Nâng cao (CS-402), Đề tài số 9, mà còn giải quyết một bài toán kiến trúc kinh điển. Dự án theo đuổi một mục tiêu kép:
+1.	Số hóa toàn diện quy trình khám chữa bệnh: Cung cấp một giải pháp phần mềm hoàn chỉnh, xử lý trọn vẹn vòng đời của một lượt khám ngoại trú, từ đặt lịch, tiếp nhận, khám lâm sàng, chỉ định cận lâm sàng, kê đơn, cho đến thanh toán và báo cáo.
+2.	Tái cấu trúc lớp lưu trữ dữ liệu bằng việc triển khai kiến trúc Polyglot Persistence: Quá trình này bao gồm việc di chuyển dữ liệu bệnh án bán cấu trúc sang CSDL tài liệu (MongoDB) để tối đa hóa tính linh hoạt, trong khi củng cố tính toàn vẹn giao dịch của dữ liệu vận hành cốt lõi trên CSDL quan hệ (MYSQL).
+Bảng dưới đây tóm tắt các thông tin chính của dự án:
+Mục	Nội dung
+Tên dự án:	Hệ thống Quản lý Bệnh nhân Hợp nhất HealthCare+
+Bối cảnh:	Nâng cấp Đề tài số 9, môn học CS-402: Advanced Database Systems. Thành hệ thống quản lý phòng khám ngoại trú và hồ sơ bệnh nhân toàn diện  
+Công nghệ lõi:	Kiến trúc Polyglot: MySQL/Oracle (cho dữ liệu giao dịch - ACID) và MongoDB (cho dữ liệu bệnh án - BASE).
+Nền tảng:	Backend: ASP.NET Core. Frontend: React + Vite. Real-time: SignalR.
+2.0 Đặc tả Chức năng Hệ thống
+Phần này liệt kê các chức năng nghiệp vụ cốt lõi mà hệ thống HealthCare+ sẽ cung cấp. Các chức năng này được thiết kế để hỗ trợ một cách toàn diện và liền mạch vòng đời của một lượt khám ngoại trú, từ khâu hành chính đến chuyên môn y khoa.
+1.	Quản lý Xác thực & Phân quyền: Cung cấp các chức năng đăng nhập, đăng xuất, quên và đổi mật khẩu an toàn. Hệ thống phân quyền truy cập dựa trên vai trò của người dùng (Bác sĩ, Y tá (hành chính, lâm sàng, cận lâm sàng), kỹ thuật viên), đảm bảo chỉ những người có thẩm quyền mới có thể thực hiện các tác vụ nhạy cảm như kê đơn hay xem báo cáo tài chính.
+2.	Dashboard Tổng quan: Màn hình chính cung cấp cái nhìn tổng quan về hoạt động của phòng khám trong ngày. Các chỉ số hiệu suất chính (KPI) như số lượt khám, doanh thu, danh sách lịch hẹn sắp tới và các hoạt động gần đây được hiển thị và cập nhật theo thời gian thực, giúp nhân viên y tế nắm bắt tình hình một cách nhanh chóng.
+3.	Quản lý Lịch hẹn: Cho phép y tá tạo mới, chỉnh sửa, hủy và theo dõi trạng thái lịch hẹn của bệnh nhân (Đang chờ, Đã xác nhận, Đã check-in, Đã hủy). Chức năng này giúp tối ưu hóa việc sắp xếp lịch làm việc cho bác sĩ và giảm thời gian chờ đợi cho bệnh nhân.
+4.	Quản lý Bệnh nhân & Tiếp nhận: Quản lý tập trung hồ sơ bệnh nhân. Hệ thống theo dõi trạng thái của bệnh nhân trong suốt quá trình khám trong ngày (chờ khám, đang khám, chờ kết quả, v.v.) và hỗ trợ y tá lập các loại phiếu khám. Chức năng này quản lý cả thông tin định danh và quan hệ gia phả (lưu trữ trong MySQL) lẫn hồ sơ y khoa chi tiết của bệnh nhân (lưu trữ trong MongoDB).
+5.	Quy trình Khám bệnh (Lâm sàng & Cận lâm sàng): Số hóa luồng công việc của bác sĩ, từ việc xem hàng đợi bệnh nhân, truy cập toàn bộ lịch sử bệnh án, nhập chẩn đoán sơ bộ, chỉ định các dịch vụ cận lâm sàng, cho đến khi xem kết quả và đưa ra chẩn đoán cuối cùng.
+6.	Quản lý Khoa & Phòng: Cung cấp công cụ để theo dõi trạng thái hoạt động, sức chứa, và số lượng bệnh nhân đang chờ hoặc đang được khám tại từng phòng khám và phòng dịch vụ. Dữ liệu này giúp điều phối viên phân bổ luồng bệnh nhân một cách hiệu quả.
+7.	Quản lý Nhân sự: Quản lý danh sách nhân viên y tế, bao gồm thông tin chuyên môn, trạng thái làm việc (online/offline), và lịch trực. Chức năng này hỗ trợ việc phân công và điều phối nguồn nhân lực một cách hợp lý.
+8.	Quản lý Đơn thuốc & Kho thuốc: Hỗ trợ bác sĩ trong việc kê đơn thuốc điện tử. Hệ thống theo dõi trạng thái của mỗi đơn thuốc (chờ phát, đã phát) và quản lý danh mục các loại thuốc có trong kho, giúp quy trình cấp phát thuốc trở nên minh bạch và chính xác.
+9.	Quản lý Viện phí & Giao dịch: Tự động hóa quy trình tạo hóa đơn thanh toán cho các dịch vụ khám, cận lâm sàng và thuốc. Chức năng này cũng cho phép tra cứu lại lịch sử các giao dịch tài chính của bệnh nhân một cách dễ dàng.
+10.	Hệ thống Thông báo Real-time: Sử dụng công nghệ đẩy (push technology) để gửi các thông báo tự động và tức thời đến các nhân viên y tế liên quan khi có các sự kiện quan trọng xảy ra, chẳng hạn như bệnh nhân vừa check-in, có kết quả cận lâm sàng mới, hoặc đơn thuốc đang chờ phát.
+11.	Báo cáo & Thống kê: Cung cấp các báo cáo tổng hợp về doanh thu, số lượt khám, tỷ lệ tái khám và các chỉ số hoạt động quan trọng khác. Dữ liệu được trực quan hóa qua các bảng biểu và biểu đồ, hỗ trợ ban lãnh đạo trong việc ra quyết định chiến lược.
+12.	Quản lý quan hệ bệnh nhân và Truy vấn Phả hệ: Đây là một tính năng nâng cao, cho phép các nhà nghiên cứu hoặc bác sĩ chuyên khoa truy vấn và tái tạo cây gia phả của bệnh nhân. Đây là một tính năng chuyên sâu, khai thác sức mạnh của truy vấn đệ quy (Recursive CTE) trên CSDL quan hệ (MySQL) để phục vụ nghiên cứu các bệnh có yếu tố di truyền.
+3.0 Kiến trúc Hệ thống & Lựa chọn Công nghệ
+Quyết định chiến lược và nền tảng của dự án HealthCare+ là áp dụng kiến trúc Polyglot Persistence. Lựa chọn này không phải là một xu hướng công nghệ ngẫu nhiên, mà là một giải pháp kỹ thuật được tính toán kỹ lưỡng. Nó giải quyết trực tiếp mâu thuẫn cố hữu giữa hai loại dữ liệu cơ bản trong y tế: dữ liệu giao dịch (lịch hẹn, hóa đơn) đòi hỏi tính nhất quán và toàn vẹn tuyệt đối, và dữ liệu bệnh án (kết quả xét nghiệm, ghi chú) đòi hỏi tính linh hoạt và khả năng phát triển tối đa.
+3.1 Mô hình Kiến trúc Tổng thể
+Hệ thống được thiết kế theo kiến trúc đa tầng, với luồng dữ liệu được kiểm soát chặt chẽ từ người dùng cuối đến lớp lưu trữ.
+•	Client (React SPA): Người dùng cuối (Bác sĩ, Y tá, Kỹ thuật viên) tương tác với hệ thống thông qua một ứng dụng trang đơn (Single Page Application) được xây dựng bằng React. Giao diện người dùng gửi các yêu cầu nghiệp vụ đến máy chủ ứng dụng.
+•	Application Server (ASP.NET Core API): Đóng vai trò là bộ não của hệ thống. Đây không chỉ là một cổng API thông thường mà còn là một "bộ điều phối thông minh". Khi nhận một yêu cầu, nó sẽ phân tích bản chất nghiệp vụ và định tuyến yêu cầu đó đến hệ cơ sở dữ liệu phù hợp.
+o	Các yêu cầu mang tính giao dịch cao như tạo lịch hẹn, cập nhật lịch trực, hay xử lý thanh toán sẽ được chuyển đến MySQL.
+o	Các yêu cầu liên quan đến việc đọc hoặc ghi lịch sử y tế, kết quả xét nghiệm, hay ghi chú khám bệnh sẽ được chuyển đến MongoDB.
+•	Databases (Polyglot Storage): Lớp lưu trữ được phân tách rõ ràng, bao gồm MySQL và MongoDB, mỗi hệ thống được tối ưu cho một loại dữ liệu cụ thể.
+Kiến trúc này đảm bảo rằng mỗi thành phần của hệ thống đều được sử dụng đúng với thế mạnh của nó, mang lại hiệu suất, sự ổn định và khả năng mở rộng tối ưu.
+3.2 Biện luận Phân chia Dữ liệu (ACID vs. BASE)
+Việc phân chia dữ liệu giữa hai hệ quản trị cơ sở dữ liệu là quyết định kiến trúc quan trọng nhất của dự án. Bảng dưới đây biện luận chi tiết cho sự lựa chọn này.
+MySQL/Oracle (Mô hình ACID - Nhất quán & Toàn vẹn)	MongoDB (Mô hình BASE - Linh hoạt & Sẵn sàng)
+Loại dữ liệu quản lý: Dữ liệu có cấu trúc cao, quan hệ chặt chẽ và mang tính giao dịch critique. Cụ thể bao gồm: Khoa, Phòng, Nhân sự, Bệnh nhân (chỉ thông tin định danh cốt lõi như MaBenhNhan, HoTen, NgaySinh, và quan hệ gia phả ParentID), Lịch hẹn, Lịch trực, và Hóa đơn.	Loại dữ liệu quản lý: Dữ liệu bán cấu trúc hoặc phi cấu trúc, đa dạng về định dạng và có khả năng thay đổi theo thời gian. Toàn bộ lịch sử y tế của bệnh nhân được hợp nhất tại đây, bao gồm cả các thông tin y khoa tóm tắt (tiền sử, dị ứng) vốn được di dời từ bảng BenhNhan trong thiết kế cũ, cùng với Phiếu khám, Kết quả cận lâm sàng, Phiếu chẩn đoán, Ghi chú của bác sĩ, Đơn thuốc, và các thông tin phát sinh trong tương lai như Thông tin tiêm chủng.
+Lý do lựa chọn: Nghiệp vụ đặt lịch hẹn và quản lý thanh toán có rủi ro nghiệp vụ cao nhất; sai sót như trùng lịch hay sai hóa đơn là không thể chấp nhận. Mô hình ACID đảm bảo tính toàn vẹn tuyệt đối qua các giao dịch. Hơn nữa, việc truy vấn các mối quan hệ phân cấp phức tạp như cây gia phả (ParentID trong bảng BenhNhan) là thế mạnh của SQL thông qua Recursive CTE.	Lý do lựa chọn: Hồ sơ bệnh án liên tục phát triển. Mô hình document linh hoạt của MongoDB cho phép dễ dàng bổ sung các loại dữ liệu mới (Schema Evolution) mà không cần thay đổi cấu trúc toàn bộ CSDL, giúp đẩy nhanh tốc độ ra mắt tính năng mới. Việc truy xuất toàn bộ lịch sử bệnh án của một bệnh nhân bằng một thao tác đọc duy nhất giúp tối ưu hóa hiệu năng và tính sẵn sàng (Availability) cho các chức năng tra cứu.
+3.3 Nền tảng Công nghệ (Technology Stack)
+Dự án sử dụng một bộ công nghệ hiện đại và đã được kiểm chứng để đảm bảo hiệu suất và khả năng bảo trì.
+•	Backend: C# - ASP.NET Core Web API, Entity Framework Core
+•	Frontend: ReactJS + Vite, JavaScript, Tailwind CSS, Zustand, TanStack Query
+•	Databases:
+o	Hệ quản trị CSDL quan hệ: MySQL (hoặc Oracle)
+o	Hệ quản trị CSDL tài liệu: MongoDB
+•	Real-time Communication: ASP.NET Core SignalR
+•	API Documentation: Swagger
+4.0 Thiết kế Cơ sở dữ liệu Chi tiết
+4.1 Lược đồ Quan hệ (MySQL)
+Cơ sở dữ liệu MySQL sẽ lưu trữ các thực thể có cấu trúc rõ ràng và các mối quan hệ nghiệp vụ quan trọng, đảm bảo tính toàn vẹn dữ liệu. Dưới đây là mô tả các bảng chính.
+Bảng NhanSu (Nhân viên Y tế):
+Tên Cột	Kiểu Dữ liệu	Mô tả
+MaNhanVien	string (PK)	Mã định danh duy nhất của nhân viên.
+HoTen	String	Họ và tên đầy đủ.
+VaiTro	Enum	Vai trò (ví dụ: 'BacSi', 'YTa',…).
+ChuyenMon	String	Chuyên môn của nhân viên y tế.
+MaKhoa	string (FK)	Tham chiếu đến Khoa mà nhân viên thuộc về.
+Bảng BenhNhan (Bệnh nhân): 
+Tên Cột	Kiểu Dữ liệu	Mô tả
+MaBenhNhan	string (PK)	Mã định danh duy nhất của bệnh nhân.
+HoTen	String	Họ và tên đầy đủ.
+NgaySinh	Date	Ngày sinh của bệnh nhân.
+GioiTinh	String	Giới tính của bệnh nhân.
+ParentID	string (FK, NULLABLE)	Tham chiếu đến chính nó (MaBenhNhan) để xây dựng cây gia phả.
+Bảng LichHen (Lịch hẹn):
+Tên Cột	Kiểu Dữ liệu	Mô tả
+MaLichHen	string (PK)	Mã định danh duy nhất của lịch hẹn.
+MaBenhNhan	string (FK)	Tham chiếu đến bệnh nhân.
+MaLichTruc	string (FK)	Tham chiếu đến ca trực của nhân viên y tế.
+NgayHen	date	Ngày hẹn khám.
+GioHen	time	Giờ hẹn khám.
+TrangThai	enum	Trạng thái (ví dụ: 'DangCho', 'DaXacNhan').
+4.2 Cấu trúc Document (MongoDB)
+Trong MongoDB, toàn bộ lịch sử y tế của một bệnh nhân sẽ được lưu trữ trong một document duy nhất thuộc collection MedicalHistories. Thiết kế này tối ưu cho việc truy vấn và đảm bảo tính linh hoạt cho dữ liệu bệnh án.
+Dưới đây là một ví dụ về cấu trúc document:
+{
+  "_id": "ObjectId(...)",
+  "patient_id": "BN001", // Tham chiếu đến MaBenhNhan trong SQL
+  "patient_name": "Nguyễn Văn An", // Dữ liệu phi chuẩn hóa có chủ đích
+  "events": [
+    {
+      "event_id": "PK001",
+      "event_type": "PhieuKham",
+      "date": "2025-10-20T09:00:00Z",
+      "doctor_id": "BS01",
+      "TrieuChung": "Ho, sốt nhẹ",
+      "status": "DaHoanTat"
+    },
+    {
+      "event_id": "PKCLS001",
+      "event_type": "PhieuKhamCls",
+      "date": "2025-10-20T09:15:00Z",
+      "status": "DaHoanTat",
+      "results": [
+        {
+          "service_id": "XN_MAU",
+          "result_content": "Bạch cầu tăng nhẹ",
+          "attachment": "/files/xn_mau_bn001.pdf"
+        }
+      ]
+    },
+    {
+      "event_id": "PCD001",
+      "event_type": "PhieuChanDoan",
+      "date": "2025-10-20T10:30:00Z",
+      "ChanDoanCuoi": "Viêm họng cấp",
+      "HuongXuTri": "Dùng thuốc kháng sinh, nghỉ ngơi."
+    },
+    {
+      "event_id": "DT001",
+      "event_type": "DonThuoc",
+      "date": "2025-10-20T10:35:00Z",
+      "status": "DaPhat",
+      "medicines": [
+        { "medicine_id": "TH001", "name": "Amoxicillin 500mg", "quantity": 10, "usage": "Sáng 1 viên, tối 1 viên sau ăn" }
+      ]
+    }
+  ]
+}
+5.0 Giải pháp Kỹ thuật cho các Bài toán Phức tạp
+Phần này đi sâu vào các giải pháp kỹ thuật cụ thể được áp dụng để giải quyết những yêu cầu nghiệp vụ khắt khe nhất của dự án, qua đó thể hiện sự ưu việt của kiến trúc Polyglot đã được lựa chọn.
+1.	Đảm bảo Tính toàn vẹn Lịch hẹn: Để ngăn chặn tuyệt đối tình trạng đặt trùng lịch (race condition), đặc biệt khi có nhiều y tá thao tác đồng thời, hệ thống sử dụng một Stored Procedure trong MySQL. Thủ tục này đóng gói toàn bộ logic kiểm tra và tạo lịch hẹn trong một giao dịch duy nhất với mức cô lập nghiêm ngặt nhất (SERIALIZABLE). Việc sử dụng mức cô lập SERIALIZABLE là tối quan trọng để chống lại hiện tượng Phantom Reads, đảm bảo rằng không có giao dịch đồng thời nào có thể chèn một bản ghi xung đột vào khoảng thời gian mà giao dịch hiện tại đang kiểm tra, một rủi ro mà các mức cô lập thấp hơn như REPEATABLE READ không thể giải quyết.
+2.	Truy vấn Phả hệ phục vụ Nghiên cứu Di truyền: Để đáp ứng yêu cầu nghiên cứu các bệnh có tính di truyền, hệ thống tận dụng sức mạnh của Recursive Common Table Expression (CTE) trong SQL. Bằng cách sử dụng trường tự tham chiếu ParentID trong bảng BenhNhan, một truy vấn CTE duy nhất có thể tái tạo hiệu quả toàn bộ cây gia phả của một bệnh nhân, từ đó xác định các thế hệ tổ tiên và các mối quan hệ huyết thống một cách nhanh chóng.
+3.	Quản lý Hồ sơ Bệnh án Linh hoạt (Schema Evolution): Một trong những ưu điểm lớn nhất của MongoDB là khả năng thích ứng với các yêu cầu dữ liệu mới. Ví dụ, để thêm thông tin tiêm chủng vào hồ sơ bệnh án, hệ thống không cần thay đổi cấu trúc của toàn bộ cơ sở dữ liệu. Thay vào đó, tầng ứng dụng chỉ cần thực hiện một lệnh cập nhật (updateOne với toán tử $push) để thêm một sự kiện "tiêm chủng" mới vào mảng events của bệnh nhân. Các hồ sơ cũ không bị ảnh hưởng và hệ thống có thể tiến hóa mà không cần thời gian chết.
+4.	Phân tích Dữ liệu Y tế Nâng cao: Để thực hiện các truy vấn phân tích phức tạp trên dữ liệu bệnh án, hệ thống sử dụng MongoDB Aggregation Pipeline. Ví dụ, để tìm tất cả các bệnh nhân từng được chẩn đoán "Viêm họng cấp", một pipeline có thể được xây dựng gồm các giai đoạn:
+o	$unwind: Tách mảng events thành các document riêng lẻ.
+o	$match: Lọc ra các sự kiện có events.event_type là PhieuChanDoan và events.ChanDoanCuoi chứa từ khóa "Viêm họng cấp".
+o	$group: Nhóm kết quả lại theo mã bệnh nhân để có một danh sách duy nhất. Công cụ này cho phép thực hiện phân tích dữ liệu lớn một cách hiệu quả ngay trên cơ sở dữ liệu.
+6.0 Luồng Vận hành Nghiệp vụ Toàn diện
+Dưới đây là luồng vận hành chi tiết của một bệnh nhân đã đặt lịch hẹn trước, mô tả cách hệ thống và các cơ sở dữ liệu tương tác để hỗ trợ quy trình từ đầu đến cuối.
+1.	Check-in và Tiếp nhận (MySQL xử lý):
+o	Hành động: Y tá tìm kiếm LichHen của bệnh nhân trong hệ thống và cập nhật trạng thái từ DaXacNhan thành DaCheckin.
+o	Hệ thống (MySQL): Giao dịch này được xử lý trên MySQL. Hệ thống tạo một bản ghi PhieuKham mới với trạng thái DaLap và cập nhật trạng thái trong ngày của BenhNhan thành ChoKham. Bệnh nhân được tự động thêm vào hàng đợi khám lâm sàng.
+2.	Khám lâm sàng & Chỉ định (MySQL & MongoDB):
+o	Hành động: Bác sĩ gọi bệnh nhân vào phòng khám.
+o	Hệ thống (MySQL): Trạng thái PhieuKham được cập nhật thành DangKham.
+o	Hệ thống (MongoDB): Bác sĩ truy vấn toàn bộ lịch sử y tế của bệnh nhân từ collection MedicalHistories trên MongoDB để xem bệnh sử.
+o	Hành động: Bác sĩ chỉ định các dịch vụ cận lâm sàng (CLS).
+o	Hệ thống (MongoDB): Thông tin chỉ định này được ghi nhận như một sự kiện mới (PhieuKhamCls) vào document của bệnh nhân. Bệnh nhân được chuyển sang hàng đợi của các phòng dịch vụ CLS tương ứng trên MySQL.
+3.	Thực hiện Cận lâm sàng (MongoDB):
+o	Hành động: Kỹ thuật viên thực hiện các dịch vụ CLS.
+o	Hệ thống (MongoDB): Kết quả, bao gồm cả văn bản và tệp đính kèm (nếu có), được cập nhật trực tiếp vào sự kiện PhieuKhamCls trong document của bệnh nhân trên MongoDB.
+4.	Chẩn đoán và Kê đơn (MongoDB & MySQL):
+o	Hành động: Bệnh nhân quay lại phòng khám. Bác sĩ xem kết quả CLS vừa được cập nhật trên MongoDB.
+o	Hệ thống (MongoDB): Bác sĩ đưa ra chẩn đoán cuối cùng và kê đơn. PhieuChanDoan và DonThuoc được ghi nhận như các sự kiện mới trong document của bệnh nhân.
+o	Hệ thống (MySQL): Trạng thái của PhieuKham trên MySQL được cập nhật thành DaHoanTat.
+5.	Thanh toán và Phát thuốc (MySQL& MongoDB):
+o	Hành động: Y tá hành chính tạo hóa đơn thanh toán.
+o	Hệ thống (MySQL): Một bản ghi HoaDon mới được tạo trên MySQL, tổng hợp chi phí từ các dịch vụ và thuốc đã chỉ định. Sau khi bệnh nhân thanh toán, trạng thái HoaDon được cập nhật thành DaThu.
+o	Hành động: Bệnh nhân nhận thuốc tại quầy dược.
+o	Hệ thống (MongoDB & MySQL): Trạng thái của sự kiện DonThuoc trong document MongoDB được cập nhật thành DaPhat. Hành động này sẽ phát ra một sự kiện (event) được xử lý bất đồng bộ, kích hoạt một giao dịch trên MySQL để cập nhật số lượng tồn kho trong bảng KhoThuoc.
+o	Kết thúc: Trạng thái cuối cùng của BenhNhan trong ngày được cập nhật. Quy trình khám chữa bệnh hoàn tất.
+

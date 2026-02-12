@@ -1,0 +1,163 @@
+@startuml UC_01_Auth
+' ===========================
+' UC_01: XAC THUC & QUAN LY PHIEN
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+hide circle
+
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+skinparam rectangle {
+  BackgroundColor #F8FAFC
+  BorderColor #94A3B8
+}
+
+left to right direction
+title UC_01: Xac thuc & Quan ly Phien
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Admin" as Admin #LightCoral
+actor "Y ta Hanh chinh" as YTHC #LightBlue
+actor "Y ta Lam sang" as YTLS #LightGreen
+actor "Y ta Can lam sang" as YTCLS #Gold
+actor "Bac si" as BS #Lavender
+actor "Ky thuat vien" as KTV #PeachPuff
+
+' ===========================
+' 1) DANG NHAP
+' ===========================
+rectangle "Dang nhap" as Login #E0F2FE {
+  usecase "UC01.1 - Nhap\nUsername" as UC01_1
+  usecase "UC01.2 - Nhap\nPassword" as UC01_2
+  usecase "UC01.3 - Xac thuc\nthong tin" as UC01_3
+  usecase "UC01.4 - Tao Access Token\n(JWT)" as UC01_4
+  usecase "UC01.5 - Tao Refresh Token\n(HttpOnly Cookie)" as UC01_5
+  usecase "UC01.6 - Ghi log\nIP dang nhap" as UC01_6
+  usecase "UC01.7 - Hien thi\nloi dang nhap" as UC01_7
+}
+
+' ===========================
+' 2) QUAN LY PHIEN
+' ===========================
+rectangle "Quan ly Phien" as Session #DBEAFE {
+  usecase "UC02.1 - Kiem tra\nToken het han" as UC02_1
+  usecase "UC02.2 - Tu dong\nRefresh Token" as UC02_2
+  usecase "UC02.3 - Dang xuat\n(Xoa Cookie)" as UC02_3
+  usecase "UC02.4 - Kiem tra\nQuyen truy cap" as UC02_4
+  usecase "UC02.5 - Chuyen huong\ntheo Vai tro" as UC02_5
+}
+
+' ===========================
+' 3) DOI MAT KHAU
+' ===========================
+rectangle "Doi Mat khau" as ChangePwd #FEF3C7 {
+  usecase "UC03.1 - Nhap\nMat khau cu" as UC03_1
+  usecase "UC03.2 - Nhap\nMat khau moi" as UC03_2
+  usecase "UC03.3 - Xac nhan\nMat khau moi" as UC03_3
+  usecase "UC03.4 - Validate\ndo manh MK" as UC03_4
+  usecase "UC03.5 - Luu\nMat khau moi" as UC03_5
+}
+
+' ===========================
+' 4) QUEN MAT KHAU
+' ===========================
+rectangle "Quen Mat khau" as ForgotPwd #FCE7F3 {
+  usecase "UC04.1 - Nhap\nEmail/SDT" as UC04_1
+  usecase "UC04.2 - Gui OTP\nqua Email" as UC04_2
+  usecase "UC04.3 - Gui OTP\nqua SMS" as UC04_3
+  usecase "UC04.4 - Xac thuc\nma OTP" as UC04_4
+  usecase "UC04.5 - Dat lai\nMat khau" as UC04_5
+  usecase "UC04.6 - Hien thi\nloi OTP sai" as UC04_6
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+Login -[hidden]-> Session
+Session -[hidden]-> ChangePwd
+ChangePwd -[hidden]-> ForgotPwd
+
+' ===========================
+' ACTOR -> USECASE
+' ===========================
+Admin --> UC01_1
+Admin --> UC02_3
+Admin --> UC03_1
+Admin --> UC04_1
+
+YTHC --> UC01_1
+YTHC --> UC02_3
+YTHC --> UC03_1
+YTHC --> UC04_1
+
+YTLS --> UC01_1
+YTLS --> UC02_3
+YTLS --> UC03_1
+YTLS --> UC04_1
+
+YTCLS --> UC01_1
+YTCLS --> UC02_3
+YTCLS --> UC03_1
+YTCLS --> UC04_1
+
+BS --> UC01_1
+BS --> UC02_3
+BS --> UC03_1
+BS --> UC04_1
+
+KTV --> UC01_1
+KTV --> UC02_3
+KTV --> UC03_1
+KTV --> UC04_1
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC01_1 ..> UC01_2 : <<include>>
+UC01_2 ..> UC01_3 : <<include>>
+UC01_3 ..> UC01_4 : Thanh cong
+UC01_3 ..> UC01_7 : That bai
+UC01_4 ..> UC01_5 : <<include>>
+UC01_5 ..> UC01_6 : <<include>>
+
+UC02_1 ..> UC02_2 : Het han
+UC01_4 ..> UC02_4 : <<include>>
+UC02_4 ..> UC02_5 : <<include>>
+
+UC03_1 ..> UC03_2 : <<include>>
+UC03_2 ..> UC03_3 : <<include>>
+UC03_3 ..> UC03_4 : <<include>>
+UC03_4 ..> UC03_5 : Hop le
+
+UC04_1 ..> UC04_2 : <<extend>>
+UC04_1 ..> UC04_3 : <<extend>>
+UC04_2 ..> UC04_4 : <<include>>
+UC04_3 ..> UC04_4 : <<include>>
+UC04_4 ..> UC04_5 : Dung OTP
+UC04_4 ..> UC04_6 : Sai OTP
+
+' ===========================
+' NOTES
+' ===========================
+note right of UC01_4
+  JWT chua:
+  - UserId
+  - MaNhanVien
+  - VaiTro
+  - Exp time (15 phut)
+end note
+
+note right of UC01_5
+  Refresh Token:
+  - HttpOnly = true
+  - Secure = true
+  - Exp time (7 ngay)
+end note
+
+@enduml

@@ -1,0 +1,59 @@
+1. Phân Tích Yêu Cầu Đề Bài (Topic 9: Unified E-Health Patient Records)
+Đề tài này yêu cầu giải quyết bài toán "Đa hình thái dữ liệu" (Polyglot Persistence): Dữ liệu lịch sử bệnh án thì lộn xộn, đa dạng (NoSQL) nhưng lịch hẹn bác sĩ thì phải tuyệt đối chính xác (SQL).
+4 Yêu cầu Kỹ thuật Cốt lõi bắt buộc phải có:
+1. Chặt chẽ về Lịch hẹn (SQL Strict Consistency):
+    ◦ Yêu cầu: Viết Stored Procedure xử lý việc đặt lịch.
+    ◦ Điểm mấu chốt: Phải chứng minh được việc ngăn chặn "Double-booking" (hai người đặt cùng 1 giờ) bằng Transaction Isolation Level (ví dụ: SERIALIZABLE).
+2. Linh hoạt về Hồ sơ (NoSQL Schema Evolution):
+    ◦ Yêu cầu: Lưu lịch sử khám trong MongoDB.
+    ◦ Điểm mấu chốt: Minh họa tính năng "Schema Evolution" – tức là thêm một trường mới (ví dụ: vaccination) vào các bản ghi mới mà không làm lỗi các bản ghi cũ, không cần chạy lệnh ALTER TABLE như SQL.
+3. Truy vấn Phả hệ (SQL Recursive CTE):
+    ◦ Yêu cầu: Sử dụng kỹ thuật Recursive Common Table Expression (CTE).
+    ◦ Mục đích: Từ một bệnh nhân, truy xuất ngược lên cây gia phả để tìm cha mẹ/người thân (phục vụ phân tích di truyền).
+4. Phân tích Dữ liệu (MongoDB Aggregation):
+    ◦ Yêu cầu: Dùng Aggregation Pipeline (không dùng lệnh find đơn giản).
+    ◦ Mục đích: Lọc và thống kê bệnh nhân theo chẩn đoán bệnh từ mảng dữ liệu phức tạp.
+
+--------------------------------------------------------------------------------
+2. Tiêu Chí Chấm Điểm & Cách Đạt Điểm Tối Đa (9.0 - 10.0)
+Dựa trên file Rubric, điểm số được chia như sau:
+A. Thiết kế & Kiến trúc (35%) - Chiến lược "Tách đôi dữ liệu"
+Để đạt điểm Xuất sắc, bạn phải biện luận sắc bén tại sao tách bảng như thế này:
+• SQL (Giữ lại từ dự án cũ): LichHen (Appointments), NhanSu (Staff), HoaDon (Transactions).
+    ◦ Lý do: Cần ACID (tính toàn vẹn) để đảm bảo tiền nong và giờ giấc không sai lệch.
+• MongoDB (Chuyển sang mới): Di dời các trường TieuSuBenh, DiUng, KetQuaDichVu, DonThuoc từ SQL sang MongoDB collection Histories.
+    ◦ Lý do: Các dữ liệu này có cấu trúc không cố định (lúc thì xét nghiệm máu, lúc thì X-quang, lúc thì ghi chú văn bản), cần BASE (tính sẵn sàng và linh hoạt).
+B. Triển khai Kỹ thuật (35%) - "Code khó mới có điểm cao"
+• Đừng chỉ viết CRUD cơ bản. Bạn cần show ra đoạn code xử lý Race Condition (Tranh chấp dữ liệu).
+• Ví dụ: Khi 2 y tá cùng bấm lưu lịch hẹn cho 1 bác sĩ lúc 9:00 AM, hệ thống phải chặn 1 người lại. Nếu không có logic LOCK hoặc TRANSACTION, bạn sẽ bị trừ điểm nặng.
+C. Báo cáo & Tài liệu (15%) - "Nhật ký AI"
+• File và nhấn mạnh: Bạn phải có AI Audit Log (Phụ lục các câu prompt đã dùng).
+• Phải chỉ ra một lỗi mà AI viết sai và bạn đã sửa lại (Ví dụ: AI viết query sai logic khóa, bạn sửa lại thành SELECT ... FOR UPDATE).
+D. Vấn đáp Cá nhân (15%) - "Sửa code tại trận"
+• Giảng viên sẽ yêu cầu bạn sửa code ngay lúc đó (ví dụ: "Đổi RANK() thành DENSE_RANK() xem kết quả khác gì?"). Nếu bạn không tự viết code mà phó mặc cho AI, bạn sẽ trượt phần này.
+
+--------------------------------------------------------------------------------
+3. Kế Hoạch Tích Hợp Vào Dự Án Cũ (HealthCare)
+Dựa trên source code cũ của bạn, đây là những việc cần làm để "nâng cấp" lên Topic 9:
+Bước 1: Cắt gọt Database cũ (Refactoring SQL)
+• Trong file ERD_Health (1).docx, bảng BenhNhan đang chứa quá nhiều thứ (DiUng, TieuSuBenh, TienSuPhauThuat).
+• Hành động: Xóa các cột này trong SQL. Chỉ giữ lại MaBenhNhan, HoTen, NgaySinh và thêm cột ParentID (để làm đệ quy gia phả).
+Bước 2: Xây dựng MongoDB Collection
+• Tạo collection Histories với cấu trúc Embedded Document (theo gợi ý source):
+Bước 3: Viết 4 Chức năng "Ăn điểm" (Dùng AI để generate khung, nhưng phải hiểu sâu)
+1. API Đặt lịch: Viết Stored Procedure trong SQL Server/MySQL có SET TRANSACTION ISOLATION LEVEL SERIALIZABLE kiểm tra trùng giờ GioHen và MaBacSi.
+2. API Cây gia phả: Viết câu query WITH RECURSIVE Ancestors AS ... để tìm cha mẹ của bệnh nhân.
+3. API Bệnh án: Viết API C# để push thêm object vào mảng events trong MongoDB.
+4. API Báo cáo: Viết MongoDB Pipeline dùng $unwind (bung mảng events) và $group (đếm số ca bệnh).
+4. Danh sách Hồ sơ Cần nộp (Checklist) để không thiếu sót
+Theo tài liệu,,, bạn cần đóng gói:
+1. Source Code: Code Backend (.NET), Frontend (React), SQL Script (tạo bảng + Stored Proc), MongoDB Script (tạo collection + data mẫu).
+2. Final Report (PDF):
+    ◦ Chương 1: Phân tích nghiệp vụ.
+    ◦ Chương 2: Kiến trúc Polyglot (Vẽ hình SQL nối với NoSQL thế nào).
+    ◦ Chương 3: Thiết kế Database (ERD mới + Cấu trúc JSON).
+    ◦ Quan trọng: Phần "Technical Defense" của từng thành viên (Ai làm module nào, tại sao chọn SQL/NoSQL cho module đó).
+    ◦ Phụ lục: AI Audit Log (Nhật ký dùng ChatGPT/Claude).
+3. Video/Demo: Quay màn hình chứng minh chức năng chạy đúng.
+Tóm lại:
+Để đạt điểm tối đa, bạn không cần làm quá nhiều chức năng phụ (như login, phân quyền màu mè). Hãy tập trung toàn lực vào 4 kỹ thuật: Transaction Locking (SQL), Recursive Query (SQL), Schema Design (NoSQL), Aggregation (NoSQL). Đây là "xương sống" để giảng viên chấm điểm.

@@ -1,0 +1,187 @@
+@startuml ARCH_04_DataFlow
+' ===========================
+' ARCH_04: DATA FLOW DIAGRAM
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+title ARCH_04: Data Flow - Luong Du lieu Chinh
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Y ta HC" as YTHC #LightBlue
+actor "Y ta LS" as YTLS #LightGreen
+actor "Bac si" as BS #Lavender
+actor "KTV" as KTV #PeachPuff
+
+' ===========================
+' FRONTEND
+' ===========================
+rectangle "Frontend (React)" as FE #E0F2FE {
+  usecase "1. Tiep nhan BN" as UC1
+  usecase "2. Dat lich hen" as UC2
+  usecase "3. Check-in" as UC3
+  usecase "4. Quan ly Hang doi" as UC4
+  usecase "5. Kham LS" as UC5
+  usecase "6. Chi dinh CLS" as UC6
+  usecase "7. Thuc hien CLS" as UC7
+  usecase "8. Ke don" as UC8
+  usecase "9. Thanh toan" as UC9
+  usecase "10. Phat thuoc" as UC10
+}
+
+' ===========================
+' API
+' ===========================
+rectangle "API Gateway" as API #DBEAFE {
+  usecase "PatientController" as APIPatient
+  usecase "AppointmentController" as APIAppt
+  usecase "QueueController" as APIQueue
+  usecase "ExamController" as APIExam
+  usecase "CLSController" as APICLS
+  usecase "PrescriptionController" as APIPresc
+  usecase "BillingController" as APIBill
+  usecase "SignalR Hub" as APISignalR
+}
+
+' ===========================
+' SERVICES
+' ===========================
+rectangle "Business Services" as BL #D1FAE5 {
+  usecase "PatientService" as SvcPatient
+  usecase "AppointmentService" as SvcAppt
+  usecase "QueueService" as SvcQueue
+  usecase "ClinicalService" as SvcClin
+  usecase "CLSService" as SvcCLS
+  usecase "PrescriptionService" as SvcPresc
+  usecase "BillingService" as SvcBill
+  usecase "NotificationService" as SvcNotif
+}
+
+' ===========================
+' DATABASES
+' ===========================
+database "MySQL" as MySQL #FEF3C7 {
+  usecase "benh_nhan" as TblBN
+  usecase "lich_hen" as TblLH
+  usecase "hang_doi" as TblHD
+  usecase "phieu_kham" as TblPK
+  usecase "chi_tiet_dv" as TblCTDV
+  usecase "don_thuoc" as TblDT
+  usecase "hoa_don" as TblHD2
+  usecase "kho_thuoc" as TblKT
+}
+
+database "MongoDB" as MongoDB #CFFAFE {
+  usecase "medical_histories" as CollMedHist
+  usecase "ket_qua_cls" as CollKetQua
+}
+
+' ===========================
+' EXTERNAL
+' ===========================
+cloud "External" as Ext #FCE7F3 {
+  usecase "VietQR" as ExtQR
+  usecase "SignalR Push" as ExtSignalR
+}
+
+' ===========================
+' FLOW 1: TIEP NHAN & DAT LICH
+' ===========================
+YTHC --> UC1 : "Nhap thong tin BN"
+UC1 --> APIPatient
+APIPatient --> SvcPatient
+SvcPatient --> TblBN : "INSERT benh_nhan"
+SvcPatient --> CollMedHist : "INSERT event: dang_ky"
+
+YTHC --> UC2 : "Dat lich hen"
+UC2 --> APIAppt
+APIAppt --> SvcAppt
+SvcAppt --> TblLH : "INSERT lich_hen\n(SERIALIZABLE)"
+
+' ===========================
+' FLOW 2: CHECK-IN & HANG DOI
+' ===========================
+YTHC --> UC3 : "Check-in BN"
+UC3 --> APIQueue
+APIQueue --> SvcQueue
+SvcQueue --> TblLH : "UPDATE trang_thai"
+SvcQueue --> TblHD : "INSERT hang_doi"
+SvcQueue --> SvcNotif : "Push thong bao"
+SvcNotif --> ExtSignalR : "WebSocket"
+
+' ===========================
+' FLOW 3: KHAM LAM SANG
+' ===========================
+YTLS --> UC4 : "Goi BN"
+UC4 --> APISignalR : "SignalR"
+APISignalR --> ExtSignalR
+
+BS --> UC5 : "Kham & Chan doan"
+UC5 --> APIExam
+APIExam --> SvcClin
+SvcClin --> TblPK : "INSERT phieu_kham"
+SvcClin --> CollMedHist : "INSERT event: kham_ls"
+
+' ===========================
+' FLOW 4: CAN LAM SANG
+' ===========================
+BS --> UC6 : "Chi dinh XN/CDHA"
+UC6 --> APICLS
+APICLS --> SvcCLS
+SvcCLS --> TblCTDV : "INSERT chi_tiet_dv"
+
+KTV --> UC7 : "Thuc hien & Nhap KQ"
+UC7 --> APICLS
+APICLS --> SvcCLS
+SvcCLS --> TblCTDV : "UPDATE trang_thai"
+SvcCLS --> CollKetQua : "INSERT ket_qua"
+SvcCLS --> SvcNotif : "Push ket qua"
+SvcNotif --> ExtSignalR
+
+' ===========================
+' FLOW 5: KE DON & THANH TOAN
+' ===========================
+BS --> UC8 : "Ke don thuoc"
+UC8 --> APIPresc
+APIPresc --> SvcPresc
+SvcPresc --> TblDT : "INSERT don_thuoc"
+SvcPresc --> CollMedHist : "INSERT event: don_thuoc"
+
+YTHC --> UC9 : "Thanh toan"
+UC9 --> APIBill
+APIBill --> SvcBill
+SvcBill --> TblHD2 : "INSERT hoa_don"
+SvcBill --> ExtQR : "Generate QR"
+
+YTHC --> UC10 : "Phat thuoc"
+UC10 --> APIPresc
+APIPresc --> SvcPresc
+SvcPresc --> TblDT : "UPDATE trang_thai"
+SvcPresc --> TblKT : "UPDATE so_luong_ton\n(Transaction)"
+
+' ===========================
+' NOTES
+' ===========================
+note right of TblLH
+  SERIALIZABLE Transaction
+  dam bao khong trung lich
+end note
+
+note right of TblKT
+  Transaction:
+  BEGIN
+  UPDATE kho_thuoc SET so_luong_ton = so_luong_ton - @qty
+  INSERT lich_su_xuat
+  COMMIT
+end note
+
+note right of CollMedHist
+  Schema Evolution
+  Moi event co data khac nhau
+end note
+
+@enduml

@@ -1,0 +1,149 @@
+@startuml UC_06_Queue
+' ===========================
+' UC_06: DIEU PHOI HANG DOI
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+hide circle
+
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+skinparam linetype ortho
+skinparam padding 2
+skinparam margin 5
+skinparam nodesep 10
+skinparam ranksep 15
+skinparam usecase {
+  Padding 4
+}
+left to right direction
+title UC_06: Dieu phoi Hang doi
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Y ta Hanh chinh" as YTHC #LightBlue
+actor "Y ta Lam sang" as YTLS #LightGreen
+actor "Y ta Can lam sang" as YTCLS #Gold
+actor "Bac si" as BS #Lavender
+actor "Ky thuat vien" as KTV #PeachPuff
+
+' ===========================
+' 1) XEM HANG DOI
+' ===========================
+rectangle "Xem Hang doi" as ViewQueue #E0F2FE {
+  usecase "UC40.1 - Xem Hang doi\ntheo Phong" as UC40_1
+  usecase "UC40.2 - Hien thi\nSTT, Ten BN, Thoi gian cho" as UC40_2
+  usecase "UC40.3 - Loc theo\nTrang thai" as UC40_3
+  usecase "UC40.4 - Loc theo\nDo uu tien" as UC40_4
+  usecase "UC40.5 - Tim kiem\nBN trong hang doi" as UC40_5
+  usecase "UC40.6 - Xem Tong\nso BN dang cho" as UC40_6
+}
+
+' ===========================
+' 2) THEM VAO HANG DOI
+' ===========================
+rectangle "Them vao Hang doi" as AddQueue #D1FAE5 {
+  usecase "UC41.1 - Them BN\nvao Hang doi" as UC41_1
+  usecase "UC41.2 - Chon\nBenh nhan" as UC41_2
+  usecase "UC41.3 - Chon\nPhong kham" as UC41_3
+  usecase "UC41.4 - Tinh\nDo uu tien" as UC41_4
+  usecase "UC41.5 - Cap\nSo thu tu" as UC41_5
+  usecase "UC41.6 - Ghi nhan\nThoi gian vao" as UC41_6
+}
+
+' ===========================
+' 3) GOI BENH NHAN
+' ===========================
+rectangle "Goi Benh nhan" as CallPatient #FEF3C7 {
+  usecase "UC42.1 - Goi BN\ntiep theo" as UC42_1
+  usecase "UC42.2 - Phat am thanh\ngoi ten" as UC42_2
+  usecase "UC42.3 - Hien thi\ntren man hinh cho" as UC42_3
+  usecase "UC42.4 - Push Thong bao\nQua app" as UC42_4
+  usecase "UC42.5 - Goi lai\nBN (neu vang)" as UC42_5
+}
+
+' ===========================
+' 4) CAP NHAT TRANG THAI
+' ===========================
+rectangle "Cap nhat Trang thai" as UpdateQueue #FCE7F3 {
+  usecase "UC43.1 - Cap nhat\nTrang thai Hang doi" as UC43_1
+  usecase "UC43.2 - Danh dau\n'Dang kham'" as UC43_2
+  usecase "UC43.3 - Danh dau\n'Da kham xong'" as UC43_3
+  usecase "UC43.4 - Danh dau\n'Vang mat'" as UC43_4
+  usecase "UC43.6 - Ghi nhan\nThoi gian ket thuc" as UC43_6
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+ViewQueue -[hidden]-> AddQueue
+AddQueue -[hidden]-> CallPatient
+ViewQueue -[hidden]down-> UpdateQueue
+
+' ===========================
+' ACTOR -> USECASE
+' ===========================
+YTHC --> UC40_1
+YTHC --> UC41_1
+YTHC --> UC42_1
+YTHC --> UC43_1
+
+YTLS --> UC40_1
+YTLS --> UC42_1
+YTLS --> UC43_1
+
+YTCLS --> UC40_1
+YTCLS --> UC42_1
+YTCLS --> UC43_1
+
+BS --> UC40_1
+
+KTV --> UC40_1
+KTV --> UC42_1
+KTV --> UC43_1
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC40_1 ..> UC40_2 : <<include>>
+UC40_1 ..> UC40_3 : <<extend>>
+UC40_1 ..> UC40_4 : <<extend>>
+UC40_1 ..> UC40_5 : <<extend>>
+UC40_1 ..> UC40_6 : <<include>>
+
+UC41_1 ..> UC41_2 : <<include>>
+UC41_1 ..> UC41_3 : <<include>>
+UC41_1 ..> UC41_4 : <<include>>
+UC41_1 ..> UC41_5 : <<include>>
+UC41_1 ..> UC41_6 : <<include>>
+
+UC42_1 ..> UC42_2 : <<extend>>
+UC42_1 ..> UC42_3 : <<extend>>
+UC42_1 ..> UC42_4 : <<extend>>
+
+UC43_1 --> UC43_2
+UC43_1 --> UC43_3
+UC43_1 --> UC43_4
+UC43_3 ..> UC43_6 : <<include>>
+
+' ===========================
+' NOTES
+' ===========================
+
+note right of UC41_4
+  Do uu tien:
+  1. Cap cuu (cao nhat)
+  2. Kham CLS quay lai
+  3. Lich hen
+  3. Binh thuong
+end note
+note right of UC42_3
+  Real-time via SignalR
+  Hien thi man hinh cho
+end note
+
+@enduml

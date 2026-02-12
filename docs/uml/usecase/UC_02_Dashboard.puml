@@ -1,0 +1,143 @@
+@startuml UC_02_Dashboard
+' ===========================
+' UC_02: DASHBOARD & THONG BAO
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+hide circle
+
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+
+left to right direction
+title UC_02: Dashboard & Thong bao
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Admin" as Admin #LightCoral
+actor "Y ta Hanh chinh" as YTHC #LightBlue
+actor "Y ta Lam sang" as YTLS #LightGreen
+actor "Y ta Can lam sang" as YTCLS #Gold
+actor "Bac si" as BS #Lavender
+actor "Ky thuat vien" as KTV #PeachPuff
+
+' ===========================
+' 1) DASHBOARD
+' ===========================
+rectangle "Dashboard" as DashboardSec #DBEAFE {
+  usecase "UC05.1 - Xem Dashboard\nhom nay" as UC05_1
+  usecase "UC05.2 - Xem so lieu\nKPI theo vai tro" as UC05_2
+  usecase "UC05.3 - Xem Hoat dong\ngan day" as UC05_3
+  usecase "UC05.4 - Xem Lich hen\nhom nay" as UC05_4
+  usecase "UC05.5 - Xem Hang doi\nhien tai" as UC05_5
+  usecase "UC05.6 - Loc theo\nKhoang thoi gian" as UC05_6
+}
+
+' ===========================
+' 2) XEM THONG BAO (TAT CA)
+' ===========================
+rectangle "Xem Thong bao" as ViewNotif #D1FAE5 {
+  usecase "UC06.1 - Xem DS\nThong bao" as UC06_1
+  usecase "UC06.2 - Loc theo\nTrang thai (Da doc/Chua doc)" as UC06_2
+  usecase "UC06.3 - Loc theo\nLoai thong bao" as UC06_3
+  usecase "UC06.4 - Tim kiem\nThong bao" as UC06_4
+  usecase "UC06.5 - Xem Chi tiet\nThong bao" as UC06_5
+  usecase "UC06.6 - Danh dau\nDa doc" as UC06_6
+  usecase "UC06.7 - Danh dau tat ca\nDa doc" as UC06_7
+  usecase "UC06.8 - Xoa\nThong bao" as UC06_8
+}
+
+' ===========================
+' 3) QUAN LY THONG BAO (ADMIN)
+' ===========================
+rectangle "Quan ly Thong bao (Admin)" as MgmtNotif #FEE2E2 {
+  usecase "UC07.1 - Tao\nThong bao moi" as UC07_1
+  usecase "UC07.2 - Nhap\nTieu de" as UC07_2
+  usecase "UC07.3 - Nhap\nNoi dung" as UC07_3
+  usecase "UC07.4 - Chon Loai\nthong bao" as UC07_4
+  usecase "UC07.5 - Chon Doi tuong\nnhan (Vai tro/Ca nhan)" as UC07_5
+  usecase "UC07.6 - Chon Phuong thuc\ngui (System/Email/SMS)" as UC07_6
+  usecase "UC07.7 - Hen gio\ngui (Schedule)" as UC07_7
+  usecase "UC07.8 - Gui\nThong bao" as UC07_8
+  usecase "UC07.9 - Sua\nThong bao" as UC07_9
+  usecase "UC07.10 - Xoa\nThong bao" as UC07_10
+  usecase "UC07.11 - Xem DS\nThong bao da gui" as UC07_11
+  usecase "UC07.12 - Loc/Tim kiem\nThong bao" as UC07_12
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+DashboardSec -[hidden]-> ViewNotif
+ViewNotif -[hidden]-> MgmtNotif
+
+' ===========================
+' ACTOR -> DASHBOARD (TAT CA)
+' ===========================
+Admin --> UC05_1
+YTHC --> UC05_1
+YTLS --> UC05_1
+YTCLS --> UC05_1
+BS --> UC05_1
+KTV --> UC05_1
+
+' ===========================
+' ACTOR -> XEM THONG BAO (TAT CA)
+' ===========================
+Admin --> UC06_1
+YTHC --> UC06_1
+YTLS --> UC06_1
+YTCLS --> UC06_1
+BS --> UC06_1
+KTV --> UC06_1
+
+' ===========================
+' ACTOR -> QUAN LY THONG BAO (ADMIN ONLY)
+' ===========================
+Admin --> UC07_1
+Admin --> UC07_9
+Admin --> UC07_10
+Admin --> UC07_11
+Admin --> UC07_12
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC05_1 ..> UC05_2 : <<include>>
+UC05_1 ..> UC05_3 : <<include>>
+UC05_1 ..> UC05_4 : <<extend>>
+UC05_1 ..> UC05_5 : <<extend>>
+UC05_1 ..> UC05_6 : <<extend>>
+
+UC06_1 ..> UC06_2 : <<extend>>
+UC06_1 ..> UC06_3 : <<extend>>
+UC06_1 ..> UC06_4 : <<extend>>
+UC06_1 ..> UC06_5 : <<extend>>
+UC06_5 ..> UC06_6 : <<include>>
+
+UC07_1 ..> UC07_2 : <<include>>
+UC07_1 ..> UC07_3 : <<include>>
+UC07_1 ..> UC07_4 : <<include>>
+UC07_1 ..> UC07_5 : <<include>>
+UC07_1 ..> UC07_6 : <<include>>
+UC07_1 ..> UC07_7 : <<extend>>
+UC07_1 ..> UC07_8 : <<include>>
+
+' ===========================
+' NOTES
+' ===========================
+note right of UC06_1
+  Real-time via SignalR
+  Push notification
+end note
+
+note right of MgmtNotif
+  Chi Admin moi co quyen
+  Tao/Sua/Xoa/Gui thong bao
+end note
+
+@enduml

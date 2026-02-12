@@ -1,0 +1,158 @@
+
+
+@startuml UC_05_Appointment
+' ===========================
+' UC_05: QUAN LY LICH HEN
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+hide circle
+skinparam linetype ortho
+skinparam padding 2
+skinparam margin 5
+skinparam nodesep 10
+skinparam ranksep 15
+skinparam usecase {
+  Padding 4
+}
+left to right direction
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+
+left to right direction
+title UC_05: Quan ly Lich hen
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Y ta Hanh chinh" as YTHC #LightBlue
+actor "Bac si" as BS #Lavender
+
+' ===========================
+' 1) XEM LICH HEN
+' ===========================
+rectangle "Xem Lich hen" as ViewAppt #E0F2FE {
+  usecase "UC30.1 - Xem DS\nLich hen trong ngay" as UC30_1
+  usecase "UC30.2 - Xem Lich hen\ntheo Tuan" as UC30_2
+  usecase "UC30.3 - Xem Lich hen\ntheo Thang" as UC30_3
+  usecase "UC30.4 - Loc theo\nBac si" as UC30_4
+  usecase "UC30.5 - Loc theo\nPhong kham" as UC30_5
+  usecase "UC30.6 - Loc theo\nTrang thai" as UC30_6
+  usecase "UC30.7 - Tim kiem\nLich hen" as UC30_7
+  usecase "UC30.8 - Xem Chi tiet\nLich hen" as UC30_8
+}
+
+' ===========================
+' 2) TAO LICH HEN MOI
+' ===========================
+rectangle "Tao Lich hen" as CreateAppt #D1FAE5 {
+  usecase "UC31.1 - Tao\nLich hen moi" as UC31_1
+  usecase "UC31.2 - Tim/Chon\nBenh nhan" as UC31_2
+  usecase "UC31.3 - Chon\nBac si" as UC31_3
+  usecase "UC31.4 - Xem Lich truc\ncua Bac si" as UC31_4
+  usecase "UC31.5 - Chon\nNgay hen" as UC31_5
+  usecase "UC31.6 - Chon\nKhung gio" as UC31_6
+  usecase "UC31.7 - Kiem tra\nXung dot lich" as UC31_7
+  usecase "UC31.8 - Nhap\nGhi chu/Ly do" as UC31_8
+  usecase "UC31.9 - Xac nhan\nTao lich" as UC31_9
+  usecase "UC31.10 - Gui Thong bao\ncho BS" as UC31_10
+  usecase "UC31.11 - In\nPhieu hen" as UC31_11
+}
+
+' ===========================
+' 3) SUA/HUY LICH HEN
+' ===========================
+rectangle "Sua/Huy Lich hen" as EditAppt #FEF3C7 {
+  usecase "UC32.1 - Sua\nLich hen" as UC32_1
+  usecase "UC32.2 - Thay doi\nNgay/Gio" as UC32_2
+  usecase "UC32.3 - Thay doi\nBac si" as UC32_3
+  usecase "UC32.4 - Kiem tra\nXung dot" as UC32_4
+  usecase "UC32.5 - Luu\nThay doi" as UC32_5
+  usecase "UC32.6 - Huy\nLich hen" as UC32_6
+  usecase "UC32.7 - Nhap\nLy do huy" as UC32_7
+  usecase "UC32.8 - Xac nhan\nHuy" as UC32_8
+  usecase "UC32.9 - Gui Thong bao\nhuy cho BS" as UC32_9
+}
+
+' ===========================
+' 4) CHECK-IN
+' ===========================
+rectangle "Check-in Benh nhan" as CheckIn #FCE7F3 {
+  usecase "UC33.1 - Xem DS\nBN den kham" as UC33_1
+  usecase "UC33.2 - Tim kiem\nBN theo Ma/Ten" as UC33_2
+  usecase "UC33.3 - Xac nhan\nBN da den" as UC33_3
+  usecase "UC33.4 - Cap nhat\nTrang thai Lich hen" as UC33_4
+  usecase "UC33.5 - Them BN\nvao tiep nhan" as UC33_5
+  usecase "UC33.6 - In\nPhieu kham" as UC33_6
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+ViewAppt -[hidden]-> CreateAppt
+CreateAppt -[hidden]-> EditAppt
+ViewAppt -[hidden]down-> CheckIn
+
+' ===========================
+' ACTOR -> USECASE
+' ===========================
+YTHC --> UC30_1
+YTHC --> UC31_1
+YTHC --> UC32_1
+YTHC --> UC32_6
+YTHC --> UC33_1
+YTHC --> UC33_3
+
+BS --> UC30_1
+BS --> UC30_8
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC30_1 ..> UC30_4 : <<extend>>
+UC30_1 ..> UC30_5 : <<extend>>
+UC30_1 ..> UC30_6 : <<extend>>
+UC30_1 ..> UC30_7 : <<extend>>
+UC30_1 ..> UC30_8 : <<extend>>
+
+UC31_1 ..> UC31_2 : <<include>>
+UC31_1 ..> UC31_3 : <<include>>
+UC31_3 ..> UC31_4 : <<include>>
+UC31_1 ..> UC31_5 : <<include>>
+UC31_1 ..> UC31_6 : <<include>>
+UC31_6 ..> UC31_7 : <<include>>
+UC31_1 ..> UC31_8 : <<extend>>
+UC31_1 ..> UC31_9 : <<include>>
+UC31_9 ..> UC31_10 : <<extend>>
+UC31_9 ..> UC31_11 : <<extend>>
+
+UC32_1 ..> UC32_2 : <<extend>>
+UC32_1 ..> UC32_3 : <<extend>>
+UC32_1 ..> UC32_4 : <<include>>
+UC32_1 ..> UC32_5 : <<include>>
+UC32_6 ..> UC32_7 : <<include>>
+UC32_6 ..> UC32_8 : <<include>>
+UC32_8 ..> UC32_9 : <<extend>>
+
+UC33_1 ..> UC33_2 : <<extend>>
+UC33_3 ..> UC33_4 : <<include>>
+UC33_3 ..> UC33_5 : <<include>>
+UC33_3 ..> UC33_6 : <<extend>>
+
+' ===========================
+' NOTES
+' ===========================
+note right of UC31_7
+  SERIALIZABLE Transaction
+  Dam bao khong trung lich
+end note
+
+note bottom of ViewAppt
+  Y ta HC: Full CRUD
+  Bac si: Chi xem
+end note
+
+@enduml

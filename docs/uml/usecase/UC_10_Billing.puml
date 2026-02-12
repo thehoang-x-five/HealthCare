@@ -1,0 +1,178 @@
+
+@startuml UC_10_Billing
+' ===========================
+' UC_10: THANH TOAN VIEN PHI
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+hide circle
+skinparam linetype ortho
+skinparam padding 2
+skinparam margin 5
+skinparam nodesep 10
+skinparam ranksep 15
+skinparam usecase {
+  Padding 4
+}
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+
+left to right direction
+title UC_10: Thanh toan Vien phi
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Y ta Hanh chinh" as YTHC #LightBlue
+actor "Admin" as Admin #LightCoral
+
+' ===========================
+' 1) TONG HOP CHI PHI
+' ===========================
+rectangle "Tong hop Chi phi" as CalcFee #E0F2FE {
+  usecase "UC80.1 - Xem Tong hop\nChi phi BN" as UC80_1
+  usecase "UC80.2 - Tinh Phi\nKham Lam sang" as UC80_2
+  usecase "UC80.3 - Tinh Phi\nCan lam sang" as UC80_3
+  usecase "UC80.4 - Tinh Tien\nThuoc" as UC80_4
+  usecase "UC80.5 - Tinh Tong\n(auto-sum)" as UC80_5
+  
+}
+
+' ===========================
+' 2) LAP HOA DON
+' ===========================
+rectangle "Lap Hoa don" as CreateInvoice #D1FAE5 {
+  usecase "UC81.1 - Lap\nHoa don moi" as UC81_1
+  usecase "UC81.2 - Chon Loai dot thu\n(LS/CLS/Thuoc)" as UC81_2
+  usecase "UC81.3 - Lien ket voi\nPhieu kham/CLS/Don thuoc" as UC81_3
+  usecase "UC81.4 - Nhap\nNoi dung hoa don" as UC81_4
+  usecase "UC81.5 - Xac nhan\nSo tien" as UC81_5
+  usecase "UC81.6 - Tao Ma hoa don\n(auto-generate)" as UC81_6
+}
+
+' ===========================
+' 3) THANH TOAN
+' ===========================
+rectangle "Thanh toan" as Payment #FEF3C7 {
+  usecase "UC82.1 - Chon Phuong thuc\nThanh toan" as UC82_1
+  usecase "UC82.2 - Thu tien\nMat" as UC82_2
+  usecase "UC82.3 - Nhap So tien\nKhach dua" as UC82_3
+  usecase "UC82.4 - Tinh Tien thua\n(auto-calc)" as UC82_4
+  usecase "UC82.5 - Thanh toan\nQR" as UC82_5
+  usecase "UC82.6 - Tao ma\nVietQR" as UC82_6
+  usecase "UC82.7 - Nhung So tien\nvao QR" as UC82_7
+  usecase "UC82.8 - Nhung Noi dung\n(Ma HD)" as UC82_8
+  usecase "UC82.9 - Hien thi QR\ncho BN quet" as UC82_9
+  usecase "UC82.10 - Xac nhan\nThanh toan thanh cong" as UC82_10
+  usecase "UC82.11 - Ghi nhan\nThoi gian thanh toan" as UC82_11
+  usecase "UC82.12 - Ghi nhan\nMa giao dich" as UC82_12
+}
+
+' ===========================
+' 4) IN BIEN LAI
+' ===========================
+rectangle "In Bien lai" as Print #FCE7F3 {
+  usecase "UC83.1 - In\nHoa don" as UC83_1
+  usecase "UC83.2 - Chon Mau in\n(A4/A5/Thermal)" as UC83_2
+  usecase "UC83.3 - Preview\ntruoc khi in" as UC83_3
+  usecase "UC83.4 - Gui in\nmay in" as UC83_4
+  usecase "UC83.5 - In\nBien lai thanh toan" as UC83_5
+}
+
+' ===========================
+' 5) QUAN LY GIAO DICH
+' ===========================
+rectangle "Quan ly Giao dich" as Transaction #F5F3FF {
+  usecase "UC84.1 - Xem Lich su\nGiao dich trong ngay" as UC84_1
+  usecase "UC84.2 - Loc theo\nThoi gian" as UC84_2
+  usecase "UC84.3 - Loc theo\nNhan vien thu" as UC84_3
+  usecase "UC84.4 - Loc theo\nTrang thai" as UC84_4
+  usecase "UC84.5 - Tim kiem\nGiao dich" as UC84_5
+  usecase "UC84.6 - Xem Chi tiet\nHoa don" as UC84_6
+  usecase "UC84.7 - Huy\nHoa don" as UC84_7
+  usecase "UC84.8 - Nhap\nLy do huy" as UC84_8
+  usecase "UC84.9 - Hoan lai Ton kho\n(neu da phat thuoc)" as UC84_9
+  usecase "UC84.10 - Tong ket\nDoanh thu ca" as UC84_10
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+CalcFee -[hidden]-> CreateInvoice
+CreateInvoice -[hidden]-> Payment
+CalcFee -[hidden]down-> Print
+Print -[hidden]-> Transaction
+
+' ===========================
+' ACTOR -> USECASE
+' ===========================
+YTHC --> UC80_1
+YTHC --> UC81_1
+YTHC --> UC82_1
+YTHC --> UC83_1
+YTHC --> UC84_1
+YTHC --> UC84_7
+
+Admin --> UC84_1
+Admin --> UC84_7
+Admin --> UC84_10
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC80_1 ..> UC80_2 : <<include>>
+UC80_1 ..> UC80_3 : <<include>>
+UC80_1 ..> UC80_4 : <<include>>
+UC80_1 ..> UC80_5 : <<include>>
+
+
+UC81_1 ..> UC80_1 : <<include>>
+UC81_1 ..> UC81_2 : <<include>>
+UC81_1 ..> UC81_3 : <<include>>
+UC81_1 ..> UC81_4 : <<extend>>
+UC81_1 ..> UC81_5 : <<include>>
+UC81_1 ..> UC81_6 : <<include>>
+
+UC82_1 --> UC82_2
+UC82_1 --> UC82_5
+UC82_2 ..> UC82_3 : <<include>>
+UC82_2 ..> UC82_4 : <<include>>
+UC82_5 ..> UC82_6 : <<include>>
+UC82_6 ..> UC82_7 : <<include>>
+UC82_6 ..> UC82_8 : <<include>>
+UC82_5 ..> UC82_9 : <<include>>
+UC82_5 ..> UC82_10 : <<include>>
+UC82_10 ..> UC82_11 : <<include>>
+UC82_10 ..> UC82_12 : <<include>>
+
+UC83_1 ..> UC83_2 : <<include>>
+UC83_1 ..> UC83_3 : <<extend>>
+UC83_1 ..> UC83_4 : <<include>>
+UC82_10 ..> UC83_5 : <<extend>>
+
+UC84_1 ..> UC84_2 : <<extend>>
+UC84_1 ..> UC84_3 : <<extend>>
+UC84_1 ..> UC84_4 : <<extend>>
+UC84_1 ..> UC84_5 : <<extend>>
+UC84_7 ..> UC84_8 : <<include>>
+UC84_7 ..> UC84_9 : <<extend>>
+
+' ===========================
+' NOTES
+' ===========================
+note right of UC82_6
+  VietQR Format
+  API tao ma QR dong
+  theo chuan Napas
+end note
+
+note right of UC84_7
+  Chi Admin hoac
+  Y ta HC co quyen
+  huy hoa don
+end note
+
+@enduml

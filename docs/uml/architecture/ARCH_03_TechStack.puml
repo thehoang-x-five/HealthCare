@@ -1,0 +1,202 @@
+@startuml ARCH_03_TechStack
+' ===========================
+' ARCH_03: TECHNOLOGY STACK
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+
+title ARCH_03: Technology Stack - HealthCare+
+
+' ===========================
+' FRONTEND
+' ===========================
+package "Frontend Technologies" as FEStack #E0F2FE {
+  rectangle "Core" as FECore #DBEAFE {
+    [React 18] as React
+    [Vite 5] as Vite
+    [TypeScript 5] as TS
+  }
+  
+  rectangle "UI Libraries" as FEUI #CFFAFE {
+    [Ant Design 5] as AntD
+    [TailwindCSS 3] as Tailwind
+    [Recharts] as Charts
+  }
+  
+  rectangle "State & Data" as FEData #D1FAE5 {
+    [React Query] as ReactQuery
+    [Zustand / Context] as Zustand
+    [React Hook Form] as RHF
+  }
+  
+  rectangle "Communication" as FEComm #FEF3C7 {
+    [Axios] as Axios
+    [@microsoft/signalr] as SignalRClient
+  }
+  
+  rectangle "Build & Tools" as FETools #FCE7F3 {
+    [ESLint] as ESLint
+    [Prettier] as Prettier
+    [Vitest] as Vitest
+  }
+}
+
+' ===========================
+' BACKEND
+' ===========================
+package "Backend Technologies" as BEStack #D1FAE5 {
+  rectangle "Core" as BECore #C6F6D5 {
+    [.NET 8.0] as DotNet
+    [ASP.NET Core] as ASPNET
+    [C# 12] as CSharp
+  }
+  
+  rectangle "API & Web" as BEAPI #B2F5EA {
+    [Minimal APIs] as MinAPI
+    [Swagger / OpenAPI] as Swagger
+    [SignalR] as SignalR
+  }
+  
+  rectangle "Authentication" as BEAuth #FED7D7 {
+    [JWT Bearer] as JWT
+    [BCrypt] as BCrypt
+    [RefreshToken] as RefreshToken
+  }
+  
+  rectangle "ORM & Data" as BEORM #FEF3C7 {
+    [Entity Framework Core 8] as EFCore
+    [Pomelo.EntityFrameworkCore.MySql] as Pomelo
+    [MongoDB.Driver] as MongoDriver
+  }
+  
+  rectangle "Utilities" as BEUtils #E9D8FD {
+    [AutoMapper] as AutoMapper
+    [FluentValidation] as FluentVal
+    [Serilog] as Serilog
+    [Hangfire] as Hangfire
+  }
+  
+  rectangle "Testing" as BETest #FBD38D {
+    [xUnit] as xUnit
+    [Moq] as Moq
+    [FluentAssertions] as FluentAssert
+  }
+}
+
+' ===========================
+' DATABASE
+' ===========================
+package "Database Technologies" as DBStack #FEF3C7 {
+  rectangle "RDBMS (ACID)" as RDBMS #FED7AA {
+    [MySQL 8.0] as MySQL
+    [InnoDB Engine] as InnoDB
+    [Stored Procedures] as SP
+    [Triggers] as Triggers
+  }
+  
+  rectangle "NoSQL (BASE)" as NoSQL #C6F6D5 {
+    [MongoDB 7.0] as MongoDB
+    [MongoDB Atlas] as Atlas
+    [Aggregation Pipeline] as AggPipeline
+  }
+  
+
+
+' ===========================
+' DEVOPS
+' ===========================
+package "DevOps & Infrastructure" as DevOps #F5F3FF {
+  rectangle "Containerization" as Container #E9D8FD {
+    [Docker] as Docker
+    [Docker Compose] as Compose
+  }
+  
+  rectangle "Web Server" as WebServer #D6BCFA {
+    [Kestrel] as Kestrel
+    [Nginx (Reverse Proxy)] as Nginx
+  }
+  
+  rectangle "CI/CD" as CICD #B794F4 {
+    [GitHub Actions] as GHA
+    [Azure DevOps] as AzureDevOps
+  }
+  
+  rectangle "Monitoring" as Monitor #9F7AEA {
+    [Prometheus] as Prometheus
+    [Grafana] as Grafana
+    [Serilog + Seq] as Seq
+  }
+}
+
+' ===========================
+' EXTERNAL
+' ===========================
+package "External Services" as External #FCE7F3 {
+  rectangle "Payment" as Payment #FED7D7 {
+    [VietQR API] as VietQR
+  }
+  
+  rectangle "Communication" as Comm #FEEBC8 {
+    [SMTP (Email)] as SMTP
+    [Twilio (SMS)] as Twilio
+  }
+}
+
+' ===========================
+' CONNECTIONS
+' ===========================
+React --> ReactQuery
+ReactQuery --> Axios
+Axios --> ASPNET
+SignalRClient --> SignalR
+
+ASPNET --> JWT
+ASPNET --> EFCore
+EFCore --> Pomelo
+Pomelo --> MySQL
+ASPNET --> MongoDriver
+MongoDriver --> MongoDB
+
+ASPNET --> AutoMapper
+ASPNET --> FluentVal
+ASPNET --> Serilog
+
+Docker --> Kestrel
+Nginx --> Kestrel
+GHA --> Docker
+
+Serilog --> Seq
+Prometheus --> Grafana
+
+' ===========================
+' VERSION TABLE
+' ===========================
+note bottom of FEStack
+  | Technology | Version |
+  |------------|---------|
+  | React | 18.2.x |
+  | Vite | 5.x |
+  | TypeScript | 5.x |
+  | Ant Design | 5.x |
+  | TailwindCSS | 3.4.x |
+end note
+
+note bottom of BEStack
+  | Technology | Version |
+  |------------|---------|
+  | .NET | 8.0 |
+  | EF Core | 8.x |
+  | SignalR | 8.x |
+  | Serilog | 3.x |
+end note
+
+note bottom of DBStack
+  | Technology | Version |
+  |------------|---------|
+  | MySQL | 8.0.x |
+  | MongoDB | 7.0.x |
+
+end note
+
+@enduml

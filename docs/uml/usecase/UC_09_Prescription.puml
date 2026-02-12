@@ -1,0 +1,164 @@
+
+
+@startuml UC_09_Prescription
+' ===========================
+' UC_09: KE DON & PHAT THUOC
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+hide circle
+skinparam linetype ortho
+skinparam padding 2
+skinparam margin 5
+skinparam nodesep 10
+skinparam ranksep 15
+skinparam usecase {
+  Padding 4
+}
+skinparam usecase {
+  BackgroundColor #EEF2FF
+  BorderColor #4F46E5
+}
+
+left to right direction
+title UC_09: Ke don & Phat thuoc
+
+' ===========================
+' ACTORS
+' ===========================
+actor "Bac si" as BS #Lavender
+actor "Y ta Hanh chinh" as YTHC #LightBlue
+
+' ===========================
+' 1) KE DON THUOC (BAC SI)
+' ===========================
+rectangle "Ke don Thuoc" as Prescribe #E0F2FE {
+  usecase "UC70.1 - Tao\nDon thuoc moi" as UC70_1
+  usecase "UC70.2 - Tim kiem\nThuoc trong kho" as UC70_2
+  usecase "UC70.3 - Loc theo\nNhom thuoc" as UC70_3
+  usecase "UC70.4 - Kiem tra\nTon kho real-time" as UC70_4
+  usecase "UC70.5 - Chon\nThuoc" as UC70_5
+  usecase "UC70.6 - Nhap\nSo luong" as UC70_6
+  usecase "UC70.7 - Nhap Cach dung\n(Sang/Trua/Toi)" as UC70_7
+  usecase "UC70.8 - Nhap\nLieu dung" as UC70_8
+  usecase "UC70.9 - Nhap\nSo ngay dung" as UC70_9
+  usecase "UC70.10 - Canh bao\nTuong tac thuoc" as UC70_10
+  usecase "UC70.11 - Tinh Tong tien\nDon thuoc" as UC70_11
+  usecase "UC70.12 - Them Ghi chu\nDon thuoc" as UC70_12
+  usecase "UC70.13 - Xac nhan\nKe don" as UC70_13
+}
+
+' ===========================
+' 2) XEM DON THUOC
+' ===========================
+rectangle "Xem Don thuoc" as ViewPrescription #D1FAE5 {
+  usecase "UC71.1 - Xem DS\nDon thuoc" as UC71_1
+  usecase "UC71.2 - Loc theo\nTrang thai" as UC71_2
+  usecase "UC71.3 - Loc theo\nNgay ke" as UC71_3
+  usecase "UC71.4 - Tim kiem\nDon thuoc" as UC71_4
+  usecase "UC71.5 - Xem Chi tiet\nDon thuoc" as UC71_5
+  usecase "UC71.6 - Xem DS\nThuoc trong don" as UC71_6
+  usecase "UC71.7 - In\nDon thuoc" as UC71_7
+}
+
+' ===========================
+' 3) PHAT THUOC (Y TA HC)
+' ===========================
+rectangle "Phat Thuoc" as Dispense #FEF3C7 {
+  usecase "UC72.1 - Xem DS\nDon thuoc cho phat" as UC72_1
+  usecase "UC72.2 - Loc theo\nTrang thai thanh toan" as UC72_2
+  usecase "UC72.3 - Tim kiem\nDon thuoc" as UC72_3
+  usecase "UC72.4 - Chon Don thuoc\nde phat" as UC72_4
+  usecase "UC72.5 - Xem Chi tiet\nDon thuoc" as UC72_5
+  usecase "UC72.6 - Kiem tra\nThanh toan da xong" as UC72_6
+  usecase "UC72.7 - Xac nhan\nPhat thuoc" as UC72_7
+  usecase "UC72.8 - Tru Ton kho\n(auto-deduct)" as UC72_8
+  usecase "UC72.9 - Ghi Log\nXuat kho" as UC72_9
+  usecase "UC72.10 - In Phieu\nXuat thuoc" as UC72_10
+  usecase "UC72.11 - Giao thuoc\ncho BN" as UC72_11
+}
+
+' ===========================
+' 4) KIEM TRA TON KHO
+' ===========================
+rectangle "Kiem tra Ton kho" as CheckStock #FCE7F3 {
+  usecase "UC73.1 - Xem\nTon kho thuoc" as UC73_1
+  usecase "UC73.2 - Tim kiem\nThuoc" as UC73_2
+  usecase "UC73.3 - Loc theo\nNhom/Hoat chat" as UC73_3
+  usecase "UC73.4 - Xem Chi tiet\nThuoc" as UC73_4
+  usecase "UC73.5 - Xem Lich su\nXuat/Nhap" as UC73_5
+  usecase "UC73.6 - Canh bao\nThuoc sap het" as UC73_6
+  usecase "UC73.7 - Canh bao\nThuoc het han" as UC73_7
+}
+
+' ===========================
+' LAYOUT
+' ===========================
+Prescribe -[hidden]-> ViewPrescription
+ViewPrescription -[hidden]-> Dispense
+Prescribe -[hidden]down-> CheckStock
+
+' ===========================
+' ACTOR -> USECASE
+' ===========================
+BS --> UC70_1
+BS --> UC71_1
+BS --> UC73_1
+
+YTHC --> UC71_1
+YTHC --> UC72_1
+YTHC --> UC72_7
+YTHC --> UC73_1
+
+' ===========================
+' INCLUDE / EXTEND
+' ===========================
+UC70_1 ..> UC70_2 : <<include>>
+UC70_2 ..> UC70_3 : <<extend>>
+UC70_2 ..> UC70_4 : <<include>>
+UC70_1 ..> UC70_5 : <<include>>
+UC70_5 ..> UC70_6 : <<include>>
+UC70_5 ..> UC70_7 : <<include>>
+UC70_5 ..> UC70_8 : <<include>>
+UC70_5 ..> UC70_9 : <<include>>
+UC70_1 ..> UC70_10 : <<extend>>
+UC70_1 ..> UC70_11 : <<include>>
+UC70_1 ..> UC70_12 : <<extend>>
+UC70_1 ..> UC70_13 : <<include>>
+
+UC71_1 ..> UC71_2 : <<extend>>
+UC71_1 ..> UC71_3 : <<extend>>
+UC71_1 ..> UC71_4 : <<extend>>
+UC71_5 ..> UC71_6 : <<include>>
+UC71_5 ..> UC71_7 : <<extend>>
+
+UC72_1 ..> UC72_2 : <<extend>>
+UC72_1 ..> UC72_3 : <<extend>>
+UC72_4 ..> UC72_5 : <<include>>
+UC72_7 ..> UC72_6 : <<include>>
+UC72_7 ..> UC72_8 : <<include>>
+UC72_8 ..> UC72_9 : <<include>>
+UC72_7 ..> UC72_10 : <<extend>>
+UC72_7 ..> UC72_11 : <<include>>
+
+UC73_1 ..> UC73_2 : <<extend>>
+UC73_1 ..> UC73_3 : <<extend>>
+UC73_1 ..> UC73_6 : <<extend>>
+UC73_1 ..> UC73_7 : <<extend>>
+
+' ===========================
+' NOTES
+' ===========================
+note right of UC70_10
+  Kiem tra tuong tac
+  thuoc nguy hiem
+end note
+
+note right of UC72_8
+  Transaction
+  Dam bao ton kho
+  luon chinh xac
+end note
+
+@enduml

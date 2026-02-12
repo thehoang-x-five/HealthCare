@@ -1,0 +1,130 @@
+Tài liệu Thiết kế Kỹ thuật: Hệ thống Hồ sơ Bệnh án điện tử Hợp nhất
+1.0 Phân tích Bối cảnh và Yêu cầu Nghiệp vụ
+Hệ thống Hồ sơ Bệnh án điện tử Hợp nhất (Unified E-Health) được thiết kế để giải quyết một trong những thách thức cốt lõi của ngành y tế hiện đại: quản lý dữ liệu y khoa đa dạng và phức tạp. Dữ liệu này trải dài từ các thông tin có cấu trúc chặt chẽ như lịch hẹn phẫu thuật, vốn yêu cầu tính toàn vẹn tuyệt đối, đến các hồ sơ bệnh án bán cấu trúc và phi cấu trúc như kết quả xét nghiệm, ghi chú của bác sĩ, và hình ảnh chẩn đoán. Thất bại trong việc quản lý những luồng dữ liệu này một cách hiệu quả có thể dẫn đến những sai sót nghiêm trọng, ảnh hưởng đến an toàn của bệnh nhân và uy tín của cơ sở y tế. Tài liệu này không chỉ trình bày thiết kế kỹ thuật của hệ thống Hồ sơ Bệnh án điện tử Hợp nhất mà còn đóng vai trò là bản luận cứ chiến lược, phân tích các lựa chọn thiết kế và triển khai nhằm đáp ứng các tiêu chí đánh giá khắt khe của đồ án môn học Hệ thống Cơ sở dữ liệu Nâng cao, đặc biệt là yêu cầu về kiến trúc Polyglot Persistence.
+1.1 Yêu cầu Chức năng (Functional Requirements)
+Hệ thống phải đáp ứng các nghiệp vụ chính sau:
+•	Quản lý Lịch hẹn (Scheduling): Hệ thống cho phép bệnh nhân hoặc nhân viên y tế đặt lịch hẹn, đồng thời phải có cơ chế kiểm tra và ngăn chặn tuyệt đối tình trạng đặt trùng lịch cho cùng một bác sĩ trong cùng một khung thời gian.
+•	Quản lý Hồ sơ Bệnh án (Patient Records): Hệ thống phải có khả năng lưu trữ, truy xuất và hiển thị toàn bộ lịch sử y tế của bệnh nhân—bao gồm dữ liệu số (kết quả xét nghiệm), văn bản (ghi chú), và các metadata khác—trong một giao diện xem hợp nhất.
+•	Nghiên cứu Di truyền (Genealogy): Hệ thống phải hỗ trợ các nhà nghiên cứu truy vấn và tái tạo lại cây phả hệ của một bệnh nhân cụ thể để phục vụ cho việc nghiên cứu các bệnh có tính di truyền.
+•	Phân tích & Cập nhật Dữ liệu (Analytics & Evolution): Hệ thống phải cung cấp công cụ để lọc ra danh sách bệnh nhân dựa trên một chẩn đoán cụ thể trong lịch sử bệnh án, và cho phép cập nhật hàng loạt các hồ sơ cũ với những trường dữ liệu mới (ví dụ: thông tin tiêm chủng) một cách linh hoạt.
+1.2 Yêu cầu Phi chức năng (Non-Functional Requirements)
+Các ràng buộc kỹ thuật và chất lượng hệ thống bao gồm:
+•	Tính toàn vẹn Dữ liệu (Data Integrity): Đối với nghiệp vụ đặt lịch hẹn, hệ thống phải tuân thủ nghiêm ngặt các thuộc tính ACID (Atomicity, Consistency, Isolation, Durability). Điều này đảm bảo rằng mỗi giao dịch đặt lịch phải được thực hiện một cách toàn vẹn, không có bất kỳ sai sót nào ngay cả khi có hàng trăm lượt truy cập đồng thời, vì một sai sót nhỏ như đặt trùng lịch phẫu thuật có thể gây ra hậu quả nghiêm trọng.
+•	Tính linh hoạt Lược đồ (Schema Flexibility): Hồ sơ bệnh án là một thực thể dữ liệu liên tục phát triển. Hệ thống phải được thiết kế theo mô hình không có lược đồ cứng nhắc (schema-less) để có thể dễ dàng bổ sung các loại dữ liệu y tế mới trong tương lai (ví dụ: kết quả giải trình tự gen, dữ liệu từ thiết bị đeo) mà không cần phải thực hiện các thay đổi cấu trúc tốn kém và rủi ro trên toàn bộ cơ sở dữ liệu.
+•	Hiệu năng (Performance): Các truy vấn đệ quy để tái tạo cây phả hệ phải được thực thi với hiệu năng cao. Hệ thống không được phép bị treo hoặc phản hồi chậm khi thực hiện các tác vụ phân tích phả hệ phức tạp, vốn là yêu cầu quan trọng cho công tác nghiên cứu.
+Để đáp ứng các yêu cầu đa dạng và đôi khi mâu thuẫn này, một kiến trúc cơ sở dữ liệu cấp cao đã được lựa chọn.
+2.0 Kiến trúc Hệ thống Polyglot
+Kiến trúc Lưu trữ Đa nền tảng (Polyglot Persistence) là một phương pháp tiếp cận thiết kế hệ thống trong đó các loại dữ liệu khác nhau được lưu trữ trong các công nghệ cơ sở dữ liệu khác nhau, dựa trên đặc tính và yêu cầu truy cập của từng loại. Thay vì cố gắng ép buộc toàn bộ dữ liệu của hệ thống vào một cơ sở dữ liệu duy nhất (ví dụ: chỉ dùng SQL hoặc chỉ dùng NoSQL), kiến trúc này cho phép chúng ta "chọn công cụ phù hợp nhất cho từng công việc".
+Đối với hệ thống E-Health, cách tiếp cận này là tối ưu vì nó giải quyết được mâu thuẫn cố hữu giữa yêu cầu về tính toàn vẹn giao dịch (ACID) cho việc đặt lịch và yêu cầu về tính linh hoạt lược đồ cho hồ sơ bệnh án. Một cơ sở dữ liệu quan hệ sẽ không thể xử lý hiệu quả sự đa dạng của dữ liệu y tế, trong khi một cơ sở dữ liệu NoSQL thông thường lại khó đảm bảo được mức độ cô lập giao dịch nghiêm ngặt cần thiết cho việc xếp lịch.
+Bảng dưới đây tóm tắt việc phân chia kiến trúc:
+Loại Dữ liệu	Công nghệ Lựa chọn	Lý do Biện luận
+Dữ liệu giao dịch, có cấu trúc chặt chẽ (Lịch hẹn, Nhân viên, Bệnh nhân)	SQL (Oracle / SQL Server)	Yêu cầu tính toàn vẹn tuyệt đối (ACID) cho các giao dịch quan trọng. Thiết kế này thể hiện sự am hiểu về trade-off khi ưu tiên Consistency (nhất quán), phù hợp với nghiệp vụ không cho phép sai sót như đặt lịch hẹn.
+Dữ liệu bán/phi cấu trúc, đa dạng (Lịch sử khám chữa bệnh)	NoSQL (MongoDB)	Yêu cầu tính linh hoạt lược đồ (schema-less) để đáp ứng sự phát triển của dữ liệu y tế. Thiết kế này ưu tiên Availability (sẵn sàng) và linh hoạt, chấp nhận eventual consistency cho dữ liệu không mang tính giao dịch, thể hiện sự lựa chọn kiến trúc tối ưu.
+Kiến trúc tổng thể này tạo ra một nền tảng vững chắc, cho phép chúng ta đi vào thiết kế chi tiết cho từng hệ cơ sở dữ liệu.
+3.0 Thiết kế Chi tiết Cơ sở dữ liệu
+Phần này sẽ trình bày chi tiết về lược đồ của cơ sở dữ liệu quan hệ và cấu trúc collection của cơ sở dữ liệu tài liệu. Mỗi lựa chọn thiết kế đều được cân nhắc kỹ lưỡng để đáp ứng trực tiếp các yêu cầu đã được phân tích ở phần 1.0.
+3.1 Lược đồ Cơ sở dữ liệu Quan hệ (SQL)
+Cơ sở dữ liệu SQL chịu trách nhiệm quản lý các thực thể có cấu trúc và mối quan hệ rõ ràng, đảm bảo tính toàn vẹn dữ liệu cho các nghiệp vụ cốt lõi.
+Bảng Staff (Nhân viên Y tế) | Tên Cột | Kiểu Dữ liệu | Mô tả | | :--- | :--- | :--- | | StaffID | INT (Primary Key) | Mã định danh duy nhất cho mỗi nhân viên. | | FullName | NVARCHAR(100) | Họ và tên đầy đủ của nhân viên. | | Role | VARCHAR(50) | Chức vụ (ví dụ: 'Surgeon', 'Nurse'). |
+Bảng Patients (Bệnh nhân) | Tên Cột | Kiểu Dữ liệu | Mô tả | | :--- | :--- | :--- | | PatientID | INT (Primary Key) | Mã định danh duy nhất cho mỗi bệnh nhân. | | FullName | NVARCHAR(100) | Họ và tên đầy đủ của bệnh nhân. | | ParentID | INT (Foreign Key) | Tham chiếu đến PatientID của cha/mẹ, dùng cho truy vấn phả hệ. Có thể NULL. |
+Bảng Appts (Lịch hẹn) | Tên Cột | Kiểu Dữ liệu | Mô tả | | :--- | :--- | :--- | | ApptID | INT (Primary Key) | Mã định danh duy nhất cho mỗi lịch hẹn. | | StaffID | INT (Foreign Key) | Tham chiếu đến StaffID của nhân viên y tế. | | PatientID | INT (Foreign Key) | Tham chiếu đến PatientID của bệnh nhân. | | Start | DATETIME | Thời gian bắt đầu của lịch hẹn. | | End | DATETIME | Thời gian kết thúc của lịch hẹn. |
+Phân tích và Biện luận Thiết kế: Thiết kế này nhấn mạnh vào tính toàn vẹn và quan hệ. Cột ParentID trong bảng Patients là một khóa ngoại tự tham chiếu, đây là yếu tố then chốt cho phép chúng ta xây dựng các truy vấn đệ quy (Recursive CTE) để tái tạo cây phả hệ một cách hiệu quả. Các ràng buộc khóa ngoại (StaffID, PatientID) trong bảng Appts đảm bảo rằng không thể tạo ra một lịch hẹn cho một nhân viên hoặc bệnh nhân không tồn tại, duy trì tính toàn vẹn tham chiếu—một yêu cầu bắt buộc đối với dữ liệu giao dịch quan trọng.
+3.2 Cấu trúc Collection (NoSQL)
+Collection Histories trong MongoDB được thiết kế để lưu trữ toàn bộ lịch sử y tế đa dạng của một bệnh nhân trong một tài liệu (document) duy nhất.
+Cấu trúc Document mẫu trong collection Histories:
+•	patient_id: 101 (tham chiếu đến PatientID trong SQL)
+•	events: [
+o	{
+	type: "lab",
+	test_name: "Blood Glucose",
+	result: 95,
+	unit: "mg/dL",
+	timestamp: "2023-10-26T09:00:00Z"
+o	}
+o	{
+	type: "note",
+	author_id: 22 (tham chiếu đến StaffID),
+	content: "Bệnh nhân cho biết có triệu chứng mệt mỏi.",
+	timestamp: "2023-10-26T09:15:00Z"
+o	}
+o	{
+	type: "diagnosis",
+	code: "R53.83",
+	description: "Chronic fatigue syndrome",
+	timestamp: "2023-10-26T09:30:00Z"
+o	}
+•	]
+Phân tích và Biện luận Thiết kế: Mô hình tài liệu này mang lại hai lợi ích vượt trội. Thứ nhất, bằng cách nhúng mảng events vào trong một document của bệnh nhân, chúng ta tối ưu hóa được tính cục bộ của dữ liệu (data locality). Để lấy toàn bộ lịch sử của một bệnh nhân (yêu cầu "Unified View"), hệ thống chỉ cần thực hiện một thao tác đọc duy nhất, cực kỳ nhanh chóng và hiệu quả. Phương pháp này tránh được vấn đề 'N+1 query' và các thao tác JOIN phức tạp trên nhiều bảng (ví dụ: LabResults, DoctorNotes, Diagnoses) vốn sẽ xảy ra nếu cố gắng mô hình hóa dữ liệu này trong một CSDL quan hệ thuần túy, qua đó giải quyết bài toán 'Impedance Mismatch' một cách hiệu quả. Thứ hai, mô hình này áp dụng triết lý schema-on-read, hoàn hảo cho yêu cầu về tính linh hoạt. Khi trong tương lai cần bổ sung thông tin về tiêm chủng, chúng ta chỉ cần ghi thêm một object mới vào mảng events với type: "vaccine" mà không cần phải thực hiện lệnh ALTER TABLE lên toàn bộ cơ sở dữ liệu, tránh được rủi ro và thời gian chết cho hệ thống.
+Từ thiết kế tĩnh của cơ sở dữ liệu, chúng ta sẽ chuyển sang việc triển khai động các chức năng cốt lõi của hệ thống.
+4.0 Triển khai Kỹ thuật Chi tiết
+Phần này sẽ phân tích bốn giải pháp kỹ thuật chính, minh họa cách các lựa chọn thiết kế trên lý thuyết được chuyển hóa thành các mẫu logic thực thi trong ứng dụng.
+4.1 Ngăn chặn Đặt trùng lịch bằng Stored Procedure và Isolation Level
+Vấn đề: Đảm bảo không một ai có thể đặt hai lịch hẹn chồng chéo cho cùng một bác sĩ, ngay cả dưới tải lượng truy cập cao.
+Giải pháp: Sử dụng một Stored Procedure tên là BookAppointment trong SQL Server/Oracle, kết hợp với mức cô lập giao dịch nghiêm ngặt nhất.
+Luồng Logic Thực thi:
+1.	Bắt đầu một giao dịch (TRANSACTION) mới.
+2.	Thiết lập mức cô lập cho giao dịch này ở mức cao nhất: SET TRANSACTION ISOLATION LEVEL SERIALIZABLE.
+3.	Thực hiện một câu lệnh SELECT để kiểm tra xem có tồn tại bất kỳ lịch hẹn (Appts) nào của StaffID được chỉ định mà khung thời gian (Start, End) có chồng lấn với lịch hẹn mới hay không.
+4.	Nếu không tìm thấy lịch hẹn nào trùng lặp, thực hiện lệnh INSERT để thêm lịch hẹn mới và sau đó COMMIT giao dịch để xác nhận thay đổi.
+5.	Nếu tìm thấy một lịch hẹn trùng lặp, thực hiện ROLLBACK để hủy bỏ mọi thay đổi và trả về một mã lỗi cho ứng dụng.
+Phân tích: Mức cô lập SERIALIZABLE là lựa chọn bắt buộc trong trường hợp này. Nó đảm bảo rằng các giao dịch đồng thời được thực thi tuần tự như thể chúng chạy nối tiếp nhau, bằng cách sử dụng các cơ chế khóa (locking) nghiêm ngặt để ngăn chặn mọi xung đột, bao gồm cả hiện tượng 'phantom read'. Nếu không có mức cô lập này, một người dùng khác có thể chèn một lịch hẹn trùng lặp vào giữa lúc hệ thống đang kiểm tra và lúc nó chuẩn bị ghi dữ liệu, dẫn đến sai sót nghiêm trọng.
+4.2 Cập nhật Lược đồ Linh hoạt với Schema Evolution
+Vấn đề: Bổ sung loại thông tin y tế mới (ví dụ: tiêm chủng) vào một hồ sơ bệnh án hiện có mà không làm gián đoạn hệ thống.
+Giải pháp: Tận dụng tính linh hoạt của MongoDB để thêm một cấu trúc dữ liệu hoàn toàn mới vào một document đã tồn tại. Trong khi cách tiếp cận của SQL đòi hỏi ALTER TABLE và các kịch bản di chuyển dữ liệu phức tạp, NoSQL cho phép cập nhật tại chỗ một cách linh hoạt.
+Lệnh thực thi trong MongoDB:
+db.Histories.updateOne(
+  { "patient_id": 101 },
+  { 
+    $push: { 
+      "events": {
+        "type": "vaccination",
+        "vaccine_name": "COVID-19 Pfizer",
+        "dose": 2,
+        "timestamp": "2023-11-15T10:00:00Z"
+      }
+    }
+  }
+)
+Phân tích: Lệnh updateOne sử dụng toán tử $push này cho thấy sức mạnh của việc "phát triển lược đồ" (Schema Evolution). Chúng ta có thể thêm một loại sự kiện hoàn toàn mới (vaccination) với cấu trúc riêng của nó vào một hồ sơ hiện có mà không cần bất kỳ thời gian chết hay kịch bản di chuyển dữ liệu (data migration) nào. Điều này trực tiếp đáp ứng yêu cầu "Schema Flexibility", cho phép ứng dụng liên tục được cải tiến để đáp ứng các nhu cầu y tế mới.
+4.3 Truy vấn Cây phả hệ bằng Recursive CTE
+Vấn đề: Truy xuất toàn bộ tổ tiên của một bệnh nhân để phục vụ nghiên cứu di truyền.
+Giải pháp: Sử dụng Biểu thức Bảng Chung Đệ quy (Recursive Common Table Expression - CTE), một tính năng mạnh mẽ của SQL để xử lý dữ liệu phân cấp.
+Luồng Logic Thực thi:
+1.	Thành phần Neo (Anchor Member): Câu lệnh SELECT đầu tiên chọn ra bệnh nhân gốc với PatientID được chỉ định. Đây là điểm khởi đầu của quá trình đệ quy.
+2.	Thành phần Đệ quy (Recursive Member): Thực hiện JOIN lặp đi lặp lại kết quả của CTE với chính bảng Patients thông qua điều kiện ParentID. Mỗi vòng lặp sẽ tìm ra thế hệ cha/mẹ trước đó.
+3.	Điều kiện Dừng (Termination): Vòng lặp sẽ tự động kết thúc khi không còn tìm thấy ParentID nào nữa, tức là đã đến được tổ tiên xa nhất trong chuỗi phả hệ (có ParentID là NULL).
+4.	Câu lệnh SELECT cuối cùng: Trả về toàn bộ tập hợp kết quả, chính là cây phả hệ hoàn chỉnh của bệnh nhân.
+Phân tích: Sử dụng Recursive CTE là phương pháp cực kỳ hiệu quả để duyệt dữ liệu dạng cây. Giải pháp này hiệu quả hơn nhiều so với việc truy vấn từng cấp bậc ở tầng ứng dụng, một anti-pattern có thể dẫn đến vấn đề 'N+1 query' làm suy giảm nghiêm trọng hiệu năng hệ thống.
+4.4 Lọc và Thống kê Dữ liệu với Aggregation Pipeline
+Vấn đề: Tìm và đếm số lượng bệnh nhân được chẩn đoán một căn bệnh cụ thể từ trong hồ sơ bệnh án phức tạp của họ.
+Giải pháp: Xây dựng một đường ống tổng hợp (Aggregation Pipeline) trong MongoDB để xử lý và lọc dữ liệu qua nhiều giai đoạn.
+Các Giai đoạn trong Pipeline:
+1.	$match: (Tùy chọn) Giai đoạn đầu tiên để lọc ra các document của những bệnh nhân cần phân tích, giúp thu hẹp phạm vi xử lý.
+2.	$unwind: Giai đoạn này sẽ "trải phẳng" mảng events. Nếu một bệnh nhân có 10 events, sau giai đoạn này sẽ tạo ra 10 document riêng biệt, mỗi document chứa thông tin của bệnh nhân và một event duy nhất. Đây là bước then chốt để có thể truy vấn vào nội dung của từng event.
+3.	$match: Lọc các document đã được trải phẳng, chỉ giữ lại những event có type là "diagnosis" và có description chứa tên bệnh cần tìm.
+4.	$group / $count: Nhóm các kết quả đã lọc lại để đếm số lượng bệnh nhân hoặc thực hiện các phép thống kê khác.
+Bốn kỹ thuật triển khai này là minh chứng cho sức mạnh tổng hợp của kiến trúc Polyglot: sử dụng đúng công nghệ cho đúng bài toán để tạo ra một hệ thống vừa mạnh mẽ, vừa linh hoạt.
+5.0 Kế hoạch Chuẩn bị Bảo vệ Đồ án
+Sự xuất sắc về mặt kỹ thuật là chưa đủ; việc trình bày và bảo vệ các quyết định thiết kế một cách thuyết phục cũng quan trọng không kém. Phần cuối cùng này vạch ra một kế hoạch chiến lược để nhóm thể hiện sự làm chủ và quyền sở hữu đối với sản phẩm trong buổi bảo vệ, nhắm thẳng vào các tiêu chí 'Individual Defense' và 'Modify-on-the-Fly' trong rubric chấm điểm của đồ án.
+5.1 Phân công và Quyền sở hữu (Ownership)
+Để đảm bảo mỗi thành viên đều có thể trả lời sâu về một phần của hệ thống, chúng tôi phân công quyền sở hữu các module chính như sau:
+Thành viên	Module Phụ trách
+Bạn A	Thiết kế Lược đồ SQL & Triển khai Stored Procedure Ngăn chặn Trùng lịch.
+Bạn B	Thiết kế Cấu trúc NoSQL & Triển khai Aggregation Pipeline Phân tích Dữ liệu.
+Bạn C	Triển khai Recursive CTE Truy vấn Phả hệ & Logic Cập nhật Schema Linh hoạt.
+Mặc dù có sự phân chia rõ ràng, mỗi thành viên đều phải có trách nhiệm hiểu logic hoạt động của toàn bộ hệ thống để có thể phối hợp trả lời các câu hỏi liên quan. Chiến lược này đảm bảo mỗi thành viên có thể chứng minh 'Logic Ownership' theo yêu cầu của rubric.
+5.2 Ghi lại Nhật ký AI và Tư duy Phản biện (AI Log & Critical Thinking)
+Việc duy trì một nhật ký sử dụng AI (AI Log) không chỉ là để tuân thủ quy định mà còn là bằng chứng cho thấy tư duy phản biện của nhóm. Nhật ký này sẽ ghi lại:
+1.	Các câu lệnh (prompt) chính xác đã được sử dụng.
+2.	Quan trọng hơn: Một bản phân tích ngắn gọn về đoạn code do AI tạo ra, chỉ ra những điểm cần phải sửa chữa hoặc tối ưu hóa.
+Ví dụ cụ thể: "Ghi chú lại trường hợp AI tạo Stored Procedure để đặt lịch nhưng quên xử lý ROLLBACK trong mệnh đề ELSE khi phát hiện trùng lịch. Nhóm đã phải tự bổ sung logic này để đảm bảo tính toàn vẹn của giao dịch." Việc này chứng minh nhóm không sao chép một cách máy móc mà đã chủ động rà soát, kiểm thử và cải thiện kết quả. Việc này cung cấp bằng chứng cụ thể cho tiêu chí 'AI Critical Review' và thể hiện tư duy phản biện của nhóm.
+5.3 Luyện tập "Sửa Code Trực tiếp" (Modify-on-the-Fly)
+Để chuẩn bị cho phần thử thách "sửa code trực tiếp" từ giảng viên, nhóm sẽ thực hành trước các kịch bản chỉnh sửa logic tiềm năng sau:
+•	Kịch bản 1 (SQL): "Giảng viên yêu cầu sửa đổi Recursive CTE để chỉ truy vấn 2 thế hệ gần nhất (cha mẹ và ông bà) thay vì toàn bộ cây phả hệ."
+o	Hướng giải quyết: Thêm một biến đếm cấp độ vào CTE và thêm điều kiện dừng trong mệnh đề WHERE của thành phần đệ quy.
+•	Kịch bản 2 (SQL): "Giảng viên yêu cầu thay đổi logic của Stored Procedure: thay vì chặn hoàn toàn việc đặt trùng lịch, hãy cho phép đặt lịch chờ (waiting list) và trả về một mã trạng thái cảnh báo."
+o	Hướng giải quyết: Sửa đổi logic IF/ELSE, thay vì ROLLBACK thì sẽ INSERT vào một bảng WaitingList và trả về một mã trạng thái khác cho ứng dụng.
+•	Kịch bản 3 (NoSQL): "Giảng viên yêu cầu sửa đổi Aggregation Pipeline ở mục 4.4: thay vì chỉ đếm số bệnh nhân, hãy tính toán độ tuổi trung bình của các bệnh nhân được chẩn đoán mắc bệnh này, giả sử document Histories có thêm trường patient_dob (ngày sinh)."
+o	Hướng giải quyết: Thêm một stage $addFields để tính tuổi từ patient_dob và $$NOW, sau đó trong stage $group, sử dụng $avg để tính trung bình của trường tuổi mới tạo.
+Sự chuẩn bị kỹ lưỡng này đảm bảo nhóm không chỉ có thể trình bày giải pháp của mình mà còn có thể tự tin bảo vệ và điều chỉnh các lựa chọn thiết kế một cách chuyên nghiệp.
+

@@ -1,0 +1,72 @@
+@startuml WF_02_Examination
+' ===========================
+' WF_02: QUY TRINH KHAM BENH
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam linetype ortho
+
+skinparam activityBackgroundColor #EEF2FF
+skinparam activityBorderColor #4F46E5
+skinparam activityDiamondBackgroundColor #F0FDFA
+skinparam activityDiamondBorderColor #0D9488
+skinparam noteBackgroundColor #FEFCE8
+skinparam noteBorderColor #EAB308
+
+title WF_02: Quy trinh Kham benh (Logic Re nhanh & Tu dong)
+
+|Bac Si|
+start
+:Nhan Thong bao "Benh nhan cho";
+:Moi Vao Phong;
+
+|He Thong (System)|
+:Cap nhat Trang thai "Dang Kham";
+:Hien thi Canh bao Di ung/Benh nen;
+
+|Bac Si|
+:Kham Lam Sang & Xem Lich Su;
+note right
+  **Upgrade:** 
+  Tra cuu Pha he (Genealogy)
+  & Timeline benh an
+end note
+
+if (Can CLS / Xet nghiem?) then (Co)
+  :Chi dinh Dich vu CLS;
+  
+  |He Thong (System)|
+  :TU DONG: Chuyen Yeu cau sang CLS;
+  :Tao Hoa don Dich vu CLS (Pending);
+  :Thong bao KTV (Realtime);
+  
+  |Bac Si|
+  :Cho ket qua CLS;
+  detach
+else (Khong)
+endif
+
+|Bac Si|
+:Chan doan;
+
+if (Co Don Thuoc?) then (Co)
+  :Ke Don Thuoc;
+  
+  |He Thong (System)|
+  :TU DONG: Kiem tra Ton Kho (Transaction);
+  :TU DONG: Tinh Tien Don Thuoc;
+  :Thong bao Duoc si "Don thuoc moi";
+  
+  |Bac Si|
+  :Huong dan Dung thuoc;
+else (Khong - Chi Tu van/Kham)
+  :Chi dinh Huong dieu tri / Loi khuyen;
+endif
+
+|He Thong (System)|
+:Luu Ho so Benh an (EMR);
+:Ket thuc Kham (Auto-Complete);
+:Goi BN tiep theo (SignalR);
+
+stop

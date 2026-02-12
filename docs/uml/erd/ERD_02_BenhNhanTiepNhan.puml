@@ -1,0 +1,210 @@
+@startuml ERD_02_BenhNhanTiepNhan
+' ===========================
+' ERD_02: BENH NHAN & TIEP NHAN
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam linetype ortho
+
+left to right direction
+title ERD_02: Benh nhan & Tiep nhan
+
+' ===========================
+' ENTITY: BENH NHAN
+' ===========================
+entity "BenhNhan" as BenhNhan #D1FAE5 {
+  + MaBenhNhan : VARCHAR(20) <<PK>>
+  --
+  ' THONG TIN CA NHAN
+  HoTen : NVARCHAR(100) <<NOT NULL>>
+  NgaySinh : DATE <<NOT NULL>>
+  GioiTinh : ENUM(Nam,Nu,Khac) <<NOT NULL>>
+  CCCD : VARCHAR(12) <<UNIQUE>>
+  CCCD : VARCHAR(12) <<UNIQUE>>
+  --
+  ' LIEN LAC
+  DienThoai : VARCHAR(15) <<NOT NULL>>
+  Email : VARCHAR(100)
+  DiaChi : NVARCHAR(200)
+  --
+  ' THONG TIN Y TE
+  NhomMau : ENUM(A,B,AB,O)
+  DiUng : NVARCHAR(500)
+  ChongChiDinh : NVARCHAR(500)
+  ThuocDangDung : NVARCHAR(500)
+  TieuSuBenh : NVARCHAR(1000)
+  TienSuPhauThuat : NVARCHAR(500)
+  BenhManTinh : NVARCHAR(500)
+  SinhHieu : JSON
+  --
+  ' PHA HE (cho Recursive CTE)
+  MaCha : VARCHAR(20) <<FK>> <<NULLABLE>>
+  MaMe : VARCHAR(20) <<FK>> <<NULLABLE>>
+  --
+  ' TRANG THAI
+  TrangThaiTaiKhoan : ENUM(HoatDong,KhongHoatDong,DaXoa) <<DEFAULT 'HoatDong'>>
+  TrangThaiHomNay : ENUM(ChoKham,DangKham,DaKham) <<NULLABLE>>
+  NgayTrangThai : DATETIME
+  --
+  NgayTao : DATETIME <<DEFAULT NOW>>
+  NgayCapNhat : DATETIME
+}
+
+' ===========================
+' ENTITY: LICH HEN
+' ===========================
+entity "LichHen" as LichHen #DBEAFE {
+  + MaLichHen : VARCHAR(20) <<PK>>
+  --
+  # MaBenhNhan : VARCHAR(20) <<FK>> <<NULLABLE>>
+  # MaLichTruc : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  ' THONG TIN HEN
+  NgayHen : DATE <<NOT NULL>>
+  GioHen : TIME <<NOT NULL>>
+  ThoiLuongPhut : INT <<DEFAULT 30>>
+  --
+  ' THONG TIN BN (neu chua co MaBenhNhan)
+  TenBenhNhan : NVARCHAR(100)
+  SoDienThoai : VARCHAR(15)
+  --
+  LoaiHen : ENUM(KhamMoi,TaiKham,DichVu) <<NOT NULL>>
+  TrangThai : ENUM(DangCho,DaXacNhan,DaCheckin,DaHuy,DaKham) <<DEFAULT 'DangCho'>>
+  CoHieuLuc : BOOLEAN <<DEFAULT TRUE>>
+  GhiChu : NVARCHAR(500)
+  --
+  NgayTao : DATETIME <<DEFAULT NOW>>
+  NgayHuy : DATETIME <<NULLABLE>>
+  LyDoHuy : NVARCHAR(200) <<NULLABLE>>
+}
+
+' ===========================
+' ENTITY: PHIEU KHAM
+' ===========================
+entity "PhieuKham" as PhieuKham #FEF3C7 {
+  + MaPhieuKham : VARCHAR(20) <<PK>>
+  --
+  # MaBenhNhan : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaBacSiKham : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaNguoiLap : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaLichHen : VARCHAR(20) <<FK>> <<NULLABLE>>
+  # MaDichVuKham : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaPhieuKhamClsNguon : VARCHAR(20) <<FK>> <<NULLABLE>>
+  --
+  HinhThucTiepNhan : ENUM(Walkin,Appointment,ServiceReturn) <<NOT NULL>>
+  NgayLap : DATE <<NOT NULL>>
+  GioLap : TIME <<NOT NULL>>
+  --
+  TrieuChung : NVARCHAR(1000)
+  TieuSuBenh : NVARCHAR(1000)
+  TieuSuDiUng : NVARCHAR(500)
+  --
+  TrangThai : ENUM(DaLap,DangKham,DaHoanTat,DaHuy) <<DEFAULT 'DaLap'>>
+  --
+  NgayTao : DATETIME <<DEFAULT NOW>>
+  NgayCapNhat : DATETIME
+}
+
+' ===========================
+' ENTITY: PHIEU KHAM CLS
+' ===========================
+entity "PhieuKhamCls" as PhieuKhamCls #FCE7F3 {
+  + MaPhieuKhamCls : VARCHAR(20) <<PK>>
+  --
+  # MaPhieuKhamLs : VARCHAR(20) <<FK>> <<UNIQUE>> <<NOT NULL>>
+  --
+  NgayGioLap : DATETIME <<NOT NULL>>
+  AutoPublishEnabled : BOOLEAN <<DEFAULT TRUE>>
+  TrangThai : ENUM(DaLap,DangThucHien,DaHoanTat) <<DEFAULT 'DaLap'>>
+  GhiChu : NVARCHAR(500)
+  --
+  NgayTao : DATETIME <<DEFAULT NOW>>
+  NgayCapNhat : DATETIME
+}
+
+' ===========================
+' ENTITY: CHI TIET DICH VU
+' ===========================
+entity "ChiTietDichVu" as ChiTietDV #F5F3FF {
+  + MaChiTietDv : VARCHAR(20) <<PK>>
+  --
+  # MaPhieuKhamCls : VARCHAR(20) <<FK>> <<NOT NULL>>
+  # MaDichVu : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  TrangThai : ENUM(ChuaThucHien,DangThucHien,DaThucHien,ChuaCoKetQua,DaCoKetQua) <<DEFAULT 'ChuaThucHien'>>
+  GhiChu : NVARCHAR(500)
+  --
+  ThoiGianChiDinh : DATETIME <<DEFAULT NOW>>
+  ThoiGianThucHien : DATETIME <<NULLABLE>>
+  ThoiGianHoanTat : DATETIME <<NULLABLE>>
+}
+
+' ===========================
+' ENTITY: KET QUA DICH VU
+' ===========================
+entity "KetQuaDichVu" as KetQuaDV #CFFAFE {
+  + MaKetQua : VARCHAR(20) <<PK>>
+  --
+  # MaChiTietDv : VARCHAR(20) <<FK>> <<UNIQUE>> <<NOT NULL>>
+  # MaNguoiTao : VARCHAR(20) <<FK>> <<NOT NULL>>
+  --
+  LoaiKetQua : ENUM(XetNghiem,HinhAnh) <<NOT NULL>>
+
+  KetLuanChuyen : NVARCHAR(1000)
+  GhiChu : NVARCHAR(500)
+  --
+  TepDinhKem : JSON
+  TrangThaiChot : ENUM(Nhap,DaChot,HoanTat) <<DEFAULT 'Nhap'>>
+  --
+  ThoiGianTao : DATETIME <<NOT NULL>>
+  ThoiGianChot : DATETIME <<NULLABLE>>
+}
+
+' ===========================
+' RELATIONSHIPS
+' ===========================
+BenhNhan ||--o{ LichHen : "1 BN co nhieu Lich hen"
+BenhNhan ||--o{ PhieuKham : "1 BN co nhieu Phieu kham"
+BenhNhan |o--o| BenhNhan : "Cha/Me (Pha he)"
+
+LichHen |o--o| PhieuKham : "Lich hen -> Phieu kham"
+
+PhieuKham ||--o| PhieuKhamCls : "1 Phieu kham co 0-1 Phieu CLS"
+PhieuKhamCls ||--|{ ChiTietDV : "1 Phieu CLS co nhieu Chi tiet DV"
+ChiTietDV ||--|| KetQuaDV : "1 Chi tiet DV co 1 Ket qua"
+
+' ===========================
+' NOTES
+' ===========================
+note right of BenhNhan
+  INDEX idx_cccd ON CCCD
+  INDEX idx_sdt ON DienThoai
+
+  INDEX idx_cha ON MaCha
+  INDEX idx_me ON MaMe
+  
+  Recursive CTE cho Pha he:
+  WITH RECURSIVE PhaHe AS (
+    SELECT * FROM BenhNhan WHERE MaBenhNhan = ?
+    UNION ALL
+    SELECT bn.* FROM BenhNhan bn
+    JOIN PhaHe ph ON bn.MaBenhNhan = ph.MaCha
+       OR bn.MaBenhNhan = ph.MaMe
+  )
+end note
+
+note right of LichHen
+  SERIALIZABLE Transaction
+  de tranh trung lich
+  
+  INDEX idx_ngay_gio ON (NgayHen, GioHen)
+  INDEX idx_lichtruc ON MaLichTruc
+end note
+
+note bottom of KetQuaDV
+  TepDinhKem (JSON):
+  ["url1.jpg", "url2.pdf"]
+end note
+
+@enduml

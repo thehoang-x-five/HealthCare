@@ -1,0 +1,182 @@
+@startuml ERD_Diff_NewAttributes
+' ===========================
+' ERD DIFF: CAC THUOC TINH MOI (New Attributes)
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam linetype ortho
+skinparam classAttributeIconSize 0
+
+title ERD Changes: Cac thuoc tinh moi da them
+
+package "01_DuLieuNen" #E0F2FE {
+  class Khoa {
+    + NgayTao : DATETIME
+    + NgayCapNhat : DATETIME
+  }
+  
+  class Phong {
+    + NgayTao : DATETIME
+    + NgayCapNhat : DATETIME
+  }
+
+  class NhanSu {
+    + ChucVu : NVARCHAR(50)
+    + TrangThaiTaiKhoan : ENUM
+    + NgayTao : DATETIME
+    + NgayCapNhat : DATETIME
+    + LanDangNhapCuoi : DATETIME
+  }
+  
+  class DichVu {
+    + NgayTao : DATETIME
+    + NgayCapNhat : DATETIME
+  }
+}
+
+package "02_TiepNhanVaBenhNhan" #D1FAE5 {
+  class BenhNhan {
+    + CCCD : VARCHAR(12)
+
+    + MaCha : VARCHAR(20)
+    + MaMe : VARCHAR(20)
+    + NgayTao : DATETIME
+    + NgayCapNhat : DATETIME
+  }
+
+  class LichHen {
+    + NgayTao : DATETIME
+    + NgayHuy : DATETIME
+    + LyDoHuy : NVARCHAR(200)
+  }
+
+  class PhieuKham {
+    + TieuSuBenh : NVARCHAR(1000)
+    + TieuSuDiUng : NVARCHAR(500)
+    + NgayTao : DATETIME
+    + NgayCapNhat : DATETIME
+  }
+  
+  class PhieuKhamCls {
+    + NgayCapNhat : DATETIME
+  }
+  
+  class ChiTietDichVu {
+    + ThoiGianChiDinh : DATETIME
+    + ThoiGianThucHien : DATETIME
+    + ThoiGianHoanTat : DATETIME
+  }
+  
+  class KetQuaDichVu {
+    + LoaiKetQua : ENUM
+    + KetLuanChuyen : NVARCHAR
+    + GhiChu : NVARCHAR
+    + TepDinhKem : JSON
+    + ThoiGianChot : DATETIME
+  }
+}
+
+package "03_HangDoiVaKham" #FEF3C7 {
+  class HangDoi {
+    + SoLanGoi : INT
+    + ThoiGianGoiGanNhat : DATETIME
+  }
+  
+  class LuotKham {
+    + ThoiGianThucTe : INT
+    + SinhHieuTruocKham : JSON
+    + GhiChu : NVARCHAR
+  }
+  
+  class PhieuChanDoan {
+    + MaICD10 : VARCHAR(10)
+    + NgayTaiKham : DATE
+    + GhiChuTaiKham : NVARCHAR
+    + ThoiGianTao : DATETIME
+    + ThoiGianCapNhat : DATETIME
+  }
+}
+
+package "04_KeDonVaThuVienPhi" #FCE7F3 {
+  class DonThuoc {
+    + ThoiGianThanhToan : DATETIME
+    + ThoiGianPhat : DATETIME
+    + MaNhanSuPhat : VARCHAR(20)
+  }
+  
+  class ChiTietDonThuoc {
+    + LieuDung : NVARCHAR(100)
+    + TanSuatDung : ENUM
+    + SoNgayDung : INT
+    + GhiChu : NVARCHAR
+  }
+  
+  class KhoThuoc {
+    + NgayTao : DATETIME
+    + NgayCapNhat : DATETIME
+  }
+  
+  class HoaDon {
+
+
+    + SoTienPhaiTra : DECIMAL
+    + MaGiaoDich : VARCHAR(50)
+    + ThoiGianHuy : DATETIME
+    + MaNhanSuHuy : VARCHAR(20)
+  }
+  
+  class LichSuXuatKho <<New Entity>> {
+    + MaLichSuXuat
+    + LoaiGiaoDich
+    + SoLuongConLai
+    + ...
+  }
+}
+
+package "05_ThongBao" #F5F3FF {
+  class ThongBao {
+    + ThoiGianHenGui : DATETIME
+    + PhuongThucGui : JSON
+  }
+  
+  class ThongBaoNguoiNhan {
+    + DaNhan : BOOLEAN
+    + ThoiGianNhan : DATETIME
+    + PhuongThucNhan : ENUM
+  }
+  
+  class ThongBaoMau <<New Entity>> {
+    + MaMau
+    + TenMau
+    + NoiDungMau
+    + BienDong
+    + ...
+  }
+}
+
+note bottom of LichSuXuatKho
+  Theo doi chat che bien dong kho
+  (Audit Trail)
+end note
+
+note bottom of ThongBaoMau
+  Templating cho thong bao
+  (Dynamic Content)
+end note
+
+note as RemovedFields #FEE2E2
+  **REMOVED FIELDS (Moved to MongoDB):**
+  --
+  KetQuaDichVu:
+  - ~~NoiDungKetQua : JSON~~ -> MongoDB medical_histories
+  
+  PhieuTongHop (03_HangDoiVaKham):
+  - ~~SnapshotJson : JSON~~ -> MongoDB medical_histories
+  
+  Ly do: Tranh luu tru trung lap du lieu chi tiet.
+  MySQL chi giu Metadata & Workflow Status.
+  MongoDB luu Clinical Content (Schema-flexible).
+end note
+
+@enduml

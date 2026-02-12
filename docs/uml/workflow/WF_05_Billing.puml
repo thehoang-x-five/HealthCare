@@ -1,0 +1,55 @@
+@startuml WF_05_Billing
+' ===========================
+' WF_05: QUY TRINH THANH TOAN & VIETQR
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam linetype ortho
+
+skinparam activityBackgroundColor #EEF2FF
+skinparam activityBorderColor #4F46E5
+skinparam activityDiamondBackgroundColor #F0FDFA
+skinparam activityDiamondBorderColor #0D9488
+skinparam noteBackgroundColor #FEFCE8
+skinparam noteBorderColor #EAB308
+
+title WF_05: Quy trinh Thanh toan (VietQR Integration)
+
+|Y ta Hanh chinh|
+start
+:Tiep nhan BN thanh toan;
+:Chon Hoa Don (Kham + CLS + Thuoc);
+
+|He Thong (System)|
+:Hien thi Tong tien & Chi tiet;
+
+|Y ta Hanh chinh|
+:Xac nhan hinh thuc thanh toan;
+
+if (Hinh thuc?) then (Chuyen khoan / QR)
+  |He Thong (System)|
+  :Goi API VietQR (Tao ma QR dong);
+  :Hien thi QR Code;
+  :Lang nghe Webhook Ngan hang;
+  
+  |Benh Nhan|
+  :Quet ma QR & Thanh toan;
+  
+  |He Thong (System)|
+  :TU DONG: Xac nhan Da Thu (khi co SMS/Webhook);
+else (Tien mat)
+  |Y ta Hanh chinh|
+  :Thu tien mat & Tra lai;
+  :Xac nhan Da Thu tren phan mem;
+endif
+
+|He Thong (System)|
+:Cap nhat trang thai "Da thanh toan";
+:Ghi Log Giao dich (Audit);
+:Luu Event "ThanhToan" (MongoDB);
+:In Hoa don & Phieu thu;
+
+stop
+
+@enduml
