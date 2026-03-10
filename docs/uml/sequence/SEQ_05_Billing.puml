@@ -1,0 +1,147 @@
+@startuml SEQ_05_Billing
+title SEQ_05: SEQUENCE — THANH TOAN & VIETQR
+
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+
+actor "Benh Nhan" as BN
+actor "Y ta Hanh chinh" as HC
+
+box "System Application" #F3F4F6
+  participant "Frontend\n(Billing UI)" as FE
+  participant "BillingService\n(BE)" as SVC
+  participant "SignalR Hub" as Hub
+end box
+
+box "External" #FEF3C7
+  participant "VietQR API" as QR
+  participant "Ngan Hang\n(Webhook)" as Bank
+end box
+
+box "Data Persistence" #DBEAFE
+  database "MySQL" as SQL
+  database "MongoDB" as NoSQL
+end box
+
+' ===== XEM HOA DON =====
+group #EEF2FF BUOC 1: Xem danh sach Hoa don
+
+  HC -> FE: Mo trang Thanh toan
+  FE -> SVC: POST /api/billing/invoices/search\n{ MaBenhNhan, TrangThai: "chua_thu" }
+  SVC -> SQL: SELECT * FROM hoa_don_thanh_toan\nWHERE MaBenhNhan = id\nAND TrangThai = 'chua_thu'
+  SQL --> SVC: List invoices
+  SVC --> FE: PagedResult<InvoiceDto>
+  
+  note right FE
+    **3 loai hoa don:**
+    1. kham_lam_sang (phi kham)
+    2. can_lam_sang (phi DV CLS)
+    3. thuoc (tien thuoc)
+  end note
+  
+  FE --> HC: Hien thi danh sach HoaDon
+end
+
+' ===== THANH TOAN TIEN MAT =====
+group #ECFDF5 BUOC 2a: Thanh toan Tien mat
+
+  HC -> FE: Chon HoaDon + "Tien mat"
+  HC -> BN: Thu tien
+  HC -> FE: Click "Xac nhan da thu"
+  
+  FE -> SVC: PUT /api/billing/invoices/{id}/status\n{ TrangThai: "da_thu" }
+  activate SVC
+  
+  note right SVC
+    **Transition validation:**
+    chua_thu → da_thu ✔
+    chua_thu → da_huy ✔
+    da_thu → * ✘ (final)
+    da_huy → * ✘ (final)
+  end note
+  
+  SVC -> SQL: UPDATE hoa_don_thanh_toan\nSET TrangThai = 'da_thu',\nPhuongThucThanhToan = 'tien_mat'
+  
+  SVC -> NoSQL: Push event "thanh_toan"\n{ ma_hd, so_tien, phuong_thuc }
+  SVC -> Hub: Broadcast "PaymentSuccess"
+  SVC --> FE: 200 OK
+  deactivate SVC
+end
+
+' ===== THANH TOAN QR =====
+group #F3E8FF BUOC 2b: Thanh toan QR (VietQR)
+
+  HC -> FE: Chon HoaDon + "Chuyen khoan"
+  FE -> SVC: POST /api/billing/{id}/generate-qr
+  activate SVC
+  
+  SVC -> QR: POST /api/generate\n{ amount, description, bank_info }
+  QR --> SVC: QR String + Image URL
+  SVC --> FE: QR Code Data
+  deactivate SVC
+  
+  FE --> HC: Hien thi QR tren man hinh
+  
+  BN -> BN: Mo app Ngan hang
+  BN -> FE: Quet QR & Chuyen khoan
+  
+  Bank -> SVC: Webhook /api/billing/webhook\n{ transaction_id, amount, status }
+  activate SVC
+  
+  SVC -> SVC: Verify amount & reference
+  SVC -> SQL: UPDATE hoa_don_thanh_toan\nSET TrangThai = 'da_thu',\nPhuongThucThanhToan = 'chuyen_khoan'
+  
+  SVC -> NoSQL: Push event "thanh_toan"
+  SVC -> Hub: Broadcast "PaymentSuccess"
+  Hub --> FE: Auto-update UI "Da thanh toan"
+  
+  SVC --> Bank: 200 OK
+  deactivate SVC
+end
+
+' ===== HUY HOA DON =====
+group #FFE4E1 LUONG HUY: Huy Hoa don
+
+  HC -> FE: Click "Huy hoa don"
+  FE -> FE: Confirm Dialog
+  HC -> FE: Xac nhan + Nhap ly do
+  
+  FE -> SVC: PUT /api/billing/invoices/{id}/status\n{ TrangThai: "da_huy" }
+  activate SVC
+  
+  SVC -> SQL: SELECT TrangThai FROM hoa_don\nWHERE MaHoaDon = id
+  
+  alt TrangThai = chua_thu
+    SVC -> SQL: UPDATE hoa_don_thanh_toan\nSET TrangThai = 'da_huy'
+    SVC -> NoSQL: Log audit "Invoice cancelled"
+    SVC -> Hub: Broadcast "InvoiceCancelled"
+    SVC --> FE: 200 OK
+  else TrangThai = da_thu
+    SVC --> FE: 400 Bad Request\n"Da thu tien, khong the huy"
+  end
+  
+  deactivate SVC
+end
+
+' ===== KET THUC LUOT KHAM =====
+group #E0F2FE BUOC 3: Ket thuc Luot kham
+
+  FE -> SVC: GET /api/billing/invoices/search\n{ MaBenhNhan, TrangThai: "chua_thu" }
+  SVC -> SQL: SELECT COUNT(*)\nWHERE TrangThai = 'chua_thu'
+  
+  alt Con HoaDon chua thu
+    SVC --> FE: remaining_count > 0
+    FE --> HC: "Con N hoa don chua thanh toan"
+  else Da thanh toan het
+    SVC --> FE: remaining_count = 0
+    
+    SVC -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'da_hoan_tat'
+    SVC -> SQL: UPDATE luot_kham_benh\nSET TrangThai = 'hoan_tat'
+    
+    SVC -> Hub: Broadcast "VisitCompleted"
+    FE --> HC: "BN da hoan tat moi thu tuc"
+  end
+end
+
+@enduml

@@ -73,27 +73,30 @@ To chuc theo **DOMAIN**, chi tiet tung truong, kieu du lieu, rang buoc, index.
 
 **Tong: 22 Tables (MySQL) + 2 Collections (MongoDB)**
 
-### 4. Workflow (Activity Diagram)
-| File | Mo ta |
-|------|-------|
-| `workflow_reception.puml` | Quy trinh Tiep nhan Benh nhan |
-| `workflow_appointment.puml` | Quy trinh Dat Lich hen (noi bo) |
-| `workflow_clinical.puml` | Quy trinh Kham Lam sang |
-| `workflow_cls.puml` | Quy trinh Can lam sang (XN/CDHA) |
-| `workflow_billing.puml` | Quy trinh Thanh toan & Phat thuoc |
+### 4. Workflow — Activity Diagram (Thu muc: `workflow/`)
+To chuc theo **GIAI DOAN**, moi file bao gom **Happy Path + Cancellation/Error**.
 
-### 5. Sequence Diagram
-| File | Mo ta |
-|------|-------|
-| `sequence_fullvisit.puml` | Luong di hoan chinh cua 1 luot kham |
+| File | Mo ta | Noi dung chinh |
+|------|-------|---------------|
+| `WF_00_Appointment.puml` | **[MOI]** Dat lich hen kham | Defense in Depth (BE+DB), Xac nhan, Check-in, Huy |
+| `WF_01_Reception.puml` | Tiep don & Dieu phoi | Check-in, Priority queue, HoaDon chua_thu, BN bo ve rollback |
+| `WF_02_Examination.puml` | Kham benh (Lam sang) | Sinh hieu, Kham, Chi dinh CLS, Ke don, Huy phieu, Het thuoc |
+| `WF_03_CLS.puml` | Can lam sang (XN/CDHA) | Lay mau, Ket qua, Bat thuong, PhieuTongHop, Quay lai BS |
+| `WF_04_Pharmacy.puml` | Duoc & Cap phat thuoc | SERIALIZABLE transaction, Rollback kho, Huy don, LichSuXuatKho |
+| `WF_05_Billing.puml` | Thanh toan & VietQR | chua_thu→da_thu, QR Webhook, Huy hoa don, Ket thuc luot kham |
+| `WF_FULL_STANDARD_UPGRADED.puml` | **Toan trinh** (0→6) | Ket hop tat ca WF thanh 1 flow lien tuc |
 
-### 6. State Diagram
-| File | Mo ta |
-|------|-------|
-| `state_phieukham.puml` | Vong doi Phieu kham LS |
-| `state_lichhen.puml` | Vong doi Lich hen |
-| `state_hoadon.puml` | Vong doi Hoa don |
-| `state_donthuoc.puml` | Vong doi Don thuoc |
+### 5. Sequence Diagram (Thu muc: `sequence/`)
+To chuc theo **MODULE**, chi tiet API calls, SQL queries, SignalR events.
+
+| File | Mo ta | So luong groups |
+|------|-------|----------------|
+| `SEQ_01_Appointment.puml` | **[MOI]** Dat lich (Defense in Depth) | 4 (Happy + BE error + Race cond + Huy) |
+| `SEQ_02_Reception.puml` | **[MOI]** Tiep don & Tao hang doi | 4 (Tim BN + Check-in + Queue + BN bo ve) |
+| `SEQ_03_Examination.puml` | **[MOI]** Kham benh + CLS + Ke don | 5 (Vitals + Exam + CLS + Diag + Complete) |
+| `SEQ_04_Pharmacy.puml` | **[MOI]** Phat thuoc & Huy don | 2 (Phat thuoc + Huy don rollback) |
+| `SEQ_05_Billing.puml` | **[MOI]** Thanh toan & VietQR | 5 (Xem HD + Cash + QR + Huy + Ket thuc) |
+| `SEQ_FULL_VISIT_UPGRADED.puml` | Toan trinh 1 luot kham | 5 phases (Reception→Billing) |
 
 ---
 

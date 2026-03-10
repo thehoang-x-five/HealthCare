@@ -1,6 +1,7 @@
 @startuml WF_01_Reception
 ' ===========================
 ' WF_01: QUY TRINH TIEP DON & DIEU PHOI
+' Bao gom: Happy path + Huy/BN bo ve
 ' ===========================
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
@@ -14,7 +15,7 @@ skinparam activityDiamondBorderColor #0D9488
 skinparam noteBackgroundColor #FEFCE8
 skinparam noteBorderColor #EAB308
 
-title WF_01: Quy trinh Tiep don & Dieu phoi (Automation & Real-time)
+title WF_01: Quy trinh Tiep don & Dieu phoi (Full Flow + Cancellation)
 
 |Benh Nhan|
 start
@@ -24,36 +25,68 @@ start
 :Tiep nhan CCCD / SDT;
 
 |He Thong (System)|
-:Tim kiem & Dong bo Lich su (Elastic/SQL);
+:Tim kiem & Dong bo Lich su (SQL Index);
 
 if (Co Lich hen truoc?) then (Co)
-  :Kiem tra Check-in Dung gio;
-  :Uu tien Xep hang;
+  :Kiem tra Phan loai den;
+  note right
+    **Phan loai:**
+    dung_gio → Priority 20
+    den_som → Priority 25
+    den_muon → Priority 35
+  end note
+  :Cap nhat LichHen.TrangThai = da_checkin;
+  :Xep hang theo Do uu tien;
 else (Vang lai)
+  :Tao Ho so moi (neu BN moi);
   :Tao Luot Tiep Nhan Moi;
 endif
 
-:TU DONG: Tao Hang Doi (Queue);
+:TU DONG: Tao LuotKhamBenh (dang_thuc_hien);
+:TU DONG: Tao HangDoi (cho_goi);
 note right
-  **Automation:**
-  He thong tu tinh Do uu tien:
-  1. Cap cuu (Emergency)
-  2. Quay lai sau CLS (Return)
-  3. Dat lich dung gio (Booking)
-  4. Vang lai / Den muon (Walk-in)
+  **Automation — Do uu tien:**
+  1. Cap cuu (Priority 0)
+  2. Quay lai sau CLS - service_return (10)
+  3. Dat lich dung gio - appointment (20)
+  4. Vang lai / Den muon - walkin (30)
 end note
 
-:TU DONG: Tao Hoa don Kham;
+:TU DONG: Tao HoaDon khung (chua_thu);
 note right
   **Automation:**
-  Phi kham duoc them ngay
-  vao gio thanh toan
+  Phi kham duoc them vao
+  HoaDon voi TrangThai = chua_thu
+  (chua thanh toan)
 end note
 
-:Broadcast "QueueUpdated" (Realtime);
+:Broadcast "QueueUpdated" (SignalR);
+:Cap nhat BenhNhan.TrangThaiHomNay = cho_tiep_nhan;
 
 |Benh Nhan|
 :Xem STT tren Bang dien tu;
+
+' === Kiem tra BN co mat ===
+|Y ta Hanh chinh|
+if (BN bo ve / khong den?) then (BN bo ve)
+  :Bam nut "BN bo ve";
+  
+  |He Thong (System)|
+  :Cap nhat BenhNhan.TrangThaiHomNay = da_huy;
+  :Cap nhat HangDoi.TrangThai = da_phuc_vu;
+  :Cap nhat LuotKham.TrangThai = da_huy;
+  :Huy HoaDon (chua_thu → da_huy);
+  note right
+    **Rollback chain:**
+    1. BenhNhan → da_huy
+    2. HangDoi → da_phuc_vu (giai phong slot)
+    3. LuotKham → da_huy
+    4. HoaDon → da_huy (neu chua thu)
+  end note
+  :Broadcast "QueueUpdated" (SignalR);
+  stop
+else (BN co mat)
+endif
 
 stop
 

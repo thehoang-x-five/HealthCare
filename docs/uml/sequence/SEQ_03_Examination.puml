@@ -1,0 +1,174 @@
+@startuml SEQ_03_Examination
+title SEQ_03: SEQUENCE — KHAM BENH + CLS + KE DON
+
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+
+actor "Y ta Lam sang" as LS
+actor "Bac Si" as BS
+actor "Y ta CLS" as CLS_N
+actor "Ky Thuat Vien" as KTV
+
+box "System Application" #F3F4F6
+  participant "Frontend\n(Examination.jsx)" as FE
+  participant "ClinicalService +\nClsService (BE)" as SVC
+  participant "SignalR Hub" as Hub
+end box
+
+box "Data Persistence" #DBEAFE
+  database "MySQL" as SQL
+  database "MongoDB" as NoSQL
+end box
+
+' ===== CHUAN BI: DO SINH HIEU =====
+group #ECFDF5 BUOC 1: Do Sinh hieu
+
+  LS -> FE: Goi BN tu hang doi
+  FE -> SVC: POST /api/queue/rooms/{maPhong}/next
+  SVC -> SQL: SELECT hang_doi\nORDER BY DoUuTien ASC, ThoiGianVao ASC\nWHERE TrangThai = 'cho_goi'
+  SVC -> SQL: UPDATE hang_doi SET TrangThai = 'dang_goi'
+  SVC -> Hub: Broadcast "CallPatient"
+  SVC --> FE: QueueItem (BN info)
+  
+  LS -> FE: Nhap Sinh hieu (Mach, HA, Nhiet do)
+  FE -> SVC: PUT /api/clinical/{id}/vitals
+  SVC -> SQL: UPDATE phieu_kham SET SinhHieu = ...
+  SVC -> SQL: UPDATE hang_doi SET TrangThai = 'dang_thuc_hien'
+  SVC -> SQL: UPDATE benh_nhan SET TrangThaiHomNay = 'cho_kham'
+  SVC --> FE: OK
+end
+
+' ===== KHAM BENH =====
+group #FEF3C7 BUOC 2: Kham Lam Sang
+
+  BS -> FE: Nhan thong bao "BN san sang"
+  BS -> FE: Click "Bat dau kham"
+  FE -> SVC: PUT /api/clinical/{id}/status\n{ TrangThai: "dang_thuc_hien" }
+  SVC -> SQL: UPDATE phieu_kham\nSET TrangThai = 'dang_thuc_hien'
+  SVC -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'dang_kham'
+  SVC -> Hub: Broadcast "ExamStarted"
+  
+  BS -> FE: Xem Lich su benh an (Timeline)
+  FE -> SVC: GET /api/patients/{id}/history
+  SVC -> NoSQL: db.medical_histories.find(\n{ma_benh_nhan: id}).sort({ngay: -1})
+  NoSQL --> SVC: History documents
+  SVC --> FE: Timeline data
+  
+  note right SVC
+    **Upgrade: Pha he**
+    GET /api/patients/{id}/genealogy
+    → Recursive CTE query
+    → Tien su benh gia dinh
+  end note
+  
+  BS -> FE: Kham & Ghi nhan
+end
+
+' ===== CHI DINH CLS =====
+group #F3E8FF BUOC 3: Chi dinh CLS (neu can)
+
+  BS -> FE: Chi dinh XN / Chup chieu
+  FE -> SVC: POST /api/cls/orders\n{ MaPhieuKham, DanhSachDV: [...] }
+  activate SVC
+  
+  SVC -> SQL: INSERT phieu_kham_can_lam_sang\n(TrangThai = 'da_lap')
+  SVC -> SQL: INSERT chi_tiet_dich_vu (N rows)\n(TrangThai = 'da_lap')
+  SVC -> SQL: INSERT hoa_don_thanh_toan\n(LoaiDotThu = 'can_lam_sang',\nTrangThai = 'chua_thu')
+  
+  SVC -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'cho_tiep_nhan_dv'
+  SVC -> SQL: INSERT hang_doi CLS\n(LoaiHangDoi = 'can_lam_sang',\nNguon = 'service_return')
+  
+  SVC -> Hub: Broadcast "NewLabRequest"
+  Hub --> CLS_N: Notify queue CLS
+  Hub --> KTV: Notify new order
+  
+  SVC --> FE: 201 Created
+  deactivate SVC
+
+  ' --- CLS EXECUTION ---
+  CLS_N -> FE: Tiep nhan BN
+  FE -> SVC: PUT /api/cls/orders/{id}/status\n{ TrangThai: "dang_thuc_hien" }
+  SVC -> SQL: UPDATE phieu_cls\nSET TrangThai = 'dang_thuc_hien'
+  SVC -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'dang_kham_dv'
+  
+  KTV -> FE: Nhap ket qua XN
+  FE -> SVC: POST /api/cls/results\n{ MaChiTietDV, KetQua, ChiSo: [...] }
+  activate SVC
+  
+  SVC -> SQL: INSERT ket_qua_dich_vu
+  SVC -> SQL: UPDATE chi_tiet_dich_vu\nSET TrangThai = 'da_co_ket_qua'
+  SVC -> NoSQL: Save result doc (Dynamic Schema)
+  
+  note right SVC
+    **Automation:**
+    ForEach chi_so:
+      if (gia_tri > nguong_cao) → bat_thuong = true
+      if (gia_tri < nguong_thap) → bat_thuong = true
+  end note
+  
+  SVC -> Hub: Broadcast "ResultAvailable"
+  Hub --> BS: Popup "Co ket qua CLS"
+  
+  SVC --> FE: 201 OK
+  deactivate SVC
+  
+  ' --- QUAY LAI BS ---
+  FE -> SVC: POST /api/cls/summary/{maPhieuKhamCls}
+  SVC -> SQL: INSERT phieu_tong_hop (da_hoan_tat)
+  SVC -> SQL: UPDATE phieu_cls\nSET TrangThai = 'da_hoan_tat'
+  SVC -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'cho_kham'
+  SVC -> SQL: INSERT hang_doi\n(LoaiHangDoi = 'kham_lam_sang',\nNguon = 'service_return', DoUuTien = 10)
+  SVC -> Hub: Broadcast "QueueUpdated"
+end
+
+' ===== CHAN DOAN + KE DON =====
+group #FEF3C7 BUOC 4: Chan doan & Ke Don
+
+  BS -> FE: Xem ket qua CLS (neu co)
+  BS -> FE: Nhap Chan doan ICD-10 + Huong xu tri
+  FE -> SVC: POST /api/clinical/{id}/diagnosis
+  SVC -> SQL: UPDATE phieu_kham\nSET ChanDoan, HuongXuTri, ...
+  SVC -> SQL: UPDATE phieu_kham\nSET TrangThai = 'da_lap_chan_doan'
+  SVC --> FE: OK
+
+  alt Co Don Thuoc  
+    BS -> FE: Ke Don thuoc
+    FE -> SVC: POST /api/pharmacy/prescriptions\n{ MaPhieuKham, Items: [...] }
+    activate SVC
+    
+    SVC -> SQL: INSERT don_thuoc\n(TrangThai = 'da_ke')
+    SVC -> SQL: INSERT chi_tiet_don_thuoc (N rows)
+    SVC -> SQL: INSERT hoa_don_thanh_toan\n(LoaiDotThu = 'thuoc', TrangThai = 'chua_thu')
+    
+    SVC -> Hub: Broadcast "PrescriptionReady"
+    Hub --> FE: Notify Pharmacy tab
+    
+    SVC --> FE: 201 Created
+    deactivate SVC
+  else Khong Don Thuoc
+    BS -> FE: Nhap Loi khuyen
+  end
+end
+
+' ===== HOAN TAT =====
+group #E0F2FE BUOC 5: Hoan tat Kham
+
+  BS -> FE: Click "Hoan tat kham"
+  FE -> SVC: POST /api/clinical/{id}/complete
+  activate SVC
+  
+  SVC -> SQL: UPDATE phieu_kham\nSET TrangThai = 'da_hoan_tat'
+  SVC -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'cho_xu_ly'
+  SVC -> SQL: UPDATE hang_doi\nSET TrangThai = 'da_phuc_vu'
+  
+  SVC -> NoSQL: Push medical_history event\n{ event_type: "kham_lam_sang",\nsinh_hieu, chan_doan, huong_xu_tri }
+  
+  SVC -> Hub: Broadcast "ExamFinished"
+  SVC -> Hub: Broadcast "QueueUpdated"
+  
+  SVC --> FE: 200 OK
+  deactivate SVC
+end
+
+@enduml

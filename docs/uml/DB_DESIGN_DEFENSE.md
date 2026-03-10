@@ -432,6 +432,84 @@ Dung, co phuong an **ARCHIVING (Luu tru)**:
 
 ---
 
+### 4.12 "Tai sao kiem tra o ca BE lan DB? Code-first co du roi khong?"
+
+**Tra loi:**
+> He thong su dung chien luoc **"Defense in Depth"** (Phong thu nhieu tang):
+> - **Tang 1 — Backend (C# Service):** Kiem tra **TRUOC** de toi uu hieu nang va UX.
+>   Nguoi dung nhan phan hoi nhanh (400 Bad Request) MA KHONG CAN truy van DB.
+> - **Tang 2 — Database (Stored Procedure / CHECK / TRIGGER):** Kiem tra **LAN CUOI**
+>   de dam bao tinh dung dan **TUYET DOI** cua du lieu (Data Integrity),
+>   ke ca khi co loi phia Backend hoac khi co ai do goi thang DB.
+
+#### Vi sao can CA HAI tang?
+
+```
+ Nguoi dung bam nut "Dat lich"
+       |
+       v
+ ┌─────────────────────────────────────────────┐
+ │  TANG 1: Backend (C# AppointmentService)    │
+ │                                             │
+ │  ✓ Kiem tra: Ngay hen >= hom nay?            │
+ │  ✓ Kiem tra: Gio nam trong gio lam viec?     │
+ │  ✓ Kiem tra: Benh nhan da co lich chua?      │
+ │  ✓ Kiem tra: Bac si da kin slot chua?         │
+ │                                             │
+ │  → Neu SAI: Tra 400 NGAY LAP TUC            │
+ │    (Nhanh, UX tot, khong ton DB connection)  │
+ │                                             │
+ │  → Neu DUNG: Goi tiep xuong DB ↓            │
+ └─────────────────────────────────────────────┘
+       |
+       v
+ ┌─────────────────────────────────────────────┐
+ │  TANG 2: Database (sp_BookAppointment)      │
+ │  SERIALIZABLE Transaction                   │
+ │                                             │
+ │  ✓ LOCK row benh nhan + lich hen            │
+ │  ✓ Kiem tra trung lich LAN CUOI trong DB     │
+ │  ✓ INSERT lich hen                           │
+ │  ✓ COMMIT hoac ROLLBACK                     │
+ │                                             │
+ │  → Dam bao: Du 100 request cung luc,         │
+ │    KHONG BAO GIO co 2 lich hen trung nhau   │
+ └─────────────────────────────────────────────┘
+```
+
+#### Tai sao KHONG THE bo tang nao?
+
+| Tinh huong | Chi co BE | Chi co DB | Co CA HAI ✅ |
+|---|---|---|---|
+| 2 request dat lich **cung luc** (Race Condition) | ❌ BE check OK ca 2 → **TRUNG LICH** | ✅ DB lock row → chi 1 thanh cong | ✅ |
+| Nguoi dung **nhap sai** (date qua khu) | ✅ BE tra 400 ngay | ❌ DB phai ton connection + parse date | ✅ BE tra 400 ngay |
+| Developer/DBA **chay SQL truc tiep** (bypass BE) | ❌ Khong ai kiem tra | ✅ DB tu check | ✅ DB tu check |
+| **99% request binh thuong** (khong conflict) | ✅ Nhanh, khong ton DB | ❌ Ton DB connection moi request | ✅ BE loc truoc, DB chi xu ly cac case hiem |
+
+#### Ap dung cho TUNG module:
+
+| Module | Tang 1: BE (Code-first) | Tang 2: DB |
+|---|---|---|
+| **Dat lich hen** | `AppointmentService.FindConflicts()` — kiem tra trung lich | `sp_BookAppointment` — SERIALIZABLE, lock + check + insert |
+| **Xuat kho thuoc** | `PharmacyService.XuatThuocAsync()` — kiem tra ton kho >= so luong | `CHECK (SoLuong >= 0)` + `TRIGGER tr_CheckStock` — khong cho SoLuong am |
+| **Chuyen trang thai** | `ClinicalService/AppointmentService` — validate transition (VD: chi cho dang_cho→da_xac_nhan) | `TRIGGER tr_ValidateTransition` — kiem tra `OLD.TrangThai` → `NEW.TrangThai` hop le |
+| **Xoa benh nhan** | `PatientService` — kiem tra co lich hen active khong | `FK ON DELETE RESTRICT` — MySQL tu chan xoa neu con lich hen tham chieu |
+
+#### Ket luan:
+
+> **Tang 1 (BE)** mang lai **Hieu nang + UX tot**: Phan hoi nhanh, giam tai cho DB.
+> **Tang 2 (DB)** mang lai **Tinh dung dan tuyet doi**: Ke ca khi BE bi loi hoac bi bypass.
+>
+> Day la nguyen tac bao mat noi tieng trong Software Engineering:
+> "**Never trust the client (or the layer above you)**."
+> DB la lop cuoi cung — no KHONG BAO GIO tin BE da kiem tra dung.
+>
+> Doi voi **do an nay**, yeu cau mon hoc bat buoc dung **Stored Procedure, CHECK Constraint, TRIGGER**
+> nen viec bo sung validation o tang DB la BAT BUOC. Nhung em VAN GIU code-first o BE
+> de khong mat di cac loi the ve Performance va Developer Experience.
+
+---
+
 ## 5. TOM TAT: BANG PHAN CHIA DU LIEU
 
 | Du lieu | Database | Ly do |
@@ -455,5 +533,12 @@ Dung, co phuong an **ARCHIVING (Luu tru)**:
 > Lich su kham benh vi no cho phep Schema Evolution -
 > moi loai kham (noi khoa, xet nghiem, sieu am) co cau truc
 > du lieu hoan toan khac nhau ma khong can ALTER TABLE.
-> Dieu nay giup he thong de dang mo rong khi them chuyen khoa
-> moi ma khong anh huong den cac module dang hoat dong."
+>
+> Ngoai ra, em ap dung nguyen tac **Defense in Depth**:
+> Moi nghiep vu quan trong duoc kiem tra o **CA 2 TANG** —
+> Backend kiem tra truoc de toi uu hieu nang va UX,
+> Database kiem tra lan cuoi bang Stored Procedure,
+> CHECK Constraint va TRIGGER de dam bao Data Integrity tuyet doi.
+> Dieu nay giup he thong vua nhanh, vua an toan,
+> va de dang mo rong khi them chuyen khoa moi
+> ma khong anh huong den cac module dang hoat dong."

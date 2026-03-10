@@ -1,0 +1,120 @@
+@startuml SEQ_04_Pharmacy
+title SEQ_04: SEQUENCE — PHAT THUOC & HUY DON (Defense in Depth)
+
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+
+actor "Y ta Hanh chinh" as HC
+actor "Bac Si" as BS
+
+box "System Application" #F3F4F6
+  participant "Frontend\n(Prescriptions.jsx)" as FE
+  participant "PharmacyService\n(BE)" as SVC
+  participant "SignalR Hub" as Hub
+end box
+
+box "Data Persistence" #DBEAFE
+  database "MySQL" as SQL
+  database "MongoDB" as NoSQL
+end box
+
+' ===== HAPPY PATH: PHAT THUOC =====
+group #EEF2FF HAPPY PATH: Phat thuoc
+
+  HC -> FE: Mo tab "Don thuoc moi"
+  FE -> SVC: GET /api/pharmacy/prescriptions\n?status=da_ke
+  SVC -> SQL: SELECT don_thuoc\nWHERE TrangThai IN ('da_ke','cho_phat')
+  SVC --> FE: List DonThuoc
+
+  HC -> FE: Chon don & Chuan bi thuoc
+  HC -> FE: Click "Xac nhan phat"
+  
+  FE -> SVC: PUT /api/pharmacy/prescriptions/{id}/dispense
+  activate SVC
+  
+  note right SVC
+    **Transaction SERIALIZABLE:**
+    Chong race condition khi
+    2 Y ta phat cung 1 don
+    hoac thuoc gan het
+  end note
+  
+  SVC -> SQL: START TRANSACTION\n(SERIALIZABLE)
+  SVC -> SQL: SELECT SoLuong FROM kho_thuoc\nWHERE MaThuoc IN (...) FOR UPDATE
+  
+  alt Du ton kho
+    SVC -> SQL: UPDATE kho_thuoc\nSET SoLuong = SoLuong - N\n(for each drug)
+    
+    note right SQL
+      **DB CHECK Constraint:**
+      CHECK (SoLuong >= 0)
+      → Neu BE tinh sai, DB tu reject
+    end note
+    
+    SVC -> SQL: INSERT lich_su_xuat_kho\n(LoaiXuat = 'xuat')
+    SVC -> SQL: UPDATE don_thuoc\nSET TrangThai = 'da_phat'
+    SVC -> SQL: COMMIT
+    
+    SVC -> NoSQL: Push event "don_thuoc"\n{ items, so_luong, ngay_phat }
+    
+    SVC -> Hub: Broadcast "PrescriptionDispensed"
+    SVC --> FE: 200 OK
+  else Khong du ton kho
+    SVC -> SQL: ROLLBACK
+    SVC --> FE: 409 Conflict\n"Thuoc XXX het hang"
+    FE --> HC: Hien thi canh bao het hang
+    
+    HC -> BS: Lien he BS doi don
+  end
+  
+  deactivate SVC
+end
+
+' ===== HUY DON THUOC =====
+group #FFE4E1 HUY DON: BS yeu cau huy
+
+  BS -> FE: Click "Huy don" tren phieu  
+  FE -> FE: Confirm Dialog + Nhap ly do
+  BS -> FE: Xac nhan huy
+  
+  FE -> SVC: PUT /api/pharmacy/prescriptions/{id}/cancel\n{ LyDo: "..." }
+  activate SVC
+  
+  SVC -> SQL: SELECT TrangThai FROM don_thuoc\nWHERE MaDonThuoc = id
+  
+  alt TrangThai = da_ke hoac cho_phat
+    note right SVC
+      **BE — Tang 1:**
+      Kiem tra TrangThai cho phep huy
+      
+      **DB — Tang 2:**
+      TRIGGER tr_DonThuoc_RollbackKho
+      → Tu dong hoan SoLuong
+      khi TrangThai = 'da_huy'
+    end note
+    
+    SVC -> SQL: UPDATE don_thuoc\nSET TrangThai = 'da_huy'
+    
+    note right SQL
+      **TRIGGER fires:**
+      UPDATE kho_thuoc
+      SET SoLuong = SoLuong + N
+      WHERE MaThuoc IN (...)
+    end note
+    
+    SVC -> SQL: INSERT lich_su_xuat_kho\n(LoaiXuat = 'hoan_tra')
+    SVC -> SQL: UPDATE hoa_don_thanh_toan\nSET TrangThai = 'da_huy'\nWHERE MaDonThuoc = id\nAND TrangThai = 'chua_thu'
+    
+    SVC -> Hub: Broadcast "PrescriptionCancelled"
+    SVC --> FE: 200 OK "Don da huy"
+    
+  else TrangThai = da_phat
+    SVC --> FE: 400 Bad Request\n"Da phat thuoc, khong the huy"
+    FE --> BS: Hien thi loi
+  end
+  
+  deactivate SVC
+end
+
+@enduml

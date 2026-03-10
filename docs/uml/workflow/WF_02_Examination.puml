@@ -1,6 +1,7 @@
 @startuml WF_02_Examination
 ' ===========================
 ' WF_02: QUY TRINH KHAM BENH
+' Bao gom: Happy path + Huy phieu + BN bo ve
 ' ===========================
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
@@ -14,49 +15,102 @@ skinparam activityDiamondBorderColor #0D9488
 skinparam noteBackgroundColor #FEFCE8
 skinparam noteBorderColor #EAB308
 
-title WF_02: Quy trinh Kham benh (Logic Re nhanh & Tu dong)
+title WF_02: Quy trinh Kham benh (Full Flow + Cancellation)
 
-|Bac Si|
+|Y ta Lam sang|
 start
-:Nhan Thong bao "Benh nhan cho";
-:Moi Vao Phong;
+:He thong Goi Loa / Hien thi TV;
+:Benh nhan vao khu vuc do sinh hieu;
+:Nhap Mach, Huyet ap, Nhiet do, Can nang;
 
 |He Thong (System)|
-:Cap nhat Trang thai "Dang Kham";
-:Hien thi Canh bao Di ung/Benh nen;
+:Luu Sinh hieu vao PhieuKham;
+:Cap nhat HangDoi.TrangThai = dang_thuc_hien;
+:Cap nhat BenhNhan.TrangThaiHomNay = cho_kham;
+
+|Bac Si|
+:Nhan Thong bao "Benh nhan cho" (SignalR);
+:Click "Bat dau kham";
+
+|He Thong (System)|
+:Cap nhat PhieuKham.TrangThai = dang_thuc_hien;
+:Cap nhat BenhNhan.TrangThaiHomNay = dang_kham;
+:Hien thi Canh bao Di ung / Benh nen;
+note right
+  **Automation:**
+  Query MongoDB medical_histories
+  → Hien thi alert neu co
+  tien su di ung / benh man tinh
+end note
 
 |Bac Si|
 :Kham Lam Sang & Xem Lich Su;
 note right
   **Upgrade:** 
-  Tra cuu Pha he (Genealogy)
-  & Timeline benh an
+  Tra cuu Pha he (Genealogy CTE)
+  & Timeline benh an (MongoDB)
 end note
+
+if (BN bo ve giua chung?) then (BN bo ve)
+  |He Thong (System)|
+  :Cap nhat PhieuKham.TrangThai = da_huy;
+  :Cap nhat BenhNhan.TrangThaiHomNay = da_huy;
+  :Cap nhat HangDoi.TrangThai = da_phuc_vu;
+  :Ghi ly do huy;
+  :Broadcast "QueueUpdated";
+  stop
+else (Tiep tuc kham)
+endif
 
 if (Can CLS / Xet nghiem?) then (Co)
   :Chi dinh Dich vu CLS;
   
   |He Thong (System)|
-  :TU DONG: Chuyen Yeu cau sang CLS;
-  :Tao Hoa don Dich vu CLS (Pending);
-  :Thong bao KTV (Realtime);
+  :TU DONG: Tao PhieuKhamCLS (da_lap);
+  :TU DONG: Tao ChiTietDichVu cho tung DV;
+  :TU DONG: Tao HoaDon DV CLS (chua_thu);
+  :Thong bao Y ta CLS + KTV (SignalR);
   
   |Bac Si|
   :Cho ket qua CLS;
+  note right
+    **Chuyen huong:**
+    BN duoc chuyen sang
+    Quy trinh CLS (WF_03)
+    Sau do quay lai BS
+  end note
+  
+  |He Thong (System)|
+  :Cap nhat BenhNhan.TrangThaiHomNay = cho_tiep_nhan_dv;
+  :Tao HangDoi CLS (nguon = service_return);
   detach
 else (Khong)
 endif
 
 |Bac Si|
-:Chan doan;
+:Chan doan & Lap Huong xu tri;
 
+|He Thong (System)|
+:Cap nhat PhieuKham.TrangThai = da_lap_chan_doan;
+
+|Bac Si|
 if (Co Don Thuoc?) then (Co)
   :Ke Don Thuoc;
   
   |He Thong (System)|
-  :TU DONG: Kiem tra Ton Kho (Transaction);
-  :TU DONG: Tinh Tien Don Thuoc;
-  :Thong bao Duoc si "Don thuoc moi";
+  :TU DONG: Tao DonThuoc (da_ke);
+  :Kiem tra Ton Kho (Transaction);
+  
+  if (Ton kho du?) then (Du)
+    :Tinh Tien Don Thuoc;
+    :Tao HoaDon Thuoc (chua_thu);
+    :Thong bao Y ta HC "Don thuoc moi" (SignalR);
+  else (Thieu)
+    :Canh bao BS "Het thuoc XYZ";
+    |Bac Si|
+    :Dieu chinh Don thuoc;
+    detach
+  endif
   
   |Bac Si|
   :Huong dan Dung thuoc;
@@ -65,8 +119,14 @@ else (Khong - Chi Tu van/Kham)
 endif
 
 |He Thong (System)|
-:Luu Ho so Benh an (EMR);
-:Ket thuc Kham (Auto-Complete);
-:Goi BN tiep theo (SignalR);
+:Luu Ho so Benh an;
+:Sync event len MongoDB (medical_histories);
+:Cap nhat PhieuKham.TrangThai = da_hoan_tat;
+:Cap nhat BenhNhan.TrangThaiHomNay = cho_xu_ly;
+:Cap nhat HangDoi.TrangThai = da_phuc_vu;
+:Broadcast "ExamFinished" (SignalR);
+:Goi BN tiep theo (tao HangDoi.TrangThai = dang_goi);
 
 stop
+
+@enduml

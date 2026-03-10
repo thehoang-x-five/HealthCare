@@ -1,6 +1,7 @@
 @startuml WF_FULL_STANDARD_UPGRADED
 ' ===========================
-' MASTER WORKFLOW: STANDARD & UPGRADED
+' MASTER WORKFLOW: FULL PATIENT VISIT (DAT LICH → RA VE)
+' Bao gom: Happy path + Cancellation + Error handling
 ' ===========================
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
@@ -14,7 +15,7 @@ skinparam activityDiamondBorderColor #0D9488
 skinparam noteBackgroundColor #FEFCE8
 skinparam noteBorderColor #EAB308
 
-title HEALTHCARE+ WORKFLOW (QUY TRINH TOAN TRINH)
+title HEALTHCARE+ MASTER WORKFLOW (QUY TRINH TOAN TRINH)
 
 |Benh Nhan|
 |Y ta Hanh chinh|
@@ -24,9 +25,46 @@ title HEALTHCARE+ WORKFLOW (QUY TRINH TOAN TRINH)
 |Ky Thuat Vien|
 |He Thong (System)|
 
+' ===== PHASE 0: DAT LICH HEN (MOI) =====
 |Benh Nhan|
 start
-:Den Benh vien (Dat lich truoc hoac Vang lai);
+:Yeu cau dat lich kham;
+
+|Y ta Hanh chinh|
+partition "0. DAT LICH HEN (UI: Appointments.jsx)" {
+  :Chon BN + Phong + Ngay + Gio;
+  
+  |He Thong (System)|
+  :BE: FindConflicts (Tang 1);
+  :DB: sp_BookAppointment SERIALIZABLE (Tang 2);
+  note right
+    **Defense in Depth:**
+    Tang 1 (BE) → Nhanh, UX tot
+    Tang 2 (DB) → Chong Race Condition
+  end note
+  
+  if (Trung lich?) then (Trung)
+    :Thong bao trung → chon gio khac;
+    detach
+  else (OK)
+    :Tao LichHen (dang_cho);
+    :Gui SMS/Email xac nhan;
+  endif
+  
+  |Y ta Hanh chinh|
+  if (Xac nhan lich?) then (Xac nhan)
+    |He Thong (System)|
+    :Cap nhat LichHen = da_xac_nhan;
+  else (Huy)
+    |He Thong (System)|
+    :Cap nhat LichHen = da_huy;
+    stop
+  endif
+}
+
+' ===== PHASE 1: TIEP DON =====
+|Benh Nhan|
+:Den Benh vien (Ngay kham);
 
 |Y ta Hanh chinh|
 partition "1. TIEP DON & PHAN LUONG (UI: Patients.jsx)" {
@@ -36,50 +74,66 @@ partition "1. TIEP DON & PHAN LUONG (UI: Patients.jsx)" {
   :Tim kiem & Dong bo Lich su;
   
   if (Co Lich Hen?) then (Co)
-    :Kiem tra Check-in Dung gio;
-    :Uu tien Xep hang;
+    :Check-in: da_xac_nhan → da_checkin;
+    :Phan loai: dung_gio / den_som / den_muon;
+    :Xep hang uu tien theo phan loai;
   else (Vang lai)
-    :Tao Luot Tiep Nhan Moi;
+    :Tao Ho so moi (neu BN moi);
+    :Tao Luot Tiep Nhan;
   endif
   
-  :TU DONG: Tao Hang Doi (Queue);
+  :TU DONG: Tao LuotKham (dang_thuc_hien);
+  :TU DONG: Tao HangDoi (cho_goi);
   note right
-    **Automation:**
-    He thong tu tinh Do uu tien:
-    1. Cap cuu (Emergency)
-    2. Quay lai sau CLS (Return)
-    3. Dat lich dung gio (Booking)
-    4. Vang lai / Den muon (Walk-in)
+    **Priority Automation:**
+    0 = Cap cuu
+    10 = Quay lai sau CLS
+    20 = Dat lich dung gio
+    30 = Vang lai / Den muon
   end note
   
-  :TU DONG: Tao Hoa don Kham;
-  note right
-    **Automation:**
-    Phi kham duoc them ngay
-    vao gio thanh toan
-  end note
-  
-  :Broadcast "QueueUpdated" (Realtime);
+  :TU DONG: Tao HoaDon Kham (chua_thu);
+  :Cap nhat BN.TrangThaiHomNay = cho_tiep_nhan;
+  :Broadcast "QueueUpdated" (SignalR);
 }
 
+' === BN BO VE TAI TIEP DON ===
+|Y ta Hanh chinh|
+if (BN bo ve?) then (Bo ve)
+  |He Thong (System)|
+  :Rollback: BN→da_huy, HangDoi→da_phuc_vu,
+  LuotKham→da_huy, HoaDon→da_huy;
+  stop
+else (Co mat)
+endif
+
+' ===== PHASE 2: CHUAN BI KHAM =====
 |Y ta Lam sang|
 partition "2. CHUAN BI KHAM (UI: Staff.jsx)" {
-  :He thong Goi Loa / Hien thi TV;
-  :Do Sinh Hieu (Vitals);
-  :Nhap Thong tin ban dau;
+  :Goi BN tu HangDoi;
   
   |He Thong (System)|
-  :Cap nhat Trang thai "Cho Kham";
-  :Dong bo Sinh hieu vao Ho so (EMR);
+  :HangDoi = dang_goi → dang_thuc_hien;
+  :Broadcast "CallPatient" (SignalR);
+  
+  |Y ta Lam sang|
+  :Do Sinh Hieu (Mach, HA, Nhiet do);
+  :Nhap vao System;
+  
+  |He Thong (System)|
+  :Luu Sinh hieu → PhieuKham;
+  :BN.TrangThaiHomNay = cho_kham;
 }
 
+' ===== PHASE 3: KHAM BENH =====
 |Bac Si|
 partition "3. KHAM BENH (UI: Examination.jsx)" {
-  :Nhan Thong bao "Benh nhan cho";
-  :Moi Vao Phong;
+  :Nhan Thong bao "BN San sang";
+  :Click "Bat dau kham";
   
   |He Thong (System)|
-  :Cap nhat Trang thai "Dang Kham";
+  :PhieuKham = dang_thuc_hien;
+  :BN.TrangThaiHomNay = dang_kham;
   :Hien thi Canh bao Di ung/Benh nen;
   
   |Bac Si|
@@ -89,87 +143,137 @@ partition "3. KHAM BENH (UI: Examination.jsx)" {
     :Chi dinh Xet nghiem / Chup chieu;
     
     |He Thong (System)|
-    :TU DONG: Chuyen Yeu cau sang CLS;
-    :Tao Hoa don Dich vu CLS (Pending);
-    :Thong bao KTV (Realtime);
+    :Tao PhieuCLS (da_lap) + ChiTietDV;
+    :Tao HoaDon CLS (chua_thu);
+    :Thong bao Y ta CLS + KTV (SignalR);
+    :BN.TrangThaiHomNay = cho_tiep_nhan_dv;
     
+    ' --- CLS SUB-PROCESS ---
     |Y ta Can lam sang|
     partition "4. CAN LAM SANG (UI: ClsOrders.jsx)" {
-      :Nhan Yeu cau ngay lap tuc;
-      :Lay Mau / Huong dan;
+      :Nhan BN & Lay mau;
+      
+      |He Thong (System)|
+      :PhieuCLS = dang_thuc_hien;
+      :BN.TrangThaiHomNay = dang_kham_dv;
       
       |Ky Thuat Vien|
       :Thuc hien & Nhap Ket qua;
       
       |He Thong (System)|
-      :Luu Ket qua & Highlight Bat thuong;
+      :Luu KQ & Highlight Bat thuong;
       note right
         **Automation:**
-        So sanh Chi so voi Nguong
-        -> Danh dau Do/Vang
+        So sanh Chi so vs Nguong
+        → Do/Vang/Xanh
       end note
       
-      :Thong bao Bac si "Da co Ket qua";
+      :ChiTietDV = da_co_ket_qua;
+      :PhieuCLS = da_hoan_tat;
+      :Tao PhieuTongHop (da_hoan_tat);
+      :BN.TrangThaiHomNay = cho_kham;
+      :Tao HangDoi quay lai BS (service_return, Priority=10);
+      :Broadcast "ResultAvailable" + "QueueUpdated";
     }
+
+    |Bac Si|
+    :Nhan KQ & Tiep tuc kham;
   else (Khong)
   endif
   
   |Bac Si|
-  :Chan doan;
+  :Chan doan + Huong xu tri;
   
+  |He Thong (System)|
+  :PhieuKham = da_lap_chan_doan;
+  
+  |Bac Si|
   if (Co Don Thuoc?) then (Co)
     :Ke Don Thuoc;
     
     |He Thong (System)|
-    :TU DONG: Kiem tra Ton Kho (Transaction);
-    :TU DONG: Tinh Tien Don Thuoc;
-    :Thong bao Duoc si "Don thuoc moi";
+    :Tao DonThuoc (da_ke);
+    :Kiem tra Ton Kho (Transaction);
+    
+    if (Ton kho du?) then (Du)
+      :Tao HoaDon Thuoc (chua_thu);
+      :Thong bao Y ta HC "Don moi" (SignalR);
+    else (Thieu)
+      :Canh bao het thuoc;
+      |Bac Si|
+      :Dieu chinh don;
+      detach
+    endif
     
     |Bac Si|
     :Huong dan Dung thuoc;
   else (Khong)
-    :Chi dinh Loi khuyen;
+    :Loi khuyen dieu tri;
   endif
   
   |He Thong (System)|
-  :Luu Ho so Benh an (EMR);
-  :Ket thuc Kham (Auto-Complete);
+  :PhieuKham = da_hoan_tat;
+  :BN.TrangThaiHomNay = cho_xu_ly;
+  :HangDoi = da_phuc_vu;
+  :Sync event len MongoDB;
+  :Broadcast "ExamFinished" + "QueueUpdated";
 }
 
+' ===== PHASE 5: DUOC =====
 |Y ta Hanh chinh|
 if (Co Don Thuoc?) then (Co)
   partition "5. DUOC (UI: Prescriptions.jsx)" {
-    :Nhan Don Thuoc (Realtime);
+    :Nhan Don Thuoc (SignalR);
     :Chuan bi Thuoc theo Don;
     :Xac nhan Phat Thuoc;
     
     |He Thong (System)|
-    :Tru Ton Kho (Inventory);
-    :Cap nhat Trang thai "Da Phat";
+    partition "Transaction SERIALIZABLE" {
+      :Tru Ton Kho (KhoThuoc);
+      :Ghi LichSuXuatKho;
+      :DonThuoc = da_phat;
+    }
+    
+    |Y ta Hanh chinh|
+    :In Tem nhan & Giao thuoc;
   }
 else (Khong)
 endif
 
+' ===== PHASE 6: THANH TOAN =====
 |Y ta Hanh chinh|
-partition "6. THANH TOAN (UI: Billing.jsx)" {
-  :Hien thi Tong hop Hoa don
-  (Kham + CLS + Thuoc);
+partition "6. THANH TOAN (UI: Billing)" {
+  :Xem HoaDon chua_thu;
+  :Hien thi Tong (Kham + CLS + Thuoc);
   :Chon Phuong thuc Thanh toan;
   
   if (QR Code?) then (Co)
     |He Thong (System)|
-    :Goi VietQR -> Tao QR Dong;
-    :Lang nghe Webhook Ngan hang;
-    :TU DONG: Xac nhan Da Thu (khi co SMS);
+    :Goi VietQR → Tao QR Dong;
+    
+    |Benh Nhan|
+    :Quet QR & Thanh toan;
+    
+    |He Thong (System)|
+    :Nhan Webhook → HoaDon = da_thu;
   else (Tien mat)
     |Y ta Hanh chinh|
     :Thu tien & Xac nhan;
+    |He Thong (System)|
+    :HoaDon = da_thu;
   endif
   
   |He Thong (System)|
-  :Ghi Log Doanh thu (Audit);
-  :Cap nhat Dashboard Lanh dao (Realtime);
-  :Ket thuc Luot kham;
+  :Ghi Audit Log (MongoDB);
+  :Cap nhat Dashboard (Realtime);
+  
+  if (Con HoaDon chua_thu?) then (Con)
+    :Thu tiep;
+    detach
+  else (Het)
+    :BN.TrangThaiHomNay = da_hoan_tat;
+    :LuotKham = hoan_tat;
+  endif
 }
 
 |Benh Nhan|

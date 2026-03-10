@@ -1,0 +1,132 @@
+@startuml SEQ_01_Appointment
+title SEQ_01: SEQUENCE — DAT LICH HEN KHAM (Defense in Depth)
+
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+skinparam wrapWidth 300
+
+actor "Benh Nhan" as BN
+actor "Y ta Hanh chinh" as HC
+
+box "System Application" #F3F4F6
+  participant "Frontend\n(Appointments.jsx)" as FE
+  participant "AppointmentService\n(BE)" as SVC
+  participant "SignalR Hub" as Hub
+end box
+
+box "Data Persistence" #DBEAFE
+  database "MySQL" as SQL
+end box
+
+' ===== HAPPY PATH: DAT LICH =====
+group #EEF2FF HAPPY PATH: Dat lich hen
+
+  BN -> HC: Yeu cau dat lich
+  HC -> FE: Chon BN + Phong + Ngay + Gio
+  FE -> SVC: POST /api/appointments
+  activate SVC
+  
+  note right SVC
+    **Tang 1 — BE Code-First:**
+    FindConflictsForConfirmedAsync()
+    → Query EF Core, tra 400 neu trung
+    → Nhanh, UX tot
+  end note
+  
+  SVC -> SQL: SELECT * FROM lich_hen_kham\nWHERE MaLichTruc + NgayHen + GioHen overlap
+  SQL --> SVC: Empty (khong trung)
+  
+  note right SVC
+    **Tang 2 — DB Stored Procedure:**
+    CALL sp_BookAppointment(...)
+    SERIALIZABLE isolation
+    → Chong race condition
+  end note
+  
+  SVC -> SQL: CALL sp_BookAppointment(\np_MaBenhNhan, p_NgayHen,\np_GioHen, p_MaLichTruc, ...)
+  SQL --> SVC: INSERT OK
+  
+  SVC -> Hub: Broadcast "AppointmentCreated"
+  Hub --> HC: Realtime update
+  Hub --> FE: Refresh appointment list
+  
+  SVC --> FE: 201 Created (MaLichHen)
+  deactivate SVC
+  
+  FE --> HC: Hien thi "Dat lich thanh cong"
+end
+
+' ===== ERROR: TRUNG LICH (BE) =====
+group #FEE2E2 ERROR: Trung lich (BE detect)
+
+  HC -> FE: Chon BN + Phong + Ngay + Gio (trung)
+  FE -> SVC: POST /api/appointments
+  activate SVC
+  
+  SVC -> SQL: SELECT conflicts
+  SQL --> SVC: Found 1 conflict
+  
+  SVC --> FE: 400 Bad Request\n"Da co lich khac trong khung gio nay"
+  deactivate SVC
+  
+  FE --> HC: Hien thi loi, yeu cau chon gio khac
+end
+
+' ===== ERROR: RACE CONDITION (DB detect) =====
+group #FEF3C7 ERROR: Race condition (DB detect)
+
+  note over SVC
+    2 request dong thoi
+    BE check: OK (chua thay)
+    nhung DB lock phat hien
+  end note
+  
+  SVC -> SQL: CALL sp_BookAppointment(...)
+  SQL --> SVC: SIGNAL SQLSTATE 45000\n"Trung lich"
+  
+  SVC --> FE: 409 Conflict\n"Trung lich (race condition)"
+  FE --> HC: Hien thi loi
+end
+
+' ===== XAC NHAN LICH =====
+group #ECFDF5 XAC NHAN LICH HEN
+
+  HC -> FE: Click "Xac nhan" lich hen
+  FE -> SVC: PUT /api/appointments/{id}/status\n{ TrangThai: "da_xac_nhan" }
+  activate SVC
+  
+  SVC -> SQL: UPDATE lich_hen_kham\nSET TrangThai = 'da_xac_nhan'\nWHERE TrangThai = 'dang_cho'
+  
+  SVC -> Hub: Broadcast "AppointmentConfirmed"
+  SVC --> FE: 200 OK
+  deactivate SVC
+end
+
+' ===== HUY LICH =====
+group #FFE4E1 HUY LICH HEN
+
+  HC -> FE: Click "Huy" lich hen
+  FE -> FE: Hien thi Confirm Dialog\n"Ban chac chan muon huy?"
+  HC -> FE: Xac nhan huy
+  
+  FE -> SVC: PUT /api/appointments/{id}/status\n{ TrangThai: "da_huy" }
+  activate SVC
+  
+  note right SVC
+    **Transition validation:**
+    dang_cho → da_huy ✔
+    da_xac_nhan → da_huy ✔
+    da_checkin → da_huy ✘
+    da_huy → * ✘
+  end note
+  
+  SVC -> SQL: UPDATE lich_hen_kham\nSET TrangThai = 'da_huy'
+  SVC -> Hub: Broadcast "AppointmentCancelled"
+  SVC --> FE: 200 OK
+  deactivate SVC
+  
+  FE --> HC: Hien thi "Lich hen da huy"
+end
+
+@enduml

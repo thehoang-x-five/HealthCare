@@ -1,0 +1,132 @@
+@startuml WF_00_Appointment
+' ===========================
+' WF_00: QUY TRINH DAT LICH HEN KHAM
+' Chi tiet: Tao → Xac nhan → Check-in → Huy (toan bo luong)
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam linetype ortho
+
+skinparam activityBackgroundColor #EEF2FF
+skinparam activityBorderColor #4F46E5
+skinparam activityDiamondBackgroundColor #F0FDFA
+skinparam activityDiamondBorderColor #0D9488
+skinparam noteBackgroundColor #FEFCE8
+skinparam noteBorderColor #EAB308
+
+title WF_00: Quy trinh Dat lich hen kham (Appointment Booking Full Flow)
+
+|Benh Nhan|
+start
+:Yeu cau dat lich kham;
+
+|Y ta Hanh chinh|
+:Chon Benh nhan (CCCD / SDT);
+
+if (Benh nhan da ton tai?) then (Co)
+  :Chon tu danh sach;
+else (Chua co)
+  :Tao ho so Benh nhan moi;
+endif
+
+:Chon Phong kham / Bac si / Ngay gio;
+
+|He Thong (System)|
+partition "Kiem tra trung lich (Defense in Depth)" {
+  :Buoc 1 — BE: FindConflictsForConfirmedAsync;
+  note right
+    **Tang 1 (Code-First):**
+    Kiem tra nhanh bang EF Core
+    → Tra 400 loi neu trung
+    → UX tot, phan hoi nhanh
+  end note
+  
+  if (BE kiem tra: Co trung lich?) then (Trung)
+    :Tra loi "Da co lich khac trong khung gio nay";
+    |Y ta Hanh chinh|
+    :Chon gio khac;
+    detach
+  else (Khong trung)
+  endif
+  
+  :Buoc 2 — DB: CALL sp_BookAppointment;
+  note right
+    **Tang 2 (SERIALIZABLE SP):**
+    Transaction SERIALIZABLE
+    → Chong race condition
+    → Dam bao tuyet doi
+  end note
+  
+  if (DB kiem tra: Co trung lich?) then (Trung — Race condition)
+    :ROLLBACK + SIGNAL SQLSTATE 45000;
+    |Y ta Hanh chinh|
+    :He thong bao loi, chon gio khac;
+    detach
+  else (Khong trung)
+    :INSERT lich_hen_kham (TrangThai = dang_cho);
+    :COMMIT;
+  endif
+}
+
+:Gui thong bao SMS/Email cho BN;
+:Gui thong bao Realtime cho BS;
+
+|Y ta Hanh chinh|
+:Xac nhan lich hen;
+
+|He Thong (System)|
+:Cap nhat TrangThai = da_xac_nhan;
+
+|Benh Nhan|
+:=== NGAY KHAM ===;
+:Den benh vien;
+
+|Y ta Hanh chinh|
+if (BN den dung gio?) then (Dung)
+  |He Thong (System)|
+  :Phan loai = dung_gio;
+  :Uu tien queue cao hon;
+else (Som / Muon)
+  |He Thong (System)|
+  :Phan loai = den_som / den_muon;
+  :Dieu chinh do uu tien;
+endif
+
+:Cap nhat TrangThai = da_checkin;
+:Tao LuotKhamBenh + HangDoi;
+
+|Benh Nhan|
+:Xem STT tren Bang dien tu;
+
+stop
+
+' ===== NHANH HUY (Huy lich hen) =====
+|#FFE4E1|
+
+|Y ta Hanh chinh|
+:== LUONG HUY ==;
+start
+:BN yeu cau huy (truoc ngay kham);
+
+|He Thong (System)|
+if (TrangThai hien tai?) then (dang_cho / da_xac_nhan)
+  :Cap nhat TrangThai = da_huy;
+  :Ghi ly do huy;
+  :Gui thong bao BS (Realtime);
+  :Gui thong bao BN (SMS);
+  note right
+    **Transition cho phep:**
+    dang_cho → da_huy ✔
+    da_xac_nhan → da_huy ✔
+    da_checkin → da_huy ✘ (Da vao kham)
+    da_huy → * ✘ (Terminal state)
+  end note
+  stop
+else (da_checkin / da_huy)
+  :TU CHOI: Khong the huy;
+  :Thong bao ly do;
+  stop
+endif
+
+@enduml

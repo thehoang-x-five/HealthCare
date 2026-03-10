@@ -54,7 +54,7 @@ entity "DonThuoc" as DonThuoc #D1FAE5 {
   TongTienDon : DECIMAL(12,0) <<DEFAULT 0>>
   GhiChu : NVARCHAR(500)
   --
-  TrangThai : ENUM(DaKe,ChoThanhToan,DaThanhToan,ChoPhat,DangPhat,DaPhat,DaHuy) <<DEFAULT 'DaKe'>>
+  TrangThai : ENUM(DaKe,ChoPhat,DaPhat,DaHuy) <<DEFAULT 'DaKe'>>
   --
   ThoiGianThanhToan : DATETIME <<NULLABLE>>
   ThoiGianPhat : DATETIME <<NULLABLE>>
@@ -107,7 +107,7 @@ entity "HoaDon" as HoaDon #FCE7F3 {
   MaGiaoDich : VARCHAR(50) <<NULLABLE>>
   --
   ThoiGian : DATETIME <<NOT NULL>>
-  TrangThai : ENUM(ChoThanhToan,DaThu,DaHuy) <<DEFAULT 'ChoThanhToan'>>
+  TrangThai : ENUM(ChuaThu,DaThu,DaHuy) <<DEFAULT 'ChuaThu'>>
   --
   LyDoHuy : NVARCHAR(200) <<NULLABLE>>
   ThoiGianHuy : DATETIME <<NULLABLE>>

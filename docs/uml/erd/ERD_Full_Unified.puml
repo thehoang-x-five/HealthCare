@@ -161,7 +161,7 @@ package "02_TiepNhanVaBenhNhan" as P02 #D1FAE5 {
     MaMe : VARCHAR(20) <<FK>> <<NULLABLE>>
     --
     TrangThaiTaiKhoan : ENUM(HoatDong,KhongHoatDong,DaXoa)
-    TrangThaiHomNay : ENUM(ChoKham,DangKham,DaKham) <<NULLABLE>>
+    TrangThaiHomNay : ENUM(ChoTiepNhan,ChoKham,DangKham,ChoTiepNhanDv,ChoKhamDv,DangKhamDv,ChoXuLy,ChoXuLyDv,DaHoanTat,DaHuy) <<NULLABLE>>
     NgayTrangThai : DATETIME
     --
     NgayTao : DATETIME
@@ -182,7 +182,7 @@ package "02_TiepNhanVaBenhNhan" as P02 #D1FAE5 {
     SoDienThoai : VARCHAR(15)
     --
     LoaiHen : ENUM(KhamMoi,TaiKham,DichVu)
-    TrangThai : ENUM(DangCho,DaXacNhan,DaCheckin,DaHuy,DaKham)
+    TrangThai : ENUM(DangCho,DaXacNhan,DaCheckin,DaHuy)
     CoHieuLuc : BOOLEAN
     GhiChu : NVARCHAR(500)
     --
@@ -209,7 +209,7 @@ package "02_TiepNhanVaBenhNhan" as P02 #D1FAE5 {
     TieuSuBenh : NVARCHAR(1000)
     TieuSuDiUng : NVARCHAR(500)
     --
-    TrangThai : ENUM(DaLap,DangKham,DaHoanTat,DaHuy)
+    TrangThai : ENUM(DaLap,DangThucHien,DaLapChanDoan,DaHoanTat,DaHuy)
     --
     NgayTao : DATETIME
     NgayCapNhat : DATETIME
@@ -222,7 +222,7 @@ package "02_TiepNhanVaBenhNhan" as P02 #D1FAE5 {
     --
     NgayGioLap : DATETIME
     AutoPublishEnabled : BOOLEAN
-    TrangThai : ENUM(DaLap,DangThucHien,DaHoanTat)
+    TrangThai : ENUM(DaLap,DangThucHien,DaHoanTat,DaHuy)
     GhiChu : NVARCHAR(500)
     --
     NgayTao : DATETIME
@@ -235,7 +235,7 @@ package "02_TiepNhanVaBenhNhan" as P02 #D1FAE5 {
     # MaPhieuKhamCls : VARCHAR(20) <<FK>>
     # MaDichVu : VARCHAR(20) <<FK>>
     --
-    TrangThai : ENUM(ChuaThucHien,...,DaCoKetQua)
+    TrangThai : ENUM(DaLap,DangThucHien,DaCoKetQua,ChuaCoKetQua,DaHuy)
     GhiChu : NVARCHAR(500)
     --
     ThoiGianChiDinh : DATETIME
@@ -305,7 +305,7 @@ package "03_HangDoiVaKham" as P03 #FEF3C7 {
     ThoiGianKetThuc : DATETIME <<NULLABLE>>
     ThoiGianThucTe : INT <<NULLABLE>>
     --
-    TrangThai : ENUM(DangKham,DaKham,HoanTat,TamDung)
+    TrangThai : ENUM(DangThucHien,HoanTat)
     --
     SinhHieuTruocKham : JSON
     GhiChu : NVARCHAR(500)
@@ -319,7 +319,7 @@ package "03_HangDoiVaKham" as P03 #FEF3C7 {
     --
     LoaiPhieu : ENUM(TongHopCls)
     --
-    TrangThai : ENUM(DangThucHien,ChoXuLy,DaHoanTat)
+    TrangThai : ENUM(DangThucHien,ChoXuLy,DangXuLy,DaHoanTat)
     ThoiGianTao : DATETIME
     ThoiGianXuLy : DATETIME <<NULLABLE>>
     ThoiGianHoanTat : DATETIME <<NULLABLE>>
@@ -393,7 +393,7 @@ package "04_KeDonVaThuVienPhi" as P04 #FCE7F3 {
     TongTienDon : DECIMAL(12,0)
     GhiChu : NVARCHAR(500)
     --
-    TrangThai : ENUM(DaKe,...,DaHuy)
+    TrangThai : ENUM(DaKe,ChoPhat,DaPhat,DaHuy)
     --
     ThoiGianThanhToan : DATETIME <<NULLABLE>>
     ThoiGianPhat : DATETIME <<NULLABLE>>
@@ -438,7 +438,7 @@ package "04_KeDonVaThuVienPhi" as P04 #FCE7F3 {
     MaGiaoDich : VARCHAR(50) <<NULLABLE>>
     --
     ThoiGian : DATETIME
-    TrangThai : ENUM(ChoThanhToan,DaThu,DaHuy)
+    TrangThai : ENUM(ChuaThu,DaThu,DaHuy)
     --
     LyDoHuy : NVARCHAR(200) <<NULLABLE>>
     ThoiGianHuy : DATETIME <<NULLABLE>>

@@ -1,6 +1,7 @@
 @startuml WF_05_Billing
 ' ===========================
 ' WF_05: QUY TRINH THANH TOAN & VIETQR
+' Bao gom: Happy path + Huy hoa don
 ' ===========================
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
@@ -14,42 +15,98 @@ skinparam activityDiamondBorderColor #0D9488
 skinparam noteBackgroundColor #FEFCE8
 skinparam noteBorderColor #EAB308
 
-title WF_05: Quy trinh Thanh toan (VietQR Integration)
+title WF_05: Quy trinh Thanh toan (Full Flow + Cancellation)
 
 |Y ta Hanh chinh|
 start
 :Tiep nhan BN thanh toan;
-:Chon Hoa Don (Kham + CLS + Thuoc);
+:Xem danh sach Hoa Don chua_thu;
+note right
+  **Cac loai HoaDon:**
+  1. kham_lam_sang (phi kham)
+  2. can_lam_sang (phi DV CLS)
+  3. thuoc (tien thuoc)
+  → Tat ca TrangThai = chua_thu
+end note
+
+:Chon HoaDon can thanh toan;
 
 |He Thong (System)|
-:Hien thi Tong tien & Chi tiet;
+:Hien thi Chi tiet & Tong tien;
+:Kiem tra: HoaDon.TrangThai == chua_thu?;
+
+if (TrangThai != chua_thu?) then (Da thu / Da huy)
+  :TU CHOI: Hoa don da xu ly;
+  stop
+else (chua_thu — OK)
+endif
 
 |Y ta Hanh chinh|
+if (BN yeu cau huy?) then (Huy hoa don)
+  |He Thong (System)|
+  :Cap nhat HoaDon.TrangThai = da_huy;
+  :Ghi ly do huy + MaNhanSuThu;
+  :Ghi Audit Log (MongoDB);
+  note right
+    **Transition cho phep:**
+    chua_thu → da_huy ✔
+    chua_thu → da_thu ✔
+    da_thu → * ✘ (da thu = final)
+    da_huy → * ✘ (da huy = final)
+  end note
+  stop
+else (Thanh toan)
+endif
+
 :Xac nhan hinh thuc thanh toan;
 
 if (Hinh thuc?) then (Chuyen khoan / QR)
   |He Thong (System)|
-  :Goi API VietQR (Tao ma QR dong);
-  :Hien thi QR Code;
-  :Lang nghe Webhook Ngan hang;
+  :Goi API VietQR;
+  :Tao ma QR dong (so tien + noi dung);
+  :Hien thi QR Code tren man hinh;
+  :Bat dau lang nghe Webhook;
   
   |Benh Nhan|
+  :Mo app Ngan hang;
   :Quet ma QR & Thanh toan;
   
   |He Thong (System)|
-  :TU DONG: Xac nhan Da Thu (khi co SMS/Webhook);
+  :Nhan Webhook tu Ngan hang;
+  :Xac minh so tien khop;
+  :TU DONG: Cap nhat HoaDon.TrangThai = da_thu;
+  :TU DONG: Ghi nhan PhuongThuc = chuyen_khoan;
+  
 else (Tien mat)
   |Y ta Hanh chinh|
   :Thu tien mat & Tra lai;
-  :Xac nhan Da Thu tren phan mem;
+  :Bam "Xac nhan da thu";
+  
+  |He Thong (System)|
+  :Cap nhat HoaDon.TrangThai = da_thu;
+  :Ghi nhan PhuongThuc = tien_mat;
 endif
 
 |He Thong (System)|
-:Cap nhat trang thai "Da thanh toan";
-:Ghi Log Giao dich (Audit);
-:Luu Event "ThanhToan" (MongoDB);
+:Ghi Log Giao dich (Audit → MongoDB);
+:Sync event "thanh_toan" len MongoDB;
+:Cap nhat Dashboard Doanh thu (Realtime);
 :In Hoa don & Phieu thu;
 
+' === Kiem tra da thanh toan het chua ===
+if (Con HoaDon chua_thu khac?) then (Con)
+  |Y ta Hanh chinh|
+  :Tiep tuc thu cac HoaDon con lai;
+  detach
+else (Da thu het)
+  |He Thong (System)|
+  :Cap nhat BenhNhan.TrangThaiHomNay = da_hoan_tat;
+  :Cap nhat LuotKham.TrangThai = hoan_tat;
+  :Ket thuc Luot kham;
+endif
+
+|Benh Nhan|
+:Nhan Thuoc & Ra ve;
 stop
 
 @enduml

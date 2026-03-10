@@ -22,17 +22,74 @@ box "System Application" #F3F4F6
   participant "SignalR Hub" as Hub
 end box
 
+box "External" #FEF3C7
+  participant "VietQR API" as QR
+end box
+
 box "Data Persistence (Polyglot)" #DBEAFE
   database "MySQL\n(Core Data)" as SQL
   database "MongoDB\n(History/Logs)" as NoSQL
 end box
 
 ' ==========================================
-' 2. PHASE 1: RECEPTION (TIEP DON)
+' 2. PHASE 0: APPOINTMENT BOOKING (DAT LICH HEN)
+' ==========================================
+group #F3E8FF PHASE 0: APPOINTMENT BOOKING (DAT LICH HEN)
+
+  BN -> HC: Yeu cau dat lich kham
+  HC -> FE: Chon BN + Phong + Ngay + Gio (Appointments.jsx)
+  FE -> API: POST /api/appointments
+  activate API
+
+  note right API
+    **Defense in Depth — Tang 1:**
+    FindConflictsForConfirmedAsync()
+    Query EF Core → tra 400 neu trung
+  end note
+
+  API -> SQL: SELECT * FROM lich_hen_kham\nWHERE MaLichTruc + NgayHen + GioHen overlap
+  SQL --> API: Conflict check result
+
+  alt BE Detect Conflict
+    API --> FE: 400 "Da co lich khac trong khung gio"
+    FE --> HC: Hien thi loi, chon gio khac
+  else No Conflict — Proceed to SP
+    note right API
+      **Defense in Depth — Tang 2:**
+      CALL sp_BookAppointment(...)
+      SERIALIZABLE → Chong Race Condition
+    end note
+
+    API -> SQL: CALL sp_BookAppointment(\np_MaBN, p_NgayHen, p_GioHen, p_MaLichTruc)
+
+    alt SP Detect Race Condition
+      SQL --> API: SIGNAL SQLSTATE 45000
+      API --> FE: 409 Conflict "Trung lich (race)"
+    else SP OK
+      SQL --> API: INSERT OK (dang_cho)
+      API -> Hub: Broadcast "AppointmentCreated"
+      Hub --> HC: Realtime update
+      API --> FE: 201 Created (MaLichHen)
+    end
+  end
+
+  deactivate API
+
+  ' --- XAC NHAN ---
+  HC -> FE: Click "Xac nhan"
+  FE -> API: PUT /api/appointments/{id}/status\n{ TrangThai: "da_xac_nhan" }
+  API -> SQL: UPDATE lich_hen_kham\nSET TrangThai = 'da_xac_nhan'
+  API -> Hub: Broadcast "AppointmentConfirmed"
+  API --> FE: 200 OK
+
+end
+
+' ==========================================
+' 3. PHASE 1: RECEPTION (TIEP DON)
 ' ==========================================
 group #EEF2FF PHASE 1: RECEPTION & QUEUE (TIEP DON)
 
-  BN -> HC: Cung cap CCCD / SDT
+  BN -> HC: Den benh vien + Cung cap CCCD / SDT
   HC -> FE: Nhap thong tin tim kiem (Patients.jsx)
   FE -> API: GET /api/patients/search?keyword=...
   API -> SQL: Query BenhNhan (Index: CCCD, SDT)
@@ -42,150 +99,173 @@ group #EEF2FF PHASE 1: RECEPTION & QUEUE (TIEP DON)
   alt Benh Nhan Cu (Exist)
     HC -> FE: Chon Benh Nhan
     FE -> API: GET /api/patients/{id}/history
-    API -> NoSQL: Query PatientHistory (Collection)
+    API -> NoSQL: Query medical_histories
     NoSQL --> API: History Doc
     API --> FE: History Data
   else Benh Nhan Moi (New)
     HC -> FE: Nhap thong tin moi
     FE -> API: POST /api/patients
-    API -> SQL: Insert BenhNhan
+    API -> SQL: INSERT benh_nhan
     API -> NoSQL: Init Empty History
+  end
+
+  ' --- CHECK-IN ---
+  FE -> API: GET /api/appointments?maBN=...&ngay=today
+  alt Co Lich Hen
+    HC -> FE: Bam "Check-in"
+    FE -> API: PUT /api/appointments/{id}/status\n{ TrangThai: "da_checkin" }
+    API -> SQL: UPDATE lich_hen_kham\nSET TrangThai = 'da_checkin'
+
+    note right API
+      **Phan loai den:**
+      dung_gio → Priority 20
+      den_som → Priority 25
+      den_muon → Priority 35
+    end note
+  else Walkin (Khong co lich)
+    HC -> FE: Tiep nhan Walkin
   end
 
   HC -> FE: Dang ky Kham (Chon Phong/Dich vu)
   FE -> API: POST /api/clinical
   activate API
-  
-  API -> SQL: Insert PhieuKhamLamSang
-  
+
+  API -> SQL: INSERT phieu_kham_lam_sang (da_lap)
+  API -> SQL: INSERT luot_kham_benh (dang_thuc_hien)
+
   note right API
-    **Automation:**
-    Tinh Do Uu Tien (Priority Logic):
-    1. Cap Cuu (0)
-    2. Service Return (10)
-    3. Booking (20)
-    4. Walk-in (30)
+    **Priority Logic:**
+    0 = Cap Cuu
+    10 = Service Return
+    20 = Booking (dung_gio)
+    30 = Walk-in
   end note
-  
-  API -> SQL: Insert HangDoi (Queue)
+
+  API -> SQL: INSERT hang_doi (cho_goi)
+  API -> SQL: INSERT hoa_don_thanh_toan\n(LoaiDotThu='kham_lam_sang', TrangThai='chua_thu')
+  API -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'cho_tiep_nhan'
   API -> NoSQL: Log Event "RegisterExam"
-  
+
   API -> Hub: Broadcast "QueueUpdated"
   activate Hub
   Hub --> BS: Update Queue List (Real-time)
   Hub --> FE: Update Waiting Screen (Real-time)
   deactivate Hub
-  
+
   API --> FE: Register Success (Queue Number)
   deactivate API
 end
 
 ' ==========================================
-' 3. PHASE 2: PRE-EXAM (CHUAN BI KHAM)
+' 4. PHASE 2: PRE-EXAM (CHUAN BI KHAM)
 ' ==========================================
 group #ECFDF5 PHASE 2: VITALS & PREPARATION (CHUAN BI)
-  
+
   LS -> FE: Xem danh sach cho (Staff.jsx)
   LS -> FE: Goi Benh Nhan
-  FE -> API: POST /api/queue/call
+  FE -> API: POST /api/queue/rooms/{maPhong}/next
+  API -> SQL: SELECT hang_doi ORDER BY DoUuTien ASC\nWHERE TrangThai = 'cho_goi'
+  API -> SQL: UPDATE hang_doi SET TrangThai = 'dang_goi'
   API -> Hub: Broadcast "CallPatient"
   Hub --> BN: Loa phat thanh / TV hien thi
-  
+
   BN -> LS: Vao khu vuc do sinh hieu
   LS -> FE: Nhap Mach, Huyet ap, Nhiet do
   FE -> API: PUT /api/clinical/{id}/vitals
-  API -> SQL: Update PhieuKham (Vitals)
+  API -> SQL: UPDATE phieu_kham (Sinh hieu)
+  API -> SQL: UPDATE hang_doi SET TrangThai = 'dang_thuc_hien'
+  API -> SQL: UPDATE benh_nhan SET TrangThaiHomNay = 'cho_kham'
   API -> NoSQL: Log Vitals History
-  API -> SQL: Update Queue Status ("cho_kham")
   API --> FE: Success
 end
 
 ' ==========================================
-' 4. PHASE 3: EXAMINATION (KHAM LAM SANG)
+' 5. PHASE 3: EXAMINATION (KHAM LAM SANG)
 ' ==========================================
 group #FEF3C7 PHASE 3: EXAMINATION (KHAM BENH)
-  
+
   BS -> FE: Nhan thong bao "BN San sang" (Examination.jsx)
   BS -> FE: Click "Bat dau kham"
-  FE -> API: PUT /api/clinical/{id}/start
-  API -> SQL: Update Status "dang_kham"
+  FE -> API: PUT /api/clinical/{id}/status\n{ TrangThai: "dang_thuc_hien" }
+  API -> SQL: UPDATE phieu_kham SET TrangThai = 'dang_thuc_hien'
+  API -> SQL: UPDATE benh_nhan SET TrangThaiHomNay = 'dang_kham'
   API -> Hub: Broadcast "ExamStarted"
-  
+
   BS -> FE: Kham & Xem Lich su (MongoDB)
-  FE -> API: GET /api/clinical/history (Timeline)
-  API -> NoSQL: Aggregation Query (Timeline)
+  FE -> API: GET /api/patients/{id}/history (Timeline)
+  API -> NoSQL: db.medical_histories.find({ma_benh_nhan}).sort({ngay:-1})
   API --> FE: Timeline Data
-  
+
   alt #White Case: Chi Dinh CLS (Can Xet Nghiem)
     BS -> FE: Chi dinh Xet nghiem Mau / X-Quang
     FE -> API: POST /api/cls/orders
     activate API
-    API -> SQL: Insert PhieuCls & ChiTietDv
-    
-    note right API
-      **Automation:**
-      Auto-Bill Service Fee (Pending) 
-      -> Add to Billing Basket
-    end note
-    
+    API -> SQL: INSERT phieu_kham_can_lam_sang (da_lap)
+    API -> SQL: INSERT chi_tiet_dich_vu (N rows, da_lap)
+    API -> SQL: INSERT hoa_don_thanh_toan\n(LoaiDotThu='can_lam_sang', TrangThai='chua_thu')
+    API -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'cho_tiep_nhan_dv'
+
     API -> Hub: Broadcast "NewLabRequest"
     activate Hub
     Hub --> CLS_N: Notify New Order
     Hub --> KTV: Notify New Order
     deactivate Hub
-    
+
     API --> FE: Order Created
     deactivate API
-    
+
     ' --- CLS SUB-PROCESS ---
     group #F3E8FF SUB-PHASE: CLS EXECUTION
       CLS_N -> FE: Tiep nhan & Lay mau (ClsOrders.jsx)
-      FE -> API: PUT /api/cls/orders/{id}/status (Sampling)
-      
+      FE -> API: PUT /api/cls/orders/{id}/status\n{ TrangThai: "dang_thuc_hien" }
+      API -> SQL: UPDATE phieu_cls SET TrangThai = 'dang_thuc_hien'
+      API -> SQL: UPDATE benh_nhan SET TrangThaiHomNay = 'dang_kham_dv'
+
       KTV -> FE: Thuc hien & Nhap Ket qua
       FE -> API: POST /api/cls/results
       activate API
-      
+
+      API -> SQL: INSERT ket_qua_dich_vu
+      API -> SQL: UPDATE chi_tiet_dich_vu\nSET TrangThai = 'da_co_ket_qua'
       API -> NoSQL: Save Result Doc (Dynamic Schema)
-      
+
       note right API
         **Automation:**
         Analyze Result vs Ranges
-        -> Highlight Abnormal (Red/Yellow)
+        → Highlight Abnormal (Red/Yellow)
       end note
-      
-      API -> SQL: Update Status "da_co_ket_qua"
+
+      API -> SQL: UPDATE phieu_cls SET TrangThai = 'da_hoan_tat'
+      API -> SQL: INSERT phieu_tong_hop (da_hoan_tat)
+      API -> SQL: UPDATE benh_nhan SET TrangThaiHomNay = 'cho_kham'
+      API -> SQL: INSERT hang_doi\n(Nguon='service_return', DoUuTien=10)
+
       API -> Hub: Broadcast "ResultAvailable"
       deactivate API
-      
+
       Hub --> BS: Popup "Co Ket Qua CLS"
+      API -> Hub: Broadcast "QueueUpdated"
     end
     ' -----------------------
   end
 
   BS -> FE: Chan doan & Ke Don Thuoc
-  
+
   alt #White Case: Co Don Thuoc
     BS -> FE: Nhap Don Thuoc
-    FE -> API: POST /api/prescriptions
+    FE -> API: POST /api/pharmacy/prescriptions
     activate API
-    
-    note right API
-      **Automation:**
-      Transaction (SERIALIZABLE):
-      Check Inventory -> Lock -> Deduct
-    end note
-    
-    API -> SQL: Check & Update KhoThuoc
-    
+
+    API -> SQL: INSERT don_thuoc (da_ke)
+    API -> SQL: INSERT chi_tiet_don_thuoc (N rows)
+    API -> SQL: INSERT hoa_don_thanh_toan\n(LoaiDotThu='thuoc', TrangThai='chua_thu')
+
     alt Stock Available
-      API -> SQL: Create DonThuoc Record
-      API -> SQL: Create Billing Item (Drug)
       API -> Hub: Broadcast "PrescriptionReady"
       Hub --> HC: Notify Pharmacy
-      API --> FE: Success
+      API --> FE: 201 Created
     else Out of Stock
-      API --> FE: Error "Het hang"
+      API --> FE: 409 "Het hang thuoc XXX"
     end
     deactivate API
   else Case: Khong Don Thuoc
@@ -195,56 +275,99 @@ group #FEF3C7 PHASE 3: EXAMINATION (KHAM BENH)
   BS -> FE: Ket thuc Kham
   FE -> API: POST /api/clinical/{id}/complete
   activate API
-  API -> SQL: Update Status "hoan_thanh"
-  API -> NoSQL: Save Medical Event (Doctor Notes, Diagnosis)
+  API -> SQL: UPDATE phieu_kham SET TrangThai = 'da_hoan_tat'
+  API -> SQL: UPDATE benh_nhan SET TrangThaiHomNay = 'cho_xu_ly'
+  API -> SQL: UPDATE hang_doi SET TrangThai = 'da_phuc_vu'
+  API -> NoSQL: Push medical_history event\n{event_type, sinh_hieu, chan_doan}
   API -> Hub: Broadcast "ExamFinished"
+  API -> Hub: Broadcast "QueueUpdated"
   deactivate API
 end
 
 ' ==========================================
-' 5. PHASE 4 & 5: PHARMACY & BILLING
+' 6. PHASE 4 & 5: PHARMACY & BILLING
 ' ==========================================
-parallel #E0F2FE
-  group PHASE 4: PHARMACY (DUOC)
-    HC -> FE: Nhan Don Thuoc (Prescriptions.jsx)
-    FE -> API: GET /api/pharmacy/pending
-    HC -> HC: Soan thuoc
-    HC -> FE: Xac nhan Phat
-    FE -> API: PUT /api/pharmacy/dispense
-    API -> SQL: Update DonThuoc Status "da_phat"
-    API -> NoSQL: Log Inventory Transaction
+group #E0F2FE PHASE 4: PHARMACY (DUOC)
+  HC -> FE: Nhan Don Thuoc (Prescriptions.jsx)
+  FE -> API: GET /api/pharmacy/prescriptions?status=da_ke
+  API --> FE: List DonThuoc
+  HC -> HC: Chuan bi thuoc
+  HC -> FE: Xac nhan Phat
+  FE -> API: PUT /api/pharmacy/prescriptions/{id}/dispense
+  activate API
+
+  note right API
+    **Transaction SERIALIZABLE:**
+    Check & Lock KhoThuoc
+    → Deduct → Commit
+  end note
+
+  API -> SQL: START TRANSACTION (SERIALIZABLE)
+  API -> SQL: SELECT SoLuong FROM kho_thuoc FOR UPDATE
+
+  alt Du ton kho
+    API -> SQL: UPDATE kho_thuoc SET SoLuong -= N
+    API -> SQL: INSERT lich_su_xuat_kho (xuat)
+    API -> SQL: UPDATE don_thuoc SET TrangThai = 'da_phat'
+    API -> SQL: COMMIT
+    API -> NoSQL: Push event "don_thuoc"
+    API -> Hub: Broadcast "PrescriptionDispensed"
+    API --> FE: 200 OK
+  else Het hang (Race condition)
+    API -> SQL: ROLLBACK
+    API --> FE: 409 "Het hang"
   end
-  
-  group PHASE 5: BILLING (THANH TOAN)
-    HC -> FE: Chon Hoa Don (Billing.jsx)
-    FE -> API: GET /api/billing/invoice/{id}
-    API -> SQL: Sum(Kham + CLS + Thuoc)
-    API --> FE: Total Amount
-    
-    alt QR Payment
-      HC -> FE: Chon VietQR
-      FE -> API: POST /api/billing/qr
-      API -> External: Generate QR String
-      API --> FE: QR Image
-      BN -> FE: Scan QR & Pay
-      External -> API: Webhook Success
-      
-      note right API
-        **Automation:**
-        Auto-Confirm Invoice
-        upon Webhook
-      end note
-      
-      API -> SQL: Update Invoice "da_thu"
-      API -> Hub: Broadcast "PaymentSuccess"
-    else Cash
-      HC -> FE: Xac nhan Thu tien mat
-      FE -> API: PUT /api/billing/confirm
-      API -> SQL: Update Invoice "da_thu"
-    end
-    
-    API -> NoSQL: Log Transaction (Audit)
-    API -> NoSQL: Update Revenue Analytics
+  deactivate API
+end
+
+group #FEF3C7 PHASE 5: BILLING (THANH TOAN)
+  HC -> FE: Mo trang Thanh toan (Billing)
+  FE -> API: POST /api/billing/invoices/search\n{ MaBN, TrangThai: "chua_thu" }
+  API -> SQL: SELECT * FROM hoa_don_thanh_toan\nWHERE MaBN AND TrangThai = 'chua_thu'
+  API --> FE: List invoices (kham + CLS + thuoc)
+
+  alt QR Payment
+    HC -> FE: Chon VietQR
+    FE -> API: POST /api/billing/{id}/generate-qr
+    API -> QR: POST /api/generate
+    QR --> API: QR String
+    API --> FE: QR Image
+    BN -> FE: Scan QR & Pay
+    QR -> API: Webhook Success
+
+    note right API
+      **Automation:**
+      Auto-Confirm Invoice
+      upon Webhook
+    end note
+
+    API -> SQL: UPDATE hoa_don SET TrangThai = 'da_thu',\nPhuongThuc = 'chuyen_khoan'
+    API -> Hub: Broadcast "PaymentSuccess"
+  else Cash
+    HC -> FE: Xac nhan Thu tien mat
+    FE -> API: PUT /api/billing/invoices/{id}/status\n{ TrangThai: "da_thu" }
+
+    note right API
+      **Transition validation:**
+      chua_thu → da_thu ✔
+      chua_thu → da_huy ✔
+      da_thu → * ✘ (final)
+    end note
+
+    API -> SQL: UPDATE hoa_don SET TrangThai = 'da_thu',\nPhuongThuc = 'tien_mat'
+  end
+
+  API -> NoSQL: Push event "thanh_toan" (Audit)
+  API -> NoSQL: Update Revenue Analytics
+
+  ' --- Kiem tra con HD chua thu ---
+  FE -> API: GET remaining chua_thu count
+  alt Da thanh toan het
+    API -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'da_hoan_tat'
+    API -> SQL: UPDATE luot_kham_benh\nSET TrangThai = 'hoan_tat'
+    API -> Hub: Broadcast "VisitCompleted"
+  else Con HD chua thu
+    API --> FE: remaining_count > 0
   end
 end
 

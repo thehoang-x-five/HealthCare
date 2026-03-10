@@ -1,6 +1,7 @@
 @startuml WF_03_CLS
 ' ===========================
 ' WF_03: QUY TRINH CAN LAM SANG (CLS)
+' Bao gom: Happy path + Huy phieu CLS
 ' ===========================
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
@@ -14,31 +15,90 @@ skinparam activityDiamondBorderColor #0D9488
 skinparam noteBackgroundColor #FEFCE8
 skinparam noteBorderColor #EAB308
 
-title WF_03: Quy trinh Can lam sang (Tu dong hoa Real-time)
+title WF_03: Quy trinh Can lam sang (Full Flow + Cancellation)
 
 |Y ta Can lam sang|
 start
 :Nhan thong bao "Yeu cau CLS moi" (SignalR);
-:Tiep nhan BN & Lay Mau / Huong dan;
+:Xem chi tiet: BN + Danh sach DV chi dinh;
 
 |He Thong (System)|
-:Cap nhat Trang thai "Dang thuc hien";
-:Thong bao KTV;
+:Cap nhat PhieuCLS.TrangThai = dang_thuc_hien;
+:Cap nhat BenhNhan.TrangThaiHomNay = cho_kham_dv;
 
+|Y ta Can lam sang|
+:Tiep nhan BN;
+
+if (BN bo ve / khong den?) then (BN bo ve)
+  |He Thong (System)|
+  :Cap nhat PhieuCLS.TrangThai = da_huy;
+  :Cap nhat tat ca ChiTietDV.TrangThai = da_huy;
+  :Cap nhat BenhNhan.TrangThaiHomNay = da_huy;
+  :Huy HoaDon DV CLS (chua_thu → da_huy);
+  note right
+    **Rollback:**
+    PhieuCLS → da_huy
+    ChiTietDV (tat ca) → da_huy
+    HoaDon CLS → da_huy
+  end note
+  :Thong bao Bac si chi dinh "BN da bo ve";
+  stop
+else (BN co mat)
+endif
+
+:Lay Mau / Huong dan BN;
+
+|He Thong (System)|
+:Cap nhat BenhNhan.TrangThaiHomNay = dang_kham_dv;
+
+' === XU LY TUNG DICH VU ===
 |Ky Thuat Vien|
-:Thuc hien Xet nghiem / Chup chieu;
-:Nhap Ket qua vao Form dong;
+:Nhan phieu yeu cau;
+
+repeat
+  :Thuc hien Xet nghiem / Chup chieu;
+  :Nhap Ket qua vao System;
+  
+  |He Thong (System)|
+  :Luu Ket qua vao KetQuaDichVu;
+  :Phan tich Chi so & Highlight Bat thuong;
+  note right
+    **Automation:**
+    So sanh voi nguong chuan
+    → Danh dau Do (nguy hiem)
+    → Danh dau Vang (can theo doi)
+    → Xanh (binh thuong)
+  end note
+  :Cap nhat ChiTietDV.TrangThai = da_co_ket_qua;
+  
+  |Ky Thuat Vien|
+repeat while (Con DV chua lam?) is (Con)
+-> Het;
 
 |He Thong (System)|
-:Luu Ket qua (MongoDB Dynamic Schema);
-:Phan tich Chi so & Highlight Bat thuong;
-note right
-  **Automation:**
-  So sanh voi nguong chuan
-  -> Danh dau Do/Vang
-end note
+:Tao PhieuTongHopKetQua (cho_xu_ly);
+:Cap nhat PhieuCLS.TrangThai = da_hoan_tat;
 
-:Broadcast "ResultAvailable" (SignalR)\nden Bac si chi dinh;
+' === KIEM TRA CON DV KHAC KHONG ===
+if (BN co phieu CLS khac chua xong?) then (Con)
+  :Doi tat ca phieu hoan tat;
+else (Da xong het)
+  :Tong hop ket qua;
+  :Cap nhat PhieuTongHop.TrangThai = da_hoan_tat;
+  
+  :Broadcast "ResultAvailable" (SignalR) den Bac si;
+  
+  |He Thong (System)|
+  :Cap nhat BenhNhan.TrangThaiHomNay = cho_kham;
+  :Tao HangDoi quay lai BS;
+  note right
+    **Quay lai Bac si:**
+    Nguon = service_return
+    Priority = 10 (cao hon walkin)
+    → BN duoc kham truoc
+  end note
+  :Broadcast "QueueUpdated";
+endif
 
 |Bac Si|
 :Nhan thong bao & Xem ket qua ngay;

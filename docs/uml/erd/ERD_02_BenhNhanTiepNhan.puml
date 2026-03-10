@@ -44,7 +44,7 @@ entity "BenhNhan" as BenhNhan #D1FAE5 {
   --
   ' TRANG THAI
   TrangThaiTaiKhoan : ENUM(HoatDong,KhongHoatDong,DaXoa) <<DEFAULT 'HoatDong'>>
-  TrangThaiHomNay : ENUM(ChoKham,DangKham,DaKham) <<NULLABLE>>
+  TrangThaiHomNay : ENUM(ChoTiepNhan,ChoKham,DangKham,ChoTiepNhanDv,ChoKhamDv,DangKhamDv,ChoXuLy,ChoXuLyDv,DaHoanTat,DaHuy) <<NULLABLE>>
   NgayTrangThai : DATETIME
   --
   NgayTao : DATETIME <<DEFAULT NOW>>
@@ -70,7 +70,7 @@ entity "LichHen" as LichHen #DBEAFE {
   SoDienThoai : VARCHAR(15)
   --
   LoaiHen : ENUM(KhamMoi,TaiKham,DichVu) <<NOT NULL>>
-  TrangThai : ENUM(DangCho,DaXacNhan,DaCheckin,DaHuy,DaKham) <<DEFAULT 'DangCho'>>
+  TrangThai : ENUM(DangCho,DaXacNhan,DaCheckin,DaHuy) <<DEFAULT 'DangCho'>>
   CoHieuLuc : BOOLEAN <<DEFAULT TRUE>>
   GhiChu : NVARCHAR(500)
   --
@@ -100,7 +100,7 @@ entity "PhieuKham" as PhieuKham #FEF3C7 {
   TieuSuBenh : NVARCHAR(1000)
   TieuSuDiUng : NVARCHAR(500)
   --
-  TrangThai : ENUM(DaLap,DangKham,DaHoanTat,DaHuy) <<DEFAULT 'DaLap'>>
+  TrangThai : ENUM(DaLap,DangThucHien,DaLapChanDoan,DaHoanTat,DaHuy) <<DEFAULT 'DaLap'>>
   --
   NgayTao : DATETIME <<DEFAULT NOW>>
   NgayCapNhat : DATETIME
@@ -116,7 +116,7 @@ entity "PhieuKhamCls" as PhieuKhamCls #FCE7F3 {
   --
   NgayGioLap : DATETIME <<NOT NULL>>
   AutoPublishEnabled : BOOLEAN <<DEFAULT TRUE>>
-  TrangThai : ENUM(DaLap,DangThucHien,DaHoanTat) <<DEFAULT 'DaLap'>>
+  TrangThai : ENUM(DaLap,DangThucHien,DaHoanTat,DaHuy) <<DEFAULT 'DaLap'>>
   GhiChu : NVARCHAR(500)
   --
   NgayTao : DATETIME <<DEFAULT NOW>>
@@ -132,7 +132,7 @@ entity "ChiTietDichVu" as ChiTietDV #F5F3FF {
   # MaPhieuKhamCls : VARCHAR(20) <<FK>> <<NOT NULL>>
   # MaDichVu : VARCHAR(20) <<FK>> <<NOT NULL>>
   --
-  TrangThai : ENUM(ChuaThucHien,DangThucHien,DaThucHien,ChuaCoKetQua,DaCoKetQua) <<DEFAULT 'ChuaThucHien'>>
+  TrangThai : ENUM(DaLap,DangThucHien,DaCoKetQua,ChuaCoKetQua,DaHuy) <<DEFAULT 'DaLap'>>
   GhiChu : NVARCHAR(500)
   --
   ThoiGianChiDinh : DATETIME <<DEFAULT NOW>>

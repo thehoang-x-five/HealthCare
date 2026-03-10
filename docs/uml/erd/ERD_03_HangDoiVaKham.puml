@@ -64,7 +64,7 @@ entity "LuotKham" as LuotKham #D1FAE5 {
   ThoiGianKetThuc : DATETIME <<NULLABLE>>
   ThoiGianThucTe : INT <<NULLABLE>>
   --
-  TrangThai : ENUM(DangKham,DaKham,HoanTat,TamDung) <<DEFAULT 'DangKham'>>
+  TrangThai : ENUM(DangThucHien,HoanTat) <<DEFAULT 'DangThucHien'>>
   --
   SinhHieuTruocKham : JSON
   GhiChu : NVARCHAR(500)
@@ -81,7 +81,7 @@ entity "PhieuTongHop" as PhieuTongHop #DBEAFE {
   --
   LoaiPhieu : ENUM(TongHopCls) <<DEFAULT 'TongHopCls'>>
   --
-  TrangThai : ENUM(DangThucHien,ChoXuLy,DaHoanTat) <<DEFAULT 'DangThucHien'>>
+  TrangThai : ENUM(DangThucHien,ChoXuLy,DangXuLy,DaHoanTat) <<DEFAULT 'DangThucHien'>>
   ThoiGianTao : DATETIME <<NOT NULL>>
   ThoiGianXuLy : DATETIME <<NULLABLE>>
   ThoiGianHoanTat : DATETIME <<NULLABLE>>

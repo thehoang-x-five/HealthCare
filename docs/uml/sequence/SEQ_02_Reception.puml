@@ -1,0 +1,127 @@
+@startuml SEQ_02_Reception
+title SEQ_02: SEQUENCE — TIEP DON & TAO HANG DOI
+
+skinparam backgroundColor #FFFFFF
+skinparam sequenceMessageAlign center
+skinparam maxMessageSize 250
+
+actor "Benh Nhan" as BN
+actor "Y ta Hanh chinh" as HC
+
+box "System Application" #F3F4F6
+  participant "Frontend\n(Patients.jsx)" as FE
+  participant "PatientService +\nQueueService (BE)" as SVC
+  participant "SignalR Hub" as Hub
+end box
+
+box "Data Persistence" #DBEAFE
+  database "MySQL" as SQL
+  database "MongoDB" as NoSQL
+end box
+
+' ===== TIM KIEM BN =====
+group #EEF2FF BUOC 1: Tim kiem Benh nhan
+  BN -> HC: Cung cap CCCD / SDT
+  HC -> FE: Nhap tu khoa tim kiem
+  FE -> SVC: GET /api/patients/search?keyword=...
+  SVC -> SQL: SELECT * FROM benh_nhan\nWHERE CCCD LIKE '%...%' OR SDT LIKE '%...%'
+  SQL --> SVC: Result List
+  SVC --> FE: JSON Patient List
+  
+  alt BN Moi (khong tim thay)
+    HC -> FE: Nhap thong tin BN moi
+    FE -> SVC: POST /api/patients
+    SVC -> SQL: INSERT benh_nhan
+    SVC -> NoSQL: Init empty medical_histories
+    SVC --> FE: 201 Created
+  else BN Cu (tim thay)
+    HC -> FE: Chon BN tu danh sach
+    FE -> SVC: GET /api/patients/{id}
+    SVC -> SQL: Query BenhNhan + LichSu
+    SVC --> FE: Patient Detail + History
+  end
+end
+
+' ===== CHECK-IN (neu co lich hen) =====
+group #ECFDF5 BUOC 2: Check-in Lich hen (neu co)
+  FE -> SVC: GET /api/appointments?maBenhNhan=...&ngay=today
+  SVC -> SQL: SELECT FROM lich_hen_kham\nWHERE MaBenhNhan AND NgayHen = today
+  SQL --> SVC: Appointment list
+  
+  alt Co Lich Hen
+    SVC --> FE: Appointment found
+    HC -> FE: Bam "Check-in"
+    FE -> SVC: PUT /api/appointments/{id}/status\n{ TrangThai: "da_checkin" }
+    
+    SVC -> SQL: UPDATE lich_hen_kham\nSET TrangThai = 'da_checkin'
+    
+    note right SVC
+      **Phan loai den:**
+      So sanh GioHen vs Now()
+      → dung_gio (+-15 phut)
+      → den_som (truoc 15+)
+      → den_muon (sau 15+)
+    end note
+    
+    SVC --> FE: Checkin OK + PhanLoaiDen
+  else Khong co Lich (Walkin)
+    SVC --> FE: No appointment
+    HC -> FE: Tiep nhan Walkin
+  end
+end
+
+' ===== TAO LUOT KHAM + HANG DOI =====
+group #FEF3C7 BUOC 3: Tao Luot Kham & Hang Doi
+
+  HC -> FE: Chon Phong kham + Dich vu
+  FE -> SVC: POST /api/clinical\n{ MaBN, MaPhong, MaDV, HinhThucTiepNhan }
+  activate SVC
+  
+  SVC -> SQL: INSERT phieu_kham_lam_sang\n(TrangThai = 'da_lap')
+  SVC -> SQL: INSERT luot_kham_benh\n(TrangThai = 'dang_thuc_hien')
+  
+  note right SVC
+    **Priority Logic:**
+    walkin → 30
+    appointment (dung_gio) → 20
+    appointment (den_som) → 25
+    appointment (den_muon) → 35
+    service_return → 10
+    cap_cuu → 0
+  end note
+  
+  SVC -> SQL: INSERT hang_doi\n(TrangThai = 'cho_goi', DoUuTien = N)
+  SVC -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'cho_tiep_nhan'
+  
+  SVC -> SQL: INSERT hoa_don_thanh_toan\n(LoaiDotThu = 'kham_lam_sang',\nTrangThai = 'chua_thu')
+  
+  SVC -> Hub: Broadcast "QueueUpdated"
+  Hub --> FE: Realtime queue refresh
+  
+  SVC --> FE: 201 Created\n(MaPhieuKham, STT, MaHangDoi)
+  deactivate SVC
+  
+  FE --> HC: Hien thi STT
+end
+
+' ===== BN BO VE =====
+group #FFE4E1 LUONG HUY: BN bo ve
+
+  HC -> FE: Bam "BN bo ve"
+  FE -> FE: Confirm Dialog
+  HC -> FE: Xac nhan
+  
+  FE -> SVC: PUT /api/clinical/visits/{id}/cancel
+  activate SVC
+  
+  SVC -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'da_huy'
+  SVC -> SQL: UPDATE hang_doi\nSET TrangThai = 'da_phuc_vu'
+  SVC -> SQL: UPDATE luot_kham_benh\nSET TrangThai = 'da_huy'
+  SVC -> SQL: UPDATE hoa_don_thanh_toan\nSET TrangThai = 'da_huy'\nWHERE TrangThai = 'chua_thu'
+  
+  SVC -> Hub: Broadcast "QueueUpdated"
+  SVC --> FE: 200 OK
+  deactivate SVC
+end
+
+@enduml

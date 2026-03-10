@@ -1,6 +1,7 @@
 @startuml WF_04_Pharmacy
 ' ===========================
 ' WF_04: QUY TRINH DUOC & CAP PHAT THUOC
+' Bao gom: Happy path + Huy don + Rollback kho
 ' ===========================
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
@@ -14,32 +15,69 @@ skinparam activityDiamondBorderColor #0D9488
 skinparam noteBackgroundColor #FEFCE8
 skinparam noteBorderColor #EAB308
 
-title WF_04: Quy trinh Duoc & Cap phat thuoc (Unified Actors)
+title WF_04: Quy trinh Duoc & Cap phat thuoc (Full Flow + Cancellation)
 
 |Y ta Hanh chinh|
 start
 :Nhan Don thuoc moi (SignalR);
+:Xem don: BN, Danh sach thuoc, Lieu luong;
+
+if (BS yeu cau huy don?) then (Huy don)
+  |He Thong (System)|
+  :Kiem tra DonThuoc.TrangThai;
+  
+  if (TrangThai?) then (da_ke / cho_phat)
+    :Cap nhat DonThuoc.TrangThai = da_huy;
+    :Rollback KhoThuoc.SoLuong += So luong da tru;
+    note right
+      **Defense in Depth:**
+      BE: PharmacyService.HuyDonThuocAsync()
+        → Kiem tra TrangThai cho phep huy
+        → Rollback SoLuong
+      DB: TRIGGER tr_DonThuoc_RollbackKho
+        → Tu dong hoan kho khi da_huy
+      DB: CHECK (SoLuong >= 0)
+        → Dam bao ton kho khong am
+    end note
+    :Huy HoaDon Thuoc (chua_thu → da_huy);
+    :Ghi LichSuXuatKho (loai = hoan_tra);
+    :Thong bao BS "Don da bi huy";
+    stop
+  else (da_phat)
+    :TU CHOI: Da phat thuoc, khong the huy;
+    stop
+  endif
+else (Tiep tuc phat)
+endif
+
 :Chuan bi thuoc theo Don;
+:Cap nhat DonThuoc.TrangThai = cho_phat;
 
 if (Thuoc co san trong kho?) then (Co)
   :Xac nhan Phat thuoc;
   
   |He Thong (System)|
-  start
-  :Bat dau Transaction (SERIALIZABLE);
+  partition "Transaction SERIALIZABLE" {
+    :START TRANSACTION;
     :Kiem tra So luong ton;
     if (Ton kho >= So luong ke?) then (Du)
-      :Tru Ton kho;
-      :Tao Phieu Xuat;
-      :Cap nhat trang thai "Da Phat";
-      :Commit Transaction;
-    else (Thieu)
-      :Rollback Transaction;
+      :Tru Ton kho (KhoThuoc.SoLuong -= n);
+      :Tao LichSuXuatKho (loai = xuat);
+      :Cap nhat DonThuoc.TrangThai = da_phat;
+      :COMMIT Transaction;
+    else (Thieu — Race condition)
+      :ROLLBACK Transaction;
+      note right
+        **Race condition:**
+        Giua luc chuan bi va phat,
+        nguoi khac da tru truoc
+        → SERIALIZABLE ngan chan
+      end note
       :Bao loi "Het hang";
-      detach
-      end
+      :Thong bao BS dieu chinh don;
+      stop
     endif
-  stop
+  }
   
   |Y ta Hanh chinh|
   :In Tem nhan & HDSD;
@@ -47,12 +85,20 @@ if (Thuoc co san trong kho?) then (Co)
   
 else (Khong / Het hang)
   :Thong bao Bac si Dieu chinh;
+  note right
+    BS co the:
+    1. Doi thuoc thay the
+    2. Giam lieu luong
+    3. Huy don thuoc
+  end note
   stop
 endif
 
 |He Thong (System)|
-:Luu Lich su Xuat kho;
+:Luu Lich su Xuat kho (LichSuXuatKho);
+:Sync event "don_thuoc" len MongoDB;
 :Cap nhat Analytics Doanh thu;
+:Cap nhat BenhNhan.TrangThaiHomNay = cho_xu_ly;
 
 stop
 
