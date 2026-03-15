@@ -209,9 +209,32 @@ namespace HealthCare.Services.PatientManagement
                 }
             }
 
-            // 7. Lưu DB (luôn tạo)
-            _db.LichHenKhams.Add(entity);
-            await _db.SaveChangesAsync();
+            // 7. Lưu DB (luôn tạo) - Week 1 Task 19.1: Use stored procedure for SERIALIZABLE isolation
+            try
+            {
+                await _db.Database.ExecuteSqlRawAsync(
+                    "CALL sp_BookAppointment({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11})",
+                    entity.MaLichHen,
+                    entity.CoHieuLuc,
+                    entity.NgayHen,
+                    entity.GioHen,
+                    entity.ThoiLuongPhut,
+                    entity.MaBenhNhan ?? (object)DBNull.Value,
+                    entity.LoaiHen ?? (object)DBNull.Value,
+                    entity.TenBenhNhan,
+                    entity.SoDienThoai,
+                    entity.MaLichTruc,
+                    entity.GhiChu ?? (object)DBNull.Value,
+                    entity.TrangThai
+                );
+            }
+            catch (DbUpdateException ex) when (ex.InnerException?.Message?.Contains("Trùng lịch") == true)
+            {
+                // Stored procedure detected conflict at database level (Layer 2)
+                throw new InvalidOperationException(
+                    "Không thể tạo lịch hẹn: Đã có lịch hẹn khác trong khoảng thời gian này (phát hiện bởi database).",
+                    ex);
+            }
 
             // 8. Reload nav, map DTO, realtime, dashboard ...
             var saved = await _db.LichHenKhams

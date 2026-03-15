@@ -38,6 +38,10 @@ namespace HealthCare.Datas
         public DbSet<ThongBaoHeThong> ThongBaoHeThongs { get; set; } = default!;
         public DbSet<ThongBaoNguoiNhan> ThongBaoNguoiNhans { get; set; } = default!;
         public DbSet<RefreshToken> RefreshTokens { get; set; } = default!;
+        
+        // NEW: Week 1 Infrastructure Upgrade
+        public DbSet<LichSuXuatKho> LichSuXuatKhos { get; set; } = default!;
+        public DbSet<ThongBaoMau> ThongBaoMaus { get; set; } = default!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -133,6 +137,25 @@ namespace HealthCare.Datas
                 .OnDelete(DeleteBehavior.Restrict);
 
             // ====== TiepNhanVaBenhNhan ======
+
+            // BenhNhan self-referencing relationships (Genealogy - Week 1 Task 2.5)
+            modelBuilder.Entity<BenhNhan>()
+                .HasOne(b => b.Cha)
+                .WithMany()
+                .HasForeignKey(b => b.MaCha)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<BenhNhan>()
+                .HasOne(b => b.Me)
+                .WithMany()
+                .HasForeignKey(b => b.MaMe)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // CCCD unique constraint (Week 1 Task 2.5)
+            modelBuilder.Entity<BenhNhan>()
+                .HasIndex(b => b.CCCD)
+                .IsUnique()
+                .HasFilter("[CCCD] IS NOT NULL");
 
             // BenhNhan - LichHenKham (1 - n, optional FK)
             modelBuilder.Entity<LichHenKham>()
@@ -431,6 +454,29 @@ namespace HealthCare.Datas
                 .HasOne(tb => tb.PhieuKhamLamSang)
                 .WithMany(pk => pk.ThongBaoHeThongs)
                 .HasForeignKey(tb => tb.MaPhieuKham)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ====== LichSuXuatKho (Week 1 Task 10.2) ======
+
+            // KhoThuoc - LichSuXuatKho (1 - n)
+            modelBuilder.Entity<LichSuXuatKho>()
+                .HasOne(ls => ls.KhoThuoc)
+                .WithMany()
+                .HasForeignKey(ls => ls.MaThuoc)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // DonThuoc - LichSuXuatKho (1 - n, optional)
+            modelBuilder.Entity<LichSuXuatKho>()
+                .HasOne(ls => ls.DonThuoc)
+                .WithMany()
+                .HasForeignKey(ls => ls.MaDonThuoc)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // NhanVienYTe - LichSuXuatKho (1 - n)
+            modelBuilder.Entity<LichSuXuatKho>()
+                .HasOne(ls => ls.NhanSuXuat)
+                .WithMany()
+                .HasForeignKey(ls => ls.MaNhanSuXuat)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

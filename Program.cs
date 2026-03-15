@@ -20,6 +20,7 @@ using HealthCare.Services.MedicationBilling;
 using HealthCare.Services.Report;
 using HealthCare.Services.HttpClients;
 using HealthCare.Services.Background;
+using HealthCare.Infrastructure;
 
 
 
@@ -43,6 +44,9 @@ builder.Services.AddDbContext<DataContext>(opt =>
 
 
 builder.Services.AddMemoryCache();
+
+// ===== MongoDB Context (Singleton with graceful degradation) =====
+builder.Services.AddSingleton<IMongoDbContext, MongoDbContext>();
 
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.Configure<OtpOptions>(builder.Configuration.GetSection("Otp"));
