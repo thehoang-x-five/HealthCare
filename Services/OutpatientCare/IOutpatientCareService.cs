@@ -33,6 +33,9 @@ namespace HealthCare.Services.OutpatientCare
         
         // ===== HOÀN TẤT PHIẾU KHÁM =====
         Task<ClinicalExamDto> CompleteExamAsync(string maPhieuKham, CompleteExamRequest request);
+
+        // ===== HỦY LƯỢT KHÁM =====
+        Task HuyLuotKhamAsync(string maLuotKham);
     }
 
     public interface IClsService

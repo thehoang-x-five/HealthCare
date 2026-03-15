@@ -283,14 +283,24 @@ namespace HealthCare.Services.PatientManagement
             if (entity is null)
                 return null;
 
-            // 🚫 Nếu lịch đã check-in rồi thì không cho cập nhật trạng thái nữa
-            if (string.Equals(entity.TrangThai, "da_checkin", StringComparison.OrdinalIgnoreCase))
+            var targetStatus = request.TrangThai;
+
+            // ✅ Transition validation — chỉ cho phép chuyển trạng thái hợp lệ
+            var currentStatus = entity.TrangThai?.ToLowerInvariant() ?? "";
+            var allowed = currentStatus switch
+            {
+                "dang_cho" => new[] { "da_xac_nhan", "da_huy" },
+                "da_xac_nhan" => new[] { "da_checkin", "da_huy" },
+                "da_checkin" => Array.Empty<string>(),   // terminal – đã vào khám
+                "da_huy" => Array.Empty<string>(),       // terminal – đã hủy
+                _ => Array.Empty<string>()
+            };
+
+            if (!allowed.Contains(targetStatus, StringComparer.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
-                    "Lịch hẹn đã được check-in, không thể cập nhật trạng thái nữa.");
+                    $"Không thể chuyển trạng thái lịch hẹn từ '{entity.TrangThai}' sang '{targetStatus}'.");
             }
-
-            var targetStatus = request.TrangThai;
 
             // ✳️ Chỉ check trùng khi TRẠNG THÁI INPUT là "da_xac_nhan"
             if (string.Equals(targetStatus, "da_xac_nhan", StringComparison.OrdinalIgnoreCase))

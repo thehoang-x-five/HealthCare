@@ -422,6 +422,16 @@ namespace HealthCare.Services.PatientManagement
                     "Tài khoản bệnh nhân chưa được kích hoạt hoặc đã bị khóa, không thể cập nhật trạng thái trong ngày.");
             }
 
+            // ✅ Transition validation — block terminal states
+            var current = (entity.TrangThaiHomNay ?? "").ToLowerInvariant();
+            var target = (request.TrangThaiHomNay ?? "").ToLowerInvariant();
+
+            if (current == "da_huy")
+                throw new InvalidOperationException("Bệnh nhân đã hủy, không thể cập nhật trạng thái.");
+
+            if (current == "hoan_tat" && target == "da_huy")
+                throw new InvalidOperationException("Bệnh nhân đã hoàn tất, không thể hủy.");
+
             entity.TrangThaiHomNay = request.TrangThaiHomNay;
             entity.NgayTrangThai = DateTime.Today;
 

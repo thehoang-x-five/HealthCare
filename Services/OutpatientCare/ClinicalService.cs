@@ -904,6 +904,91 @@ namespace HealthCare.Services.OutpatientCare
             await _notifications.TaoThongBaoAsync(request);
         }
 
+        // ================== 6. HỦY LƯỢT KHÁM ==================
+
+        public async Task HuyLuotKhamAsync(string maLuotKham)
+        {
+            if (string.IsNullOrWhiteSpace(maLuotKham))
+                throw new ArgumentException("MaLuotKham là bắt buộc");
+
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var luot = await _db.LuotKhamBenhs
+                    .Include(l => l.HangDoi)
+                        .ThenInclude(h => h.BenhNhan)
+                    .FirstOrDefaultAsync(l => l.MaLuotKham == maLuotKham)
+                    ?? throw new KeyNotFoundException($"Không tìm thấy lượt khám {maLuotKham}");
+
+                // Chỉ cho phép hủy lượt đang thực hiện
+                if (luot.TrangThai != "dang_thuc_hien")
+                    throw new InvalidOperationException(
+                        $"Chỉ có thể hủy lượt khám đang thực hiện. Trạng thái hiện tại: {luot.TrangThai}");
+
+                // 1. Hủy lượt khám
+                luot.TrangThai = "da_huy";
+                luot.ThoiGianKetThuc = DateTime.Now;
+
+                // 2. Giải phóng hàng đợi
+                var hangDoi = luot.HangDoi;
+                if (hangDoi is not null)
+                {
+                    hangDoi.TrangThai = "da_phuc_vu";
+                }
+
+                // 3. Cập nhật trạng thái bệnh nhân
+                var benhNhan = hangDoi?.BenhNhan;
+                if (benhNhan is not null)
+                {
+                    benhNhan.TrangThaiHomNay = "da_huy";
+                    benhNhan.NgayTrangThai = DateTime.Today;
+                }
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                // Broadcast realtime
+                if (hangDoi is not null)
+                {
+                    try
+                    {
+                        await _realtime.BroadcastQueueItemChangedAsync(new QueueItemDto
+                        {
+                            MaHangDoi = hangDoi.MaHangDoi,
+                            TrangThai = hangDoi.TrangThai
+                        });
+                    }
+                    catch { /* ignore realtime errors */ }
+                }
+
+                if (benhNhan is not null)
+                {
+                    try
+                    {
+                        await _realtime.BroadcastPatientStatusUpdatedAsync(new PatientDto
+                        {
+                            MaBenhNhan = benhNhan.MaBenhNhan,
+                            HoTen = benhNhan.HoTen,
+                            TrangThaiHomNay = benhNhan.TrangThaiHomNay
+                        });
+                    }
+                    catch { /* ignore realtime errors */ }
+                }
+
+                try
+                {
+                    var dashboard = await _dashboard.LayDashboardHomNayAsync();
+                    await _realtime.BroadcastDashboardTodayAsync(dashboard);
+                }
+                catch { /* ignore realtime errors */ }
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
        
 
     }

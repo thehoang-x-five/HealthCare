@@ -102,6 +102,7 @@ namespace HealthCare.Enums
     {
         public const string DangThucHien = "dang_thuc_hien";
         public const string HoanTat = "hoan_tat";
+        public const string DaHuy = "da_huy";
     }
 
     /// <summary>

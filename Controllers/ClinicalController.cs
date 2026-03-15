@@ -121,5 +121,25 @@ namespace HealthCare.Controllers
 
             return Ok(result);
         }
+
+        // ✅ Hủy lượt khám - Bác sĩ + Y tá
+        [HttpPut("visits/{maLuotKham}/cancel")]
+        [RequireRole("bac_si", "y_ta")]
+        public async Task<ActionResult> HuyLuotKham(string maLuotKham)
+        {
+            try
+            {
+                await _service.HuyLuotKhamAsync(maLuotKham);
+                return Ok(new { message = "Đã hủy lượt khám thành công." });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
     }
 }
