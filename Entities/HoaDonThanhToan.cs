@@ -15,10 +15,23 @@ namespace HealthCare.Entities
         public string? MaDonThuoc { get; set; }
         public string LoaiDotthu { get; set; } = default!; // kham_lam_sang,can_lam_sang,thuoc
         public decimal SoTien { get; set; }
-        public string PhuongThucThanhToan { get; set; } = "tien_mat"; // tien_mat
+        
+        // NEW: Amount to be paid (Week 1 - Task 5.1)
+        public decimal SoTienPhaiTra { get; set; }
+        
+        // NEW: Transaction ID (Week 1 - Task 5.1)
+        public string? MaGiaoDich { get; set; }
+        
+        // UPDATED: Expanded payment method enum (Week 1 - Task 5.2)
+        public string PhuongThucThanhToan { get; set; } = "tien_mat"; // tien_mat, the, chuyen_khoan, vietqr
+        
         public DateTime ThoiGian { get; set; } = DateTime.Now;
-        public string TrangThai { get; set; } = "da_thu"; // da_thu,da_huy
+        public string TrangThai { get; set; } = "da_thu"; // chua_thu, da_thu, da_huy
         public string NoiDung { get; set; } = default!;
+        
+        // NEW: Cancellation tracking (Week 1 - Task 5.1)
+        public DateTime? ThoiGianHuy { get; set; }
+        public string? MaNhanSuHuy { get; set; }
 
         public BenhNhan BenhNhan { get; set; } = default!;
         public NhanVienYTe NhanSuThu { get; set; } = default!;

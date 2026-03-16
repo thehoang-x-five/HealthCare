@@ -14,7 +14,18 @@ namespace HealthCare.Entities
         public string LoaiLuot { get; set; } = "kham_lam_sang"; // kham_lam_sang,can_lam_sang
         public DateTime ThoiGianBatDau { get; set; }
         public DateTime? ThoiGianKetThuc { get; set; }
-        public string TrangThai { get; set; } = "dang_thuc_hien"; // dang_thuc_hien,hoan_tat
+        public string TrangThai { get; set; } = "dang_thuc_hien"; // dang_thuc_hien, hoan_tat, da_huy
+        
+        // NEW: Actual visit duration (Week 1 - Task 9.1)
+        public DateTime? ThoiGianThucTe { get; set; }
+        
+        // NEW: Vital signs before examination (Week 1 - Task 9.2)
+        [Column(TypeName = "json")]
+        public string? SinhHieuTruocKham { get; set; } // {"nhiet_do": 37.5, "huyet_ap": "120/80", ...}
+        
+        // NEW: Additional notes (Week 1 - Task 9.3)
+        [Column(TypeName = "text")]
+        public string? GhiChu { get; set; }
 
         public HangDoi HangDoi { get; set; } = default!;
 
