@@ -465,6 +465,49 @@ namespace HealthCare.Datas
                     NgayCapNhat = ngayTao.AddDays(random.Next(0, 30))
                 });
             }
+
+            // ===== MOCK DATA GIA PHẢ (PHA HỆ) =====
+            // Giả lập 10 bệnh nhân đầu tiên có quan hệ họ hàng 4 đời
+            if (list.Count >= 10)
+            {
+                // Bệnh nhân số 6 là "Bản thân" (bệnh nhân chính)
+                list[0].GioiTinh = "nam"; list[1].GioiTinh = "nu"; // Ông/Bà nội
+                list[2].GioiTinh = "nam"; list[3].GioiTinh = "nu"; // Ông/Bà ngoại
+                list[4].GioiTinh = "nam"; list[5].GioiTinh = "nu"; // Cha/Mẹ
+
+                // Tuổi hợp lý
+                list[0].NgaySinh = DateTime.Today.AddYears(-80); // Ông nội
+                list[1].NgaySinh = DateTime.Today.AddYears(-75); // Bà nội
+                list[2].NgaySinh = DateTime.Today.AddYears(-78); // Ông ngoại
+                list[3].NgaySinh = DateTime.Today.AddYears(-74); // Bà ngoại
+                list[4].NgaySinh = DateTime.Today.AddYears(-55); // Cha
+                list[5].NgaySinh = DateTime.Today.AddYears(-50); // Mẹ
+                list[6].NgaySinh = DateTime.Today.AddYears(-30); // Bản thân
+                list[7].NgaySinh = DateTime.Today.AddYears(-25); // Em gái
+                list[8].NgaySinh = DateTime.Today.AddYears(-5);  // Con 1
+                list[9].NgaySinh = DateTime.Today.AddYears(-2);  // Con 2
+
+                // Thiết lập quan hệ
+                list[4].MaCha = list[0].MaBenhNhan; list[4].MaMe = list[1].MaBenhNhan; // Cha là con của Nội
+                list[5].MaCha = list[2].MaBenhNhan; list[5].MaMe = list[3].MaBenhNhan; // Mẹ là con của Ngoại
+                list[6].MaCha = list[4].MaBenhNhan; list[6].MaMe = list[5].MaBenhNhan; // Bản thân
+                list[7].MaCha = list[4].MaBenhNhan; list[7].MaMe = list[5].MaBenhNhan; // Em gái
+
+                // Con cái
+                if (list[6].GioiTinh == "nam") {
+                    list[8].MaCha = list[6].MaBenhNhan;
+                    list[9].MaCha = list[6].MaBenhNhan;
+                } else {
+                    list[8].MaMe = list[6].MaBenhNhan;
+                    list[9].MaMe = list[6].MaBenhNhan;
+                }
+
+                // Di truyền bệnh tật
+                list[0].BenhManTinh = "Tăng huyết áp";
+                list[4].BenhManTinh = "Tăng huyết áp, Đái tháo đường";
+                list[6].BenhManTinh = "Tăng huyết áp";
+            }
+
             return list;
         }
         private static List<KhoThuoc> SeedKhoThuoc()
