@@ -12,7 +12,7 @@ namespace HealthCare.Entities
         public string? ChanDoanSoBo { get; set; }
         public string? ChanDoanCuoi { get; set; }
         
-        // NEW: ICD-10 code (Week 1 - Task 4)
+        // NEW: ICD-10 code
         public string? MaICD10 { get; set; }
         
         public string? NoiDungKham { get; set; }
@@ -20,11 +20,11 @@ namespace HealthCare.Entities
         public string? LoiKhuyen { get; set; }
         public string? PhatDoDieuTri { get; set; }
         
-        // NEW: Follow-up appointment (Week 1 - Task 4)
+        // NEW: Follow-up appointment
         public DateTime? NgayTaiKham { get; set; }
         public string? GhiChuTaiKham { get; set; }
         
-        // NEW: Audit timestamps (Week 1 - Task 4)
+        // NEW: Audit timestamps
         public DateTime ThoiGianTao { get; set; } = DateTime.Now;
         public DateTime ThoiGianCapNhat { get; set; } = DateTime.Now;
 

@@ -494,3 +494,16 @@ C:\Users\THINKPAD\Documents\GitHub\HealthCare\obj\Debug\net8.0\rjsmrazor.dswa.ca
 C:\Users\THINKPAD\Documents\GitHub\HealthCare\obj\Debug\net8.0\rjsmcshtml.dswa.cache.json
 C:\Users\THINKPAD\Documents\GitHub\HealthCare\obj\Debug\net8.0\staticwebassets.build.json.cache
 C:\Users\THINKPAD\Documents\GitHub\HealthCare\obj\Debug\net8.0\swae.build.ex.cache
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\AWSSDK.Core.dll
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\AWSSDK.SecurityToken.dll
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\DnsClient.dll
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\MongoDB.Bson.dll
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\MongoDB.Driver.dll
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\MongoDB.Driver.Core.dll
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\MongoDB.Libmongocrypt.dll
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\SharpCompress.dll
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\Snappier.dll
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\ZstdSharp.dll
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\runtimes\linux\native\libmongocrypt.so
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\runtimes\osx\native\libmongocrypt.dylib
+C:\Users\THINKPAD\Documents\GitHub\HealthCare\bin\Debug\net8.0\runtimes\win\native\mongocrypt.dll

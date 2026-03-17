@@ -13,11 +13,14 @@ namespace HealthCare.Entities
         public string TrangThai { get; set; } = "da_ke"; // da_ke, cho_phat, da_phat, da_huy
         public decimal TongTienDon { get; set; }
         
-        // NEW: Payment and dispensing timestamps (Week 1 - Task 6)
+        // NEW: Payment and dispensing timestamps
         public DateTime? ThoiGianThanhToan { get; set; }
         public DateTime? ThoiGianPhat { get; set; }
         public string? MaNhanSuPhat { get; set; }
-        
+
+        public DateTime NgayTao { get; set; } = DateTime.Now;
+        public DateTime NgayCapNhat { get; set; } = DateTime.Now;
+
         public NhanVienYTe BacSiKeDon { get; set; } = default!;
         public BenhNhan BenhNhan { get; set; } = default!;
 

@@ -23,9 +23,12 @@ namespace HealthCare.Entities
         public string? MaPhieuKham { get; set; }
         public string? MaChiTietDv { get; set; }
         
-        // NEW: Call tracking (Week 1 - Task 8)
+        // NEW: Call tracking
         public int SoLanGoi { get; set; } = 0;
         public DateTime? ThoiGianGoiGanNhat { get; set; }
+
+        public DateTime NgayTao { get; set; } = DateTime.Now;
+        public DateTime NgayCapNhat { get; set; } = DateTime.Now;
 
         public BenhNhan BenhNhan { get; set; } = default!;
         public Phong Phong { get; set; } = default!;

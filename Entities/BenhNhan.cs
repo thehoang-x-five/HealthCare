@@ -16,7 +16,7 @@ namespace HealthCare.Entities
         public string? Email { get; set; }
         public string? DiaChi { get; set; }
         
-        // ===== NEW: Genealogy Tracking (Week 1 - Task 2) =====
+        // ===== NEW: Genealogy Tracking =====
         [ForeignKey(nameof(Cha))]
         [MaxLength(20)]
         public string? MaCha { get; set; }
@@ -33,7 +33,7 @@ namespace HealthCare.Entities
         public DateTime NgayTao { get; set; } = DateTime.Now;
         public DateTime NgayCapNhat { get; set; } = DateTime.Now;
         
-        // ===== Medical History (KEEP until MongoDB migration complete - Week 2) =====
+        // ===== Medical History =====
         public string? DiUng { get; set; }
         public string? ChongChiDinh { get; set; }
         public string? ThuocDangDung { get; set; }

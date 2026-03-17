@@ -1,8 +1,4 @@
--- ========================================
--- Stored Procedure: sp_BookAppointment
--- Week 1 Infrastructure Upgrade - Task 18
--- SERIALIZABLE isolation to prevent appointment booking race conditions
--- ========================================
+
 
 DELIMITER $$
 

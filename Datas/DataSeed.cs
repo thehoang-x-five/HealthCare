@@ -1,4 +1,4 @@
-﻿using HealthCare.Entities;
+using HealthCare.Entities;
 using HealthCare.RenderID; // Ensure you have this namespace or the GeneratorID class below
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -291,6 +291,8 @@ namespace HealthCare.Datas
                     MaDonThuoc = null,
                     LoaiDotthu = "kham_lam_sang",
                     SoTien = donGia,
+                    SoTienPhaiTra = donGia,
+                    PhuongThucThanhToan = "tien_mat",
                     ThoiGian = pk.NgayLap.Add(pk.GioLap).AddMinutes(5),
                     TrangThai = "da_thu",
                     NoiDung = note
@@ -322,8 +324,10 @@ namespace HealthCare.Datas
                     MaPhieuKhamCls = pkCls.MaPhieuKhamCls,
                     MaDonThuoc = null,
                     LoaiDotthu = "can_lam_sang",
-                    SoTien = 500000m, // Giả định thu trọn gói CLS
-                    ThoiGian = pkCls.NgayGioLap.AddMinutes(-5), // Thu trước khi làm
+                    SoTien = 500000m,
+                    SoTienPhaiTra = 500000m,
+                    PhuongThucThanhToan = "tien_mat",
+                    ThoiGian = pkCls.NgayGioLap.AddMinutes(-5),
                     TrangThai = "da_thu",
                     NoiDung = "Thu phí chỉ định Cận lâm sàng"
                 });
@@ -394,7 +398,11 @@ namespace HealthCare.Datas
                         : "kham_lam_sang",
                     ThoiGianBatDau = start,
                     ThoiGianKetThuc = start.AddMinutes(12),
-                    TrangThai = "da_kham"
+                    TrangThai = "hoan_tat",
+                    SinhHieuTruocKham = "{\"nhiet_do\": 37.0, \"huyet_ap\": \"120/80\", \"mach\": 78, \"nhip_tho\": 18}",
+                    GhiChu = "Khám bình thường",
+                    NgayTao = start,
+                    NgayCapNhat = start.AddMinutes(12)
                 });
             }
 
@@ -428,6 +436,10 @@ namespace HealthCare.Datas
                 string? benhManTinh = null;
                 if (age > 50) benhManTinh = (i % 3 == 0) ? "Tăng huyết áp" : (i % 3 == 1 ? "Đái tháo đường" : "Tim mạch");
 
+                // CCCD cho người >= 14 tuổi
+                string? cccd = age >= 14 ? $"{random.Next(1, 99):00}{random.Next(1, 9)}{random.Next(10000000, 99999999):00000000}" : null;
+
+                var ngayTao = DateTime.Now.AddDays(-random.Next(30, 365));
                 list.Add(new BenhNhan
                 {
                     MaBenhNhan = id,
@@ -437,6 +449,7 @@ namespace HealthCare.Datas
                     DienThoai = "09" + random.Next(10000000, 99999999),
                     Email = $"bn{i + 1:000}@example.com",
                     DiaChi = (i % 3 == 0) ? "TP. Hồ Chí Minh" : (i % 3 == 1) ? "TP. Thủ Đức" : "Bình Dương",
+                    CCCD = cccd,
                     DiUng = (i % 10 == 0) ? "Dị ứng hải sản" : null,
                     ChongChiDinh = null,
                     ThuocDangDung = benhManTinh != null ? "Thuốc định kỳ BHYT" : null,
@@ -447,7 +460,9 @@ namespace HealthCare.Datas
                     SinhHieu = "HA 120/80, M 80, N 18, T 37.0",
                     TrangThaiTaiKhoan = "hoat_dong",
                     TrangThaiHomNay = null,
-                    NgayTrangThai = DateTime.Today
+                    NgayTrangThai = DateTime.Today,
+                    NgayTao = ngayTao,
+                    NgayCapNhat = ngayTao.AddDays(random.Next(0, 30))
                 });
             }
             return list;
@@ -849,7 +864,7 @@ namespace HealthCare.Datas
                     string trangThaiHen;
                     if (lt.Ngay < DateTime.Today)
                     {
-                        trangThaiHen = "da_hoan_tat";
+                        trangThaiHen = "da_checkin"; // Quá khứ: đã check-in
                     }
                     else if (lt.Ngay == DateTime.Today)
                     {
@@ -1112,30 +1127,51 @@ namespace HealthCare.Datas
                 string ketQuaText;
 
                 // Giả lập kết quả dựa trên mã dịch vụ (lấy từ các bước trước hoặc đoán)
+                // Xác định loại kết quả
+                string loaiKetQua = ct.MaDichVu.Contains("XN") ? "xet_nghiem" : "chan_doan_hinh_anh";
+                string? ketLuanChuyen = null;
+
                 if (ct.MaDichVu.Contains("XN"))
+                {
                     ketQuaText = "Bạch cầu: 7.5 G/L (Bình thường)\nHồng cầu: 4.8 T/L\nTiểu cầu: 250 G/L\nĐường huyết: 5.5 mmol/L";
+                    ketLuanChuyen = "Các chỉ số huyết học và sinh hóa trong giới hạn bình thường";
+                }
                 else if (ct.MaDichVu.Contains("SIEU_AM"))
+                {
                     ketQuaText = "Gan: Nhu mô đều, không có khối khu trú.\nMật: Túi mật không sỏi, thành mỏng.\nThận: Hai thận kích thước bình thường, không ứ nước.";
+                    ketLuanChuyen = "Hình ảnh siêu âm bụng không ghi nhận bất thường";
+                }
                 else if (ct.MaDichVu.Contains("X_QUANG"))
+                {
                     ketQuaText = "Tim phổi bình thường. Không thấy hình ảnh tổn thương như viêm, u.";
+                    ketLuanChuyen = "X-quang ngực thẳng không ghi nhận bất thường";
+                }
                 else
+                {
                     ketQuaText = "Kết quả trong giới hạn bình thường.";
+                    ketLuanChuyen = "Trong giới hạn bình thường";
+                }
 
                 // 20% có kết quả bất thường
                 if (random.Next(100) < 20)
                 {
                     ketQuaText = "CẢNH BÁO: Chỉ số cao hơn mức cho phép. Đề nghị bác sĩ lâm sàng kiểm tra lại.";
+                    ketLuanChuyen = "Chỉ số bất thường, cần đối chiếu lâm sàng";
                 }
 
+                var thoiGianTao = DateTime.Now.AddMinutes(-random.Next(10, 100));
                 list.Add(new KetQuaDichVu
                 {
                     MaKetQua = GeneratorID.NewLuotKhamId().Replace("LK", "KQ"),
                     MaChiTietDv = ct.MaChiTietDv,
+                    LoaiKetQua = loaiKetQua,
                     TrangThaiChot = "hoan_tat",
                     NoiDungKetQua = ketQuaText,
+                    KetLuanChuyen = ketLuanChuyen,
                     MaNguoiTao = nhanSuNhapKq.MaNhanVien,
-                    ThoiGianTao = DateTime.Now.AddMinutes(-random.Next(10, 100)), // Đã có kết quả gần đây
-                    TepDinhKem = null // Có thể thêm link ảnh giả nếu cần
+                    ThoiGianTao = thoiGianTao,
+                    ThoiGianChot = thoiGianTao.AddMinutes(5),
+                    TepDinhKem = null
                 });
             }
             return list;
@@ -1186,6 +1222,9 @@ namespace HealthCare.Datas
             {
                 bool hasCls = clsMap.TryGetValue(pk.MaPhieuKham, out var cls);
 
+                var icd10Codes = new[] { "J02.9", "K30", "J06.9", "R51", "M54.5", "N39.0", "K21.0", "I10" };
+                var now = DateTime.Now;
+
                 list.Add(new PhieuChanDoanCuoi
                 {
                     MaPhieuChanDoan = GeneratorID.NewLuotKhamId().Replace("LK", "CD"),
@@ -1193,10 +1232,15 @@ namespace HealthCare.Datas
                     MaDonThuoc = null,
                     ChanDoanSoBo = "Theo dõi sức khỏe",
                     ChanDoanCuoi = "Viêm họng / Rối loạn tiêu hóa",
+                    MaICD10 = icd10Codes[completedPk.IndexOf(pk) % icd10Codes.Length],
                     NoiDungKham = hasCls ? "Đã xem kết quả CLS: Bình thường." : "Khám lâm sàng: Phổi trong, tim đều.",
                     HuongXuTri = "Điều trị ngoại trú",
                     LoiKhuyen = "Nghỉ ngơi, uống nhiều nước.",
-                    PhatDoDieuTri = "Theo phác đồ."
+                    PhatDoDieuTri = "Theo phác đồ.",
+                    NgayTaiKham = DateTime.Today.AddDays(14),
+                    GhiChuTaiKham = "Tái khám sau 2 tuần",
+                    ThoiGianTao = now,
+                    ThoiGianCapNhat = now
                 });
             }
             return list;
@@ -1265,11 +1309,14 @@ namespace HealthCare.Datas
                         MaLuotKham = GeneratorID.NewLuotKhamId(),
                         MaHangDoi = hd.MaHangDoi,
                         MaNhanSuThucHien = nsThucHien.MaNhanVien,
-                        MaYTaHoTro = nsThucHien.MaNhanVien, // KTV tự làm hoặc y tá hỗ trợ
+                        MaYTaHoTro = nsThucHien.MaNhanVien,
                         LoaiLuot = "can_lam_sang",
                         ThoiGianBatDau = start,
                         ThoiGianKetThuc = start.AddMinutes(dvInfo.ThoiGianDuKienPhut),
-                        TrangThai = "hoan_tat"
+                        TrangThai = "hoan_tat",
+                        SinhHieuTruocKham = "{\"nhiet_do\": 36.8, \"huyet_ap\": \"118/75\", \"mach\": 75, \"nhip_tho\": 17}",
+                        NgayTao = start,
+                        NgayCapNhat = start.AddMinutes(dvInfo.ThoiGianDuKienPhut)
                     });
                 }
             }
@@ -1304,9 +1351,13 @@ namespace HealthCare.Datas
                     MaDonThuoc = dtId,
                     MaBacSiKeDon = pk.MaBacSiKham,
                     MaBenhNhan = pk.MaBenhNhan,
-                    ThoiGianKeDon = pk.NgayLap.Add(pk.GioLap).AddHours(2), // Sau khi khám xong
+                    ThoiGianKeDon = pk.NgayLap.Add(pk.GioLap).AddHours(2),
                     TrangThai = "da_phat",
-                    TongTienDon = 0
+                    TongTienDon = 0,
+                    ThoiGianThanhToan = pk.NgayLap.Add(pk.GioLap).AddHours(2).AddMinutes(10),
+                    ThoiGianPhat = pk.NgayLap.Add(pk.GioLap).AddHours(2).AddMinutes(15),
+                    NgayTao = DateTime.Now,
+                    NgayCapNhat = DateTime.Now
                 };
                 donThuocList.Add(donThuoc);
                 cd.MaDonThuoc = dtId; // Link vào chẩn đoán
@@ -1327,7 +1378,13 @@ namespace HealthCare.Datas
                         MaThuoc = thuoc.MaThuoc,
                         SoLuong = sl,
                         ThanhTien = tien,
-                        ChiDinhSuDung = "Uống sau ăn"
+                        ChiDinhSuDung = "Uống sau ăn",
+                        LieuDung = "1 viên",
+                        TanSuatDung = "Sáng 1, tối 1",
+                        SoNgayDung = 7,
+                        GhiChu = "Uống kèm nhiều nước",
+                        NgayTao = DateTime.Now,
+                        NgayCapNhat = DateTime.Now
                     });
                 }
                 donThuoc.TongTienDon = tongTien;
@@ -1341,6 +1398,8 @@ namespace HealthCare.Datas
                     MaDonThuoc = dtId,
                     LoaiDotthu = "thuoc",
                     SoTien = tongTien,
+                    SoTienPhaiTra = tongTien,
+                    PhuongThucThanhToan = (new Random().Next(3) == 0) ? "chuyen_khoan" : "tien_mat",
                     ThoiGian = donThuoc.ThoiGianKeDon.AddMinutes(10),
                     TrangThai = "da_thu",
                     NoiDung = "Tiền thuốc"

@@ -1,15 +1,8 @@
--- ========================================
--- Database Triggers
--- Week 1 Infrastructure Upgrade - Tasks 15-16
--- Defense-in-Depth Layer 2: Database-level business rules
--- ========================================
 
 DELIMITER $$
 
--- ========================================
--- Task 15.1: State Transition Validation Trigger
+-- State Transition Validation Trigger
 -- Prevents invalid state transitions for appointments
--- ========================================
 
 DROP TRIGGER IF EXISTS tr_LichHen_ValidateTransition$$
 
@@ -30,10 +23,8 @@ BEGIN
     END IF;
 END$$
 
--- ========================================
--- Task 16.1: Inventory Non-Negativity Trigger
+-- Inventory Non-Negativity Trigger
 -- Prevents negative inventory in kho_thuoc
--- ========================================
 
 DROP TRIGGER IF EXISTS tr_KhoThuoc_PreventNegative$$
 
@@ -47,10 +38,8 @@ BEGIN
     END IF;
 END$$
 
--- ========================================
--- Task 16.2: Prescription Cancellation Rollback Trigger
+-- Prescription Cancellation Rollback Trigger
 -- Automatically restores inventory when prescription is cancelled
--- ========================================
 
 DROP TRIGGER IF EXISTS tr_DonThuoc_RollbackKho$$
 

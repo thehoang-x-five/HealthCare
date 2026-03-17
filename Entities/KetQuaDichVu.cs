@@ -9,23 +9,25 @@ namespace HealthCare.Entities
         public string MaKetQua { get; set; } = default!;
         public string MaChiTietDv { get; set; } = default!;
         
-        // NEW: Result type enum (Week 1 - Task 3.1)
+        // NEW: Result type enum
         public string LoaiKetQua { get; set; } = "xet_nghiem"; // xet_nghiem, chan_doan_hinh_anh
         
-        // REMOVED: NoiDungKetQua (migrated to MongoDB in Week 2)
-        // public string NoiDungKetQua { get; set; } = "";
+        // DEPRECATED: Will be removed after MongoDB migration
+        // Data will move to MongoDB medical_histories collection
+        [Obsolete("Sẽ xóa sau khi MongoDB migration hoàn tất")]
+        public string NoiDungKetQua { get; set; } = "";
         
-        // NEW: Specialist conclusion (Week 1 - Task 3.1)
+        // NEW: Specialist conclusion
         public string? KetLuanChuyen { get; set; }
         
-        // NEW: Additional notes (Week 1 - Task 3.1)
+        // NEW: Additional notes
         public string? GhiChu { get; set; }
         
-        // NEW: Attached files as JSON array (Week 1 - Task 3.2)
+        // NEW: Attached files as JSON array
         [Column(TypeName = "json")]
-        public string? TepDinhKem { get; set; } // ["file1.pdf", "file2.jpg"]
+        public string? TepDinhKem { get; set; } 
         
-        // NEW: Finalization timestamp (Week 1 - Task 3.3)
+        // NEW: Finalization timestamp
         public DateTime? ThoiGianChot { get; set; }
         
         public string TrangThaiChot { get; set; } = "hoan_tat";

@@ -78,6 +78,10 @@
               "target": "Package",
               "version": "[9.0.10, )"
             },
+            "MongoDB.Driver": {
+              "target": "Package",
+              "version": "[2.25.0, )"
+            },
             "MySqlConnector": {
               "target": "Package",
               "version": "[2.4.0, )"

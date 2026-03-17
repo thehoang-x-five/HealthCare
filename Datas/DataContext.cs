@@ -39,7 +39,7 @@ namespace HealthCare.Datas
         public DbSet<ThongBaoNguoiNhan> ThongBaoNguoiNhans { get; set; } = default!;
         public DbSet<RefreshToken> RefreshTokens { get; set; } = default!;
         
-        // NEW: Week 1 Infrastructure Upgrade
+        
         public DbSet<LichSuXuatKho> LichSuXuatKhos { get; set; } = default!;
         public DbSet<ThongBaoMau> ThongBaoMaus { get; set; } = default!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -138,7 +138,7 @@ namespace HealthCare.Datas
 
             // ====== TiepNhanVaBenhNhan ======
 
-            // BenhNhan self-referencing relationships (Genealogy - Week 1 Task 2.5)
+            // BenhNhan self-referencing relationships 
             modelBuilder.Entity<BenhNhan>()
                 .HasOne(b => b.Cha)
                 .WithMany()
@@ -151,7 +151,7 @@ namespace HealthCare.Datas
                 .HasForeignKey(b => b.MaMe)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // CCCD unique constraint (Week 1 Task 2.5)
+            // CCCD unique constraint
             modelBuilder.Entity<BenhNhan>()
                 .HasIndex(b => b.CCCD)
                 .IsUnique()
@@ -456,7 +456,7 @@ namespace HealthCare.Datas
                 .HasForeignKey(tb => tb.MaPhieuKham)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // ====== LichSuXuatKho (Week 1 Task 10.2) ======
+            // ====== LichSuXuatKho  ======
 
             // KhoThuoc - LichSuXuatKho (1 - n)
             modelBuilder.Entity<LichSuXuatKho>()

@@ -209,7 +209,7 @@ namespace HealthCare.Services.PatientManagement
                 }
             }
 
-            // 7. Lưu DB (luôn tạo) - Week 1 Task 19.1: Use stored procedure for SERIALIZABLE isolation
+            // 7. Lưu DB (luôn tạo) - Use stored procedure for SERIALIZABLE isolation
             try
             {
                 await _db.Database.ExecuteSqlRawAsync(
@@ -230,7 +230,7 @@ namespace HealthCare.Services.PatientManagement
             }
             catch (DbUpdateException ex) when (ex.InnerException?.Message?.Contains("Trùng lịch") == true)
             {
-                // Stored procedure detected conflict at database level (Layer 2)
+                // Stored procedure detected conflict at database level
                 throw new InvalidOperationException(
                     "Không thể tạo lịch hẹn: Đã có lịch hẹn khác trong khoảng thời gian này (phát hiện bởi database).",
                     ex);

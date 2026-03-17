@@ -13,11 +13,14 @@ namespace HealthCare.Entities
         public int SoLuong { get; set; }
         public decimal ThanhTien { get; set; }
         
-        // NEW: Dosage instructions (Week 1 - Task 7)
-        public string? LieuDung { get; set; } // e.g., "1 viên"
-        public string? TanSuatDung { get; set; } // e.g., "sáng 1, tối 1"
-        public int? SoNgayDung { get; set; } // e.g., 7 days
+        // NEW: Dosage instructions
+        public string? LieuDung { get; set; } 
+        public string? TanSuatDung { get; set; } 
+        public int? SoNgayDung { get; set; } 
         public string? GhiChu { get; set; }
+
+        public DateTime NgayTao { get; set; } = DateTime.Now;
+        public DateTime NgayCapNhat { get; set; } = DateTime.Now;
 
         public DonThuoc DonThuoc { get; set; } = default!;
         public KhoThuoc KhoThuoc { get; set; } = default!;

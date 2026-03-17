@@ -30,6 +30,13 @@ namespace HealthCare.Migrations
                     b.Property<string>("BenhManTinh")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("BenhNhanMaBenhNhan")
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("CCCD")
+                        .HasMaxLength(12)
+                        .HasColumnType("varchar(12)");
+
                     b.Property<string>("ChongChiDinh")
                         .HasColumnType("longtext");
 
@@ -53,7 +60,21 @@ namespace HealthCare.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("MaCha")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("MaMe")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTime>("NgayCapNhat")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime>("NgaySinh")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("NgayTao")
                         .HasColumnType("datetime(6)");
 
                     b.Property<DateTime>("NgayTrangThai")
@@ -82,6 +103,16 @@ namespace HealthCare.Migrations
                         .HasColumnType("longtext");
 
                     b.HasKey("MaBenhNhan");
+
+                    b.HasIndex("BenhNhanMaBenhNhan");
+
+                    b.HasIndex("CCCD")
+                        .IsUnique()
+                        .HasFilter("[CCCD] IS NOT NULL");
+
+                    b.HasIndex("MaCha");
+
+                    b.HasIndex("MaMe");
 
                     b.ToTable("benh_nhan");
                 });
@@ -123,6 +154,12 @@ namespace HealthCare.Migrations
                     b.Property<string>("ChiDinhSuDung")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("GhiChu")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("LieuDung")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("MaDonThuoc")
                         .IsRequired()
                         .HasColumnType("varchar(255)");
@@ -131,8 +168,20 @@ namespace HealthCare.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(255)");
 
+                    b.Property<DateTime>("NgayCapNhat")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("NgayTao")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<int>("SoLuong")
                         .HasColumnType("int");
+
+                    b.Property<int?>("SoNgayDung")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TanSuatDung")
+                        .HasColumnType("longtext");
 
                     b.Property<decimal>("ThanhTien")
                         .HasColumnType("decimal(18,2)");
@@ -189,7 +238,22 @@ namespace HealthCare.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(255)");
 
+                    b.Property<string>("MaNhanSuPhat")
+                        .HasColumnType("longtext");
+
+                    b.Property<DateTime>("NgayCapNhat")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("NgayTao")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime>("ThoiGianKeDon")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ThoiGianPhat")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ThoiGianThanhToan")
                         .HasColumnType("datetime(6)");
 
                     b.Property<decimal>("TongTienDon")
@@ -240,6 +304,12 @@ namespace HealthCare.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(255)");
 
+                    b.Property<DateTime>("NgayCapNhat")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("NgayTao")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("Nguon")
                         .HasColumnType("longtext");
 
@@ -249,7 +319,13 @@ namespace HealthCare.Migrations
                     b.Property<string>("PhanLoaiDen")
                         .HasColumnType("longtext");
 
+                    b.Property<int>("SoLanGoi")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("ThoiGianCheckin")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ThoiGianGoiGanNhat")
                         .HasColumnType("datetime(6)");
 
                     b.Property<DateTime?>("ThoiGianLichHen")
@@ -290,6 +366,12 @@ namespace HealthCare.Migrations
                     b.Property<string>("MaDonThuoc")
                         .HasColumnType("varchar(255)");
 
+                    b.Property<string>("MaGiaoDich")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("MaNhanSuHuy")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("MaNhanSuThu")
                         .IsRequired()
                         .HasColumnType("varchar(255)");
@@ -311,7 +393,13 @@ namespace HealthCare.Migrations
                     b.Property<decimal>("SoTien")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal>("SoTienPhaiTra")
+                        .HasColumnType("decimal(65,30)");
+
                     b.Property<DateTime>("ThoiGian")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ThoiGianHuy")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("TrangThai")
@@ -341,6 +429,16 @@ namespace HealthCare.Migrations
                     b.Property<string>("MaKetQua")
                         .HasColumnType("varchar(255)");
 
+                    b.Property<string>("GhiChu")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("KetLuanChuyen")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("LoaiKetQua")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<string>("MaChiTietDv")
                         .IsRequired()
                         .HasColumnType("varchar(255)");
@@ -354,7 +452,10 @@ namespace HealthCare.Migrations
                         .HasColumnType("longtext");
 
                     b.Property<string>("TepDinhKem")
-                        .HasColumnType("longtext");
+                        .HasColumnType("json");
+
+                    b.Property<DateTime?>("ThoiGianChot")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<DateTime>("ThoiGianTao")
                         .HasColumnType("datetime(6)");
@@ -494,6 +595,49 @@ namespace HealthCare.Migrations
                     b.ToTable("lich_hen_kham");
                 });
 
+            modelBuilder.Entity("HealthCare.Entities.LichSuXuatKho", b =>
+                {
+                    b.Property<string>("MaGiaoDich")
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("GhiChu")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("LoaiGiaoDich")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("MaDonThuoc")
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("MaNhanSuXuat")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("MaThuoc")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<int>("SoLuong")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SoLuongConLai")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ThoiGianXuat")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("MaGiaoDich");
+
+                    b.HasIndex("MaDonThuoc");
+
+                    b.HasIndex("MaNhanSuXuat");
+
+                    b.HasIndex("MaThuoc");
+
+                    b.ToTable("lich_su_xuat_kho");
+                });
+
             modelBuilder.Entity("HealthCare.Entities.LichTruc", b =>
                 {
                     b.Property<string>("MaLichTruc")
@@ -537,6 +681,9 @@ namespace HealthCare.Migrations
                     b.Property<string>("MaLuotKham")
                         .HasColumnType("varchar(255)");
 
+                    b.Property<string>("GhiChu")
+                        .HasColumnType("text");
+
                     b.Property<string>("LoaiLuot")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -551,10 +698,22 @@ namespace HealthCare.Migrations
                     b.Property<string>("MaYTaHoTro")
                         .HasColumnType("varchar(255)");
 
+                    b.Property<DateTime>("NgayCapNhat")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("NgayTao")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("SinhHieuTruocKham")
+                        .HasColumnType("json");
+
                     b.Property<DateTime>("ThoiGianBatDau")
                         .HasColumnType("datetime(6)");
 
                     b.Property<DateTime?>("ThoiGianKetThuc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("ThoiGianThucTe")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("TrangThai")
@@ -648,6 +807,9 @@ namespace HealthCare.Migrations
                     b.Property<string>("ChanDoanSoBo")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("GhiChuTaiKham")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("HuongXuTri")
                         .HasColumnType("longtext");
 
@@ -657,15 +819,27 @@ namespace HealthCare.Migrations
                     b.Property<string>("MaDonThuoc")
                         .HasColumnType("varchar(255)");
 
+                    b.Property<string>("MaICD10")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("MaPhieuKham")
                         .IsRequired()
                         .HasColumnType("varchar(255)");
+
+                    b.Property<DateTime?>("NgayTaiKham")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<string>("NoiDungKham")
                         .HasColumnType("longtext");
 
                     b.Property<string>("PhatDoDieuTri")
                         .HasColumnType("longtext");
+
+                    b.Property<DateTime>("ThoiGianCapNhat")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ThoiGianTao")
+                        .HasColumnType("datetime(6)");
 
                     b.HasKey("MaPhieuChanDoan");
 
@@ -953,6 +1127,36 @@ namespace HealthCare.Migrations
                     b.ToTable("thong_bao_he_thong");
                 });
 
+            modelBuilder.Entity("HealthCare.Entities.ThongBaoMau", b =>
+                {
+                    b.Property<string>("MaMau")
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<string>("BienDong")
+                        .HasColumnType("json");
+
+                    b.Property<bool>("KichHoat")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime>("NgayCapNhat")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("NgayTao")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("NoiDungMau")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("TenMau")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("MaMau");
+
+                    b.ToTable("thong_bao_mau");
+                });
+
             modelBuilder.Entity("HealthCare.Entities.ThongBaoNguoiNhan", b =>
                 {
                     b.Property<long>("MaTbNguoiNhan")
@@ -990,6 +1194,27 @@ namespace HealthCare.Migrations
                     b.HasIndex("MaThongBao");
 
                     b.ToTable("thong_bao_nguoi_nhan");
+                });
+
+            modelBuilder.Entity("HealthCare.Entities.BenhNhan", b =>
+                {
+                    b.HasOne("HealthCare.Entities.BenhNhan", null)
+                        .WithMany("ConCai")
+                        .HasForeignKey("BenhNhanMaBenhNhan");
+
+                    b.HasOne("HealthCare.Entities.BenhNhan", "Cha")
+                        .WithMany()
+                        .HasForeignKey("MaCha")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HealthCare.Entities.BenhNhan", "Me")
+                        .WithMany()
+                        .HasForeignKey("MaMe")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Cha");
+
+                    b.Navigation("Me");
                 });
 
             modelBuilder.Entity("HealthCare.Entities.ChiTietDichVu", b =>
@@ -1168,6 +1393,32 @@ namespace HealthCare.Migrations
                     b.Navigation("BenhNhan");
 
                     b.Navigation("LichTruc");
+                });
+
+            modelBuilder.Entity("HealthCare.Entities.LichSuXuatKho", b =>
+                {
+                    b.HasOne("HealthCare.Entities.DonThuoc", "DonThuoc")
+                        .WithMany()
+                        .HasForeignKey("MaDonThuoc")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HealthCare.Entities.NhanVienYTe", "NhanSuXuat")
+                        .WithMany()
+                        .HasForeignKey("MaNhanSuXuat")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HealthCare.Entities.KhoThuoc", "KhoThuoc")
+                        .WithMany()
+                        .HasForeignKey("MaThuoc")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DonThuoc");
+
+                    b.Navigation("KhoThuoc");
+
+                    b.Navigation("NhanSuXuat");
                 });
 
             modelBuilder.Entity("HealthCare.Entities.LichTruc", b =>
@@ -1395,6 +1646,8 @@ namespace HealthCare.Migrations
 
             modelBuilder.Entity("HealthCare.Entities.BenhNhan", b =>
                 {
+                    b.Navigation("ConCai");
+
                     b.Navigation("DonThuocs");
 
                     b.Navigation("HangDois");
