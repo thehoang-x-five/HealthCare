@@ -48,6 +48,9 @@ builder.Services.AddMemoryCache();
 // ===== MongoDB Context (Singleton with graceful degradation) =====
 builder.Services.AddSingleton<IMongoDbContext, MongoDbContext>();
 
+// ===== MongoDB Repositories =====
+builder.Services.AddScoped<HealthCare.Infrastructure.Repositories.IMongoHistoryRepository, HealthCare.Infrastructure.Repositories.MongoHistoryRepository>();
+
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.Configure<OtpOptions>(builder.Configuration.GetSection("Otp"));
 

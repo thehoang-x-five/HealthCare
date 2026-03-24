@@ -13,6 +13,8 @@ using HealthCare.Services.Report;
 using HealthCare.Services.PatientManagement;
 using HealthCare.Services.MedicationBilling;
 using Microsoft.Extensions.Hosting;
+using HealthCare.Infrastructure.Repositories;
+using MongoDB.Bson;
 
 namespace HealthCare.Services.OutpatientCare
 {
@@ -29,6 +31,7 @@ namespace HealthCare.Services.OutpatientCare
         private readonly IQueueService _queue;
         private readonly IHistoryService _history;
         private readonly IBillingService _billing;
+        private readonly IMongoHistoryRepository _mongoHistory;
 
         public ClsService(
             DataContext db,
@@ -38,7 +41,8 @@ namespace HealthCare.Services.OutpatientCare
             IPatientService patients,
             IQueueService queue,
             IHistoryService history,
-            IBillingService billing)
+            IBillingService billing,
+            IMongoHistoryRepository mongoHistory)
         {
             _db = db;
             _realtime = realtime;
@@ -48,6 +52,7 @@ namespace HealthCare.Services.OutpatientCare
             _queue = queue;
             _history = history;
             _billing = billing;
+            _mongoHistory = mongoHistory;
         }
         // ================== HELPER ==================
 
@@ -692,6 +697,31 @@ namespace HealthCare.Services.OutpatientCare
             chiTiet.TrangThai = "da_co_ket_qua";
 
             await _db.SaveChangesAsync();
+
+            // ===== LOG TO MONGODB: CLS Result Event =====
+            if (phieuCls?.PhieuKhamLamSang?.MaBenhNhan is not null)
+            {
+                var loaiDichVu = chiTiet.DichVuYTe?.LoaiDichVu ?? "xet_nghiem";
+                var eventType = loaiDichVu.Contains("hinh_anh") ? "chan_doan_hinh_anh" : "xet_nghiem";
+
+                var payload = new BsonDocument
+                {
+                    { "ma_ket_qua", ketQua.MaKetQua },
+                    { "ma_chi_tiet_dv", ketQua.MaChiTietDv },
+                    { "ma_phieu_kham_cls", chiTiet.MaPhieuKhamCls ?? BsonNull.Value },
+                    { "ma_dich_vu", chiTiet.MaDichVu ?? BsonNull.Value },
+                    { "ten_dich_vu", chiTiet.DichVuYTe?.TenDichVu ?? BsonNull.Value },
+                    { "trang_thai_chot", ketQua.TrangThaiChot ?? BsonNull.Value },
+                    { "noi_dung_ket_qua", ketQua.NoiDungKetQua ?? BsonNull.Value },
+                    { "tep_dinh_kem", ketQua.TepDinhKem ?? BsonNull.Value }
+                };
+
+                await _mongoHistory.LogEventAsync(
+                    phieuCls.PhieuKhamLamSang.MaBenhNhan,
+                    eventType,
+                    payload,
+                    request.MaNhanSuThucHien);
+            }
 
             await _db.Entry(ketQua).Reference(k => k.NhanVienYTes).LoadAsync();
 

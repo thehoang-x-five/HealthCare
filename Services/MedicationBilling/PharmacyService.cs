@@ -10,6 +10,8 @@ using HealthCare.Realtime;
 using Microsoft.EntityFrameworkCore;
 using HealthCare.Services.UserInteraction;
 using HealthCare.Services.Report;
+using HealthCare.Infrastructure.Repositories;
+using MongoDB.Bson;
 
 namespace HealthCare.Services.MedicationBilling
 {
@@ -17,12 +19,14 @@ namespace HealthCare.Services.MedicationBilling
      DataContext db,
      IRealtimeService realtime,
      INotificationService notifications,
-     IDashboardService dashboard) : IPharmacyService
+     IDashboardService dashboard,
+     IMongoHistoryRepository mongoHistory) : IPharmacyService
     {
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
         private readonly INotificationService _notifications = notifications;
         private readonly IDashboardService _dashboard = dashboard;
+        private readonly IMongoHistoryRepository _mongoHistory = mongoHistory;
         // ========= KHO THUỐC =========
 
         public async Task<DrugDto> TaoHoacCapNhatThuocAsync(DrugDto dto)
@@ -363,6 +367,42 @@ namespace HealthCare.Services.MedicationBilling
 
                 await _db.SaveChangesAsync();
                 await transaction.CommitAsync();
+
+                // ===== LOG TO MONGODB: Prescription Dispensed Event =====
+                if (string.Equals(newStatus, "da_phat", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(don.MaBenhNhan))
+                {
+                    var chiTiet = await _db.ChiTietDonThuocs
+                        .Include(c => c.KhoThuoc)
+                        .Where(c => c.MaDonThuoc == maDonThuoc)
+                        .ToListAsync();
+
+                    var thuocList = new BsonArray();
+                    foreach (var item in chiTiet)
+                    {
+                        thuocList.Add(new BsonDocument
+                        {
+                            { "ma_thuoc", item.MaThuoc ?? BsonNull.Value },
+                            { "ten_thuoc", item.KhoThuoc?.TenThuoc ?? BsonNull.Value },
+                            { "so_luong", item.SoLuong },
+                            { "don_gia", item.DonGia },
+                            { "lieu_dung", item.LieuDung ?? BsonNull.Value },
+                            { "tan_suat_dung", item.TanSuatDung ?? BsonNull.Value },
+                            { "so_ngay_dung", item.SoNgayDung ?? BsonNull.Value }
+                        });
+                    }
+
+                    var payload = new BsonDocument
+                    {
+                        { "ma_don_thuoc", don.MaDonThuoc },
+                        { "ma_bac_si_ke_don", don.MaBacSiKeDon ?? BsonNull.Value },
+                        { "tong_tien_don", don.TongTienDon },
+                        { "thoi_gian_ke_don", don.ThoiGianKeDon },
+                        { "danh_sach_thuoc", thuocList }
+                    };
+
+                    await _mongoHistory.LogEventAsync(don.MaBenhNhan, "don_thuoc", payload, don.MaBacSiKeDon);
+                }
 
                 // reload để có đầy đủ nav sau khi EF track
                 var updated = await QueryDonThuoc()

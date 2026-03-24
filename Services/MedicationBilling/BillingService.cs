@@ -8,15 +8,18 @@ using HealthCare.Realtime;
 using Microsoft.EntityFrameworkCore;
 using HealthCare.Services.UserInteraction;
 using HealthCare.Services.Report;
+using HealthCare.Infrastructure.Repositories;
+using MongoDB.Bson;
 
 namespace HealthCare.Services.MedicationBilling
 {
-    public class BillingService(DataContext db, IRealtimeService realtime, IDashboardService dashboard, INotificationService notifications) : IBillingService
+    public class BillingService(DataContext db, IRealtimeService realtime, IDashboardService dashboard, INotificationService notifications, IMongoHistoryRepository mongoHistory) : IBillingService
     {
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
         private readonly IDashboardService _dashboard = dashboard;
         private readonly INotificationService _notifications = notifications;
+        private readonly IMongoHistoryRepository _mongoHistory = mongoHistory;
 
         // ============================================================
         // =                  1. TẠO HÓA ĐƠN                        =
@@ -227,8 +230,29 @@ namespace HealthCare.Services.MedicationBilling
             if (entity == null)
                 return null;
 
+            var oldStatus = entity.TrangThai;
             entity.TrangThai = request.TrangThai;
             await _db.SaveChangesAsync();
+
+            // ===== LOG TO MONGODB: Payment Event =====
+            if (string.Equals(request.TrangThai, "da_thu", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(oldStatus, "da_thu", StringComparison.OrdinalIgnoreCase))
+            {
+                var payload = new BsonDocument
+                {
+                    { "ma_hoa_don", entity.MaHoaDon },
+                    { "loai_dot_thu", entity.LoaiDotthu ?? BsonNull.Value },
+                    { "so_tien", entity.SoTien },
+                    { "phuong_thuc_thanh_toan", entity.PhuongThucThanhToan ?? BsonNull.Value },
+                    { "ma_phieu_kham", entity.MaPhieuKham ?? BsonNull.Value },
+                    { "ma_phieu_kham_cls", entity.MaPhieuKhamCls ?? BsonNull.Value },
+                    { "ma_don_thuoc", entity.MaDonThuoc ?? BsonNull.Value },
+                    { "noi_dung", entity.NoiDung ?? BsonNull.Value },
+                    { "thoi_gian", entity.ThoiGian }
+                };
+
+                await _mongoHistory.LogEventAsync(entity.MaBenhNhan, "thanh_toan", payload, entity.MaNhanSuThu);
+            }
 
             var updated = await QueryHoaDon()
                 .AsNoTracking()

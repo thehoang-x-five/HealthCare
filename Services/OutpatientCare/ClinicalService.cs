@@ -12,6 +12,8 @@ using HealthCare.Services.UserInteraction;
 using HealthCare.Services.Report;
 using HealthCare.Services.PatientManagement;
 using HealthCare.Services.MedicationBilling;
+using HealthCare.Infrastructure.Repositories;
+using MongoDB.Bson;
 
 namespace HealthCare.Services.OutpatientCare
 {
@@ -23,7 +25,8 @@ namespace HealthCare.Services.OutpatientCare
     IRealtimeService realtime,
     IDashboardService dashboard,
     INotificationService notifications, IQueueService queue,
-    IBillingService billing, IPatientService patients, IPharmacyService pharmacy) : IClinicalService
+    IBillingService billing, IPatientService patients, IPharmacyService pharmacy,
+    IMongoHistoryRepository mongoHistory) : IClinicalService
     {
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
@@ -33,6 +36,7 @@ namespace HealthCare.Services.OutpatientCare
         private readonly IBillingService _billing = billing;
         private readonly IPatientService _patients = patients;
         private readonly IPharmacyService _pharmacy = pharmacy;
+        private readonly IMongoHistoryRepository _mongoHistory = mongoHistory;
         // ================== HELPER ==================
 
         private static string? BuildThongTinChiTiet(BenhNhan bn)
@@ -569,6 +573,23 @@ namespace HealthCare.Services.OutpatientCare
 
                 // Commit transaction before broadcasting
                 await transaction.CommitAsync();
+
+                // ===== LOG TO MONGODB: Medical Event History =====
+                var payload = new BsonDocument
+                {
+                    { "chan_doan_so_bo", chanDoan.ChanDoanSoBo ?? BsonNull.Value },
+                    { "chan_doan_cuoi", chanDoan.ChanDoanCuoi ?? BsonNull.Value },
+                    { "noi_dung_kham", chanDoan.NoiDungKham ?? BsonNull.Value },
+                    { "huong_xu_tri", chanDoan.HuongXuTri ?? BsonNull.Value },
+                    { "loi_khuyen", chanDoan.LoiKhuyen ?? BsonNull.Value },
+                    { "phat_do_dieu_tri", chanDoan.PhatDoDieuTri ?? BsonNull.Value },
+                    { "ma_phieu_chan_doan", chanDoan.MaPhieuChanDoan },
+                    { "ma_phieu_kham", chanDoan.MaPhieuKham },
+                    { "ma_don_thuoc", chanDoan.MaDonThuoc ?? BsonNull.Value }
+                };
+
+                var maNhanSu = luot?.MaNhanSuThucHien ?? phieu.MaBacSiKham;
+                await _mongoHistory.LogEventAsync(maBenhNhan, "kham_lam_sang", payload, maNhanSu);
 
                 // Broadcast after successful transaction
                 var dto = new FinalDiagnosisDto
