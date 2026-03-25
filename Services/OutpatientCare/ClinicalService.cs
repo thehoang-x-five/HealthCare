@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,6 +12,8 @@ using HealthCare.Services.UserInteraction;
 using HealthCare.Services.Report;
 using HealthCare.Services.PatientManagement;
 using HealthCare.Services.MedicationBilling;
+using HealthCare.Infrastructure.Repositories;
+using MongoDB.Bson;
 
 namespace HealthCare.Services.OutpatientCare
 {
@@ -23,7 +25,8 @@ namespace HealthCare.Services.OutpatientCare
     IRealtimeService realtime,
     IDashboardService dashboard,
     INotificationService notifications, IQueueService queue,
-    IBillingService billing, IPatientService patients, IPharmacyService pharmacy) : IClinicalService
+    IBillingService billing, IPatientService patients, IPharmacyService pharmacy,
+    IMongoHistoryRepository mongoHistory) : IClinicalService
     {
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
@@ -33,6 +36,7 @@ namespace HealthCare.Services.OutpatientCare
         private readonly IBillingService _billing = billing;
         private readonly IPatientService _patients = patients;
         private readonly IPharmacyService _pharmacy = pharmacy;
+        private readonly IMongoHistoryRepository _mongoHistory = mongoHistory;
         // ================== HELPER ==================
 
         private static string? BuildThongTinChiTiet(BenhNhan bn)
@@ -501,6 +505,8 @@ namespace HealthCare.Services.OutpatientCare
                     .Include(p => p.BenhNhan)
                     .Include(p => p.HangDois)
                         .ThenInclude(h => h.LuotKhamBenh)
+                    .Include(p => p.BacSiKham)
+                        .ThenInclude(bs => bs.KhoaChuyenMon)
                     .FirstOrDefaultAsync(p => p.MaPhieuKham == request.MaPhieuKham)
                     ?? throw new InvalidOperationException("Không tìm thấy phiếu khám");
 
@@ -524,6 +530,7 @@ namespace HealthCare.Services.OutpatientCare
                 chanDoan.MaDonThuoc = request.MaDonThuoc;
                 chanDoan.ChanDoanSoBo = request.ChanDoanSoBo;
                 chanDoan.ChanDoanCuoi = request.ChanDoanCuoi;
+                chanDoan.MaICD10 = request.MaICD10;
                 chanDoan.NoiDungKham = request.NoiDungKham;
                 chanDoan.HuongXuTri = request.HuongXuTri;
                 chanDoan.LoiKhuyen = request.LoiKhuyen;
@@ -569,6 +576,44 @@ namespace HealthCare.Services.OutpatientCare
 
                 // Commit transaction before broadcasting
                 await transaction.CommitAsync();
+
+                // ===== LOG TO MONGODB: Medical Event History =====
+                var payload = new BsonDocument
+                {
+                    { "ma_phieu_kham", request.MaPhieuKham },
+                    { "ma_bac_si", phieu.MaBacSiKham ?? (BsonValue)BsonNull.Value },
+                    { "ten_bac_si", phieu.BacSiKham?.HoTen ?? (BsonValue)BsonNull.Value },
+                    { "khoa", phieu.BacSiKham?.KhoaChuyenMon?.TenKhoa ?? (BsonValue)BsonNull.Value },
+                    { "trieu_chung", phieu.TrieuChung ?? (BsonValue)BsonNull.Value },
+                    { "chan_doan_so_bo", chanDoan.ChanDoanSoBo ?? (BsonValue)BsonNull.Value },
+                    { "chan_doan_cuoi", chanDoan.ChanDoanCuoi ?? (BsonValue)BsonNull.Value },
+                    { "ma_icd10", chanDoan.MaICD10 ?? (BsonValue)BsonNull.Value },
+                    { "huong_xu_tri", chanDoan.HuongXuTri ?? (BsonValue)BsonNull.Value },
+                    { "loi_khuyen", chanDoan.LoiKhuyen ?? (BsonValue)BsonNull.Value },
+                    { "noi_dung_kham", chanDoan.NoiDungKham ?? (BsonValue)BsonNull.Value },
+                    { "phat_do_dieu_tri", chanDoan.PhatDoDieuTri ?? (BsonValue)BsonNull.Value },
+                    { "ma_phieu_chan_doan", chanDoan.MaPhieuChanDoan },
+                    { "ma_don_thuoc", chanDoan.MaDonThuoc ?? (BsonValue)BsonNull.Value }
+                };
+
+                if (!string.IsNullOrWhiteSpace(luot?.SinhHieuTruocKham))
+                {
+                    try
+                    {
+                        payload.Add("sinh_hieu", BsonDocument.Parse(luot.SinhHieuTruocKham));
+                    }
+                    catch
+                    {
+                        payload.Add("sinh_hieu", BsonNull.Value);
+                    }
+                }
+                else
+                {
+                    payload.Add("sinh_hieu", BsonNull.Value);
+                }
+
+                var maNhanSu = luot?.MaNhanSuThucHien ?? phieu.MaBacSiKham;
+                await _mongoHistory.LogEventAsync(maBenhNhan, "kham_lam_sang", payload, maNhanSu);
 
                 // Broadcast after successful transaction
                 var dto = new FinalDiagnosisDto

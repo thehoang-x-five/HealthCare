@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HealthCare.DTOs
@@ -137,6 +137,8 @@ namespace HealthCare.DTOs
         public string MaChiTietDv { get; set;} = default!;
         public string TrangThaiChot { get; set;} = default!; // da_chot,...
         public string? NoiDungKetQua { get; set;}
+        public string? KetLuanChuyen { get; set;}
+        public string? GhiChu { get; set;}
         public string MaNhanSuThucHien { get; set;} = default!;
         public string? TepDinhKem { get; set;}
     }

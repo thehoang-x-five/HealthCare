@@ -1,4 +1,4 @@
-﻿namespace HealthCare.DTOs
+namespace HealthCare.DTOs
 {
     public record class ClinicalExamDto
     {
@@ -101,6 +101,7 @@
         public string? HuongXuTri { get; set;}
         public string? LoiKhuyen { get; set;}
         public string? PhatDoDieuTri { get; set;}
+        public string? MaICD10 { get; set;}
         public IReadOnlyList<PrescriptionItemCreateRequest> DonThuoc { get; set;} = Array.Empty<PrescriptionItemCreateRequest>();
 
 

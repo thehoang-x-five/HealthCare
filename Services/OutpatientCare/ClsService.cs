@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -13,6 +13,9 @@ using HealthCare.Services.Report;
 using HealthCare.Services.PatientManagement;
 using HealthCare.Services.MedicationBilling;
 using Microsoft.Extensions.Hosting;
+using HealthCare.Infrastructure.Repositories;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 
 namespace HealthCare.Services.OutpatientCare
 {
@@ -29,6 +32,7 @@ namespace HealthCare.Services.OutpatientCare
         private readonly IQueueService _queue;
         private readonly IHistoryService _history;
         private readonly IBillingService _billing;
+        private readonly IMongoHistoryRepository _mongoHistory;
 
         public ClsService(
             DataContext db,
@@ -38,7 +42,8 @@ namespace HealthCare.Services.OutpatientCare
             IPatientService patients,
             IQueueService queue,
             IHistoryService history,
-            IBillingService billing)
+            IBillingService billing,
+            IMongoHistoryRepository mongoHistory)
         {
             _db = db;
             _realtime = realtime;
@@ -48,6 +53,7 @@ namespace HealthCare.Services.OutpatientCare
             _queue = queue;
             _history = history;
             _billing = billing;
+            _mongoHistory = mongoHistory;
         }
         // ================== HELPER ==================
 
@@ -685,6 +691,8 @@ namespace HealthCare.Services.OutpatientCare
             {
                 ketQua.TrangThaiChot = request.TrangThaiChot;
                 ketQua.NoiDungKetQua = request.NoiDungKetQua ?? "";
+                ketQua.KetLuanChuyen = request.KetLuanChuyen;
+                ketQua.GhiChu = request.GhiChu;
                 ketQua.MaNguoiTao = request.MaNhanSuThucHien;
                 ketQua.TepDinhKem = request.TepDinhKem;
             }
@@ -692,6 +700,65 @@ namespace HealthCare.Services.OutpatientCare
             chiTiet.TrangThai = "da_co_ket_qua";
 
             await _db.SaveChangesAsync();
+
+            // ===== LOG TO MONGODB: CLS Result Event =====
+            if (phieuCls?.PhieuKhamLamSang?.MaBenhNhan is not null)
+            {
+                var loaiDichVu = chiTiet.DichVuYTe?.LoaiDichVu ?? "xet_nghiem";
+                var eventType = loaiDichVu.Contains("hinh_anh") ? "chan_doan_hinh_anh" : "xet_nghiem";
+
+                var clsPayload = new BsonDocument
+                {
+                    { "ma_ket_qua", ketQua.MaKetQua },
+                    { "ma_chi_tiet_dv", ketQua.MaChiTietDv },
+                    { "ma_phieu_kham_cls", chiTiet.MaPhieuKhamCls ?? (BsonValue)BsonNull.Value },
+                    { "ma_dich_vu", chiTiet.MaDichVu ?? (BsonValue)BsonNull.Value },
+                    { "ten_dich_vu", chiTiet.DichVuYTe?.TenDichVu ?? (BsonValue)BsonNull.Value },
+                    { "ma_ky_thuat_vien", ketQua.MaNguoiTao },
+                    { "ket_luan", ketQua.KetLuanChuyen ?? (BsonValue)BsonNull.Value },
+                    { "ghi_chu", ketQua.GhiChu ?? (BsonValue)BsonNull.Value },
+                    { "trang_thai_chot", ketQua.TrangThaiChot ?? (BsonValue)BsonNull.Value }
+                };
+
+                if (eventType == "xet_nghiem")
+                {
+                    // Parse NoiDungKetQua as chi_so array if possible
+                    if (!string.IsNullOrWhiteSpace(ketQua.NoiDungKetQua))
+                    {
+                        try
+                        {
+                            clsPayload.Add("chi_so", BsonSerializer.Deserialize<BsonArray>(ketQua.NoiDungKetQua));
+                        }
+                        catch
+                        {
+                            clsPayload.Add("noi_dung_ket_qua", ketQua.NoiDungKetQua);
+                        }
+                    }
+                }
+                else
+                {
+                    // chan_doan_hinh_anh
+                    clsPayload.Add("mo_ta_hinh_anh", ketQua.NoiDungKetQua ?? (BsonValue)BsonNull.Value);
+                    
+                    if (!string.IsNullOrWhiteSpace(ketQua.TepDinhKem))
+                    {
+                        try
+                        {
+                            clsPayload.Add("files", BsonSerializer.Deserialize<BsonArray>(ketQua.TepDinhKem));
+                        }
+                        catch
+                        {
+                            clsPayload.Add("tep_dinh_kem", ketQua.TepDinhKem);
+                        }
+                    }
+                }
+
+                await _mongoHistory.LogEventAsync(
+                    phieuCls.PhieuKhamLamSang.MaBenhNhan,
+                    eventType,
+                    clsPayload,
+                    request.MaNhanSuThucHien);
+            }
 
             await _db.Entry(ketQua).Reference(k => k.NhanVienYTes).LoadAsync();
 
