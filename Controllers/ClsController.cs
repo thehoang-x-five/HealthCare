@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthCare.Attributes;
@@ -170,6 +170,30 @@ namespace HealthCare.Controllers
             var result = await _service.CapNhatPhieuTongHopAsync(maPhieuTongHop, request);
             if (result is null) return NotFound();
             return Ok(result);
+        }
+
+        // ===== HỦY PHIẾU CLS =====
+
+        /// <summary>
+        /// Hủy phiếu CLS (chỉ khi da_tao).
+        /// </summary>
+        [HttpPut("orders/{maPhieuKhamCls}/cancel")]
+        [RequireRole("bac_si", "y_ta")]
+        public async Task<IActionResult> HuyPhieuCls(string maPhieuKhamCls)
+        {
+            try
+            {
+                await _service.HuyPhieuClsAsync(maPhieuKhamCls);
+                return Ok(new { message = "Đã hủy phiếu CLS thành công." });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

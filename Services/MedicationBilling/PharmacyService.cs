@@ -686,9 +686,59 @@ namespace HealthCare.Services.MedicationBilling
                 return DrugStatuses.HoatDong;
             }
         }
-       
+
+        // ============================================================
+        // =               HỦY ĐƠN THUỐC + HOÀN KHO                  =
+        // ============================================================
+
+        public async Task HuyDonThuocAsync(string maDonThuoc)
+        {
+            var don = await _db.DonThuocs
+                .Include(d => d.ChiTietDonThuocs)
+                .FirstOrDefaultAsync(d => d.MaDonThuoc == maDonThuoc)
+                ?? throw new KeyNotFoundException($"Không tìm thấy đơn thuốc {maDonThuoc}");
+
+            // Chỉ cho phép hủy khi: da_ke | cho_phat
+            var cancellableStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "da_ke", "cho_phat"
+            };
+
+            if (!cancellableStates.Contains(don.TrangThai))
+                throw new InvalidOperationException(
+                    $"Đơn thuốc đang ở trạng thái '{don.TrangThai}' — không thể hủy. Chỉ hủy được khi 'da_ke' hoặc 'cho_phat'.");
+
+            // Hoàn kho: cộng lại SoLuongTon cho từng thuốc
+            foreach (var ct in don.ChiTietDonThuocs)
+            {
+                var drug = await _db.KhoThuocs
+                    .FirstOrDefaultAsync(k => k.MaThuoc == ct.MaThuoc);
+                if (drug != null)
+                {
+                    drug.SoLuongTon += ct.SoLuong;
+                }
+            }
+
+            don.TrangThai = "da_huy";
+            don.NgayCapNhat = DateTime.Now;
+            await _db.SaveChangesAsync();
+
+            // Broadcast: đơn thuốc đã hủy
+            var updatedDon = await LayDonThuocAsync(maDonThuoc);
+            if (updatedDon != null)
+                await _realtime.BroadcastPrescriptionStatusUpdatedAsync(updatedDon);
+
+            // Broadcast: kho thuốc đã hoàn (từng thuốc bị ảnh hưởng)
+            foreach (var ct in don.ChiTietDonThuocs)
+            {
+                var drugEntity = await _db.KhoThuocs.FirstOrDefaultAsync(k => k.MaThuoc == ct.MaThuoc);
+                if (drugEntity != null)
+                    await _realtime.BroadcastDrugChangedAsync(MapDrug(drugEntity));
+            }
+        }
 
     }
+
 
     public static class DrugStatuses
     {

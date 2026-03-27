@@ -1,0 +1,397 @@
+Anh muốn em đọc kỹ toàn bộ các file phân tích + kế hoạch + chia việc hiện có của dự án HealthCare+ rồi tạo THÊM 2 file mới cho TUẦN 5, theo đúng style/cấu trúc chia việc chi tiết như các file Dev 1 / Dev 2 hiện tại.
+
+BẮT BUỘC: em phải đọc và bám sát các file sau và code hiện tại sau khi đi qua 3,5 tuần  trước khi viết:
+- PROJECT_GAP_ANALYSIS.md
+- UPGRADE_IMPLEMENTATION_PLAN.md
+- HEALTHCARE_PLUS_ANALYSIS.md
+- dev_1_backend_db.md
+- dev_2_frontend_workflow.md
+- dev_1_mongodb_sync.md
+- dev_2_genealogy_timeline.md
+- dev_1_analytics_logs.md
+- dev_2_admin_dashboard.md
+- dev_1_auth_vietqr.md
+- dev_2_vietqr_ui_tests.md
+
+MỤC TIÊU:
+- Không viết lại tuần 1-4.
+- Phải sinh thêm đúng 2 file mới cho tuần 5.
+- Hai file này phải tiếp nối logic của tuần 1-4, nhưng đồng thời PHẢI cập nhật/override những giả định cũ không còn đúng.
+- Nội dung phải là “hướng dẫn chi tiết cách làm” cho 2 dev, giống phong cách các file trước: chia nhiệm vụ rõ, nêu file cần sửa/thêm, backend/frontend nào chịu trách nhiệm, flow phối hợp, test, acceptance criteria.
+
+ĐIỀU RẤT QUAN TRỌNG:
+1) Không được hiểu theo kiểu “chỉ thêm chức năng mới”.
+   Phần tuần 5 này phải hiểu là:
+   - thêm mới + sửa cũ + refactor chỗ cũ đang dùng sai + cập nhật quan hệ + cập nhật API + cập nhật FE đang call cũ.
+   - Đặc biệt AI rất hay sót chỗ “thêm bảng mới nhưng không sửa code cũ đang dùng bảng cũ”, em TUYỆT ĐỐI không được mắc lỗi đó.
+   - Phải luôn ghi rõ: thêm cái gì thì phải sửa những entity/service/controller/repository/dto/query/hook/api client/page/test cũ nào đang bị ảnh hưởng.
+
+2) Không được giữ nguyên tư duy phân quyền cũ nếu nó mâu thuẫn với yêu cầu mới.
+   - Nếu kế hoạch tuần 1-4 trước đó đang nói “ẩn tab theo role”, thì tuần 5 phải nói rõ phần nào GIỮ, phần nào OVERRIDE.
+   - Tư duy mới là: nhiều tab vẫn HIỆN, nhưng action bên trong sẽ bị disable/read-only, và data phải bị scope theo vai trò/phòng/khoa/đối tượng.
+   - Chỉ những chỗ thực sự đặc biệt mới ẩn hẳn.
+
+3) Không được trả lời chung chung.
+   - Phải chỉ rõ việc nào Dev 1 làm, việc nào Dev 2 làm.
+   - Phải có bước phối hợp giữa 2 dev.
+   - Phải có danh sách file dự kiến bị ảnh hưởng.
+   - Phải có checklist test kỹ.
+   - Phải có tiêu chí hoàn thành.
+
+==================================================
+A. YÊU CẦU MỚI CẦN THÊM VÀO TUẦN 5
+==================================================
+
+I. TÁCH BẢNG USER RIÊNG KHỎI BẢNG NHÂN SỰ / STAFF
+- Tôi muốn tạo thêm 1 bảng user tách riêng ra khỏi bảng nhân sự hiện tại.
+- AI phải hiểu đúng đây là thay đổi lớn về mô hình dữ liệu, không phải thêm bảng cho có.
+- Phải xử lý đầy đủ:
+  1. Database:
+     - thiết kế bảng User/UserAccount riêng
+     - khóa chính / khóa ngoại / unique / index / trạng thái tài khoản
+     - quan hệ giữa User và Staff/NhanVien
+     - role/permission/claim nếu đang dính trong bảng nhân sự thì phải tách/chuẩn hóa
+  2. Backend:
+     - sửa entity/model
+     - sửa relation EF / mapping
+     - sửa auth/login/jwt/claims/current user context
+     - sửa service/controller/repository/query đang đọc trực tiếp từ staff để lấy thông tin đăng nhập/phân quyền
+     - sửa chỗ nào cũ đang assume “nhân sự = user”
+     - sửa DTO / response / request / validate / seed
+  3. Frontend:
+     - sửa các màn quản trị, profile, đăng nhập, gọi API user/staff
+     - chỗ nào đang bind sai tên / map sai object do trước đó user và staff là một thì phải sửa
+  4. Migration:
+     - phải nêu rõ phương án migrate dữ liệu từ bảng cũ sang mô hình mới
+     - không làm kiểu drop bừa
+  5. Testing:
+     - login vẫn chạy đúng
+     - role/claim đúng
+     - staff info và user info không bị lẫn
+
+- BẮT BUỘC phải nhấn mạnh trong file tuần 5 của Dev 1:
+  “Không chỉ thêm bảng User, mà phải refactor toàn bộ code BE/DB/auth/relationship đang phụ thuộc vào mô hình cũ.”
+- BẮT BUỘC phải nhấn mạnh trong file tuần 5 của Dev 2:
+  “Không chỉ đổi UI, mà phải cập nhật toàn bộ FE model / API mapping / form / hook / guard / render logic đang giả định staff=user.”
+
+II. CẬP NHẬT TƯ DUY PHÂN QUYỀN MỚI: HIỆN TAB RỘNG HƠN, KHÓA CHỨC NĂNG VÀ SCOPE DATA
+Tôi muốn thay đổi tư duy phân quyền hiện tại như sau:
+- thay vì ẩn theo phân quyền như kế hoạch cũ,
+- nhiều tab vẫn có thể hiện,
+- nhưng bên trong chỉ cho xem, hoặc disable action, hoặc chỉ cho thao tác trong phạm vi dữ liệu,
+- admin sẽ có nhiều quyền quản lý hơn ở hầu hết các trang.
+
+Em phải biến phần này thành ma trận phân quyền/hiển thị/hành động/data-scope rõ ràng trong tuần 5.
+
+Yêu cầu chi tiết theo tab:
+
+1. "Tổng quan"
+- Hiện cho tất cả.
+- Không phải ai cũng xem cùng một loại dữ liệu.
+- Y tá hành chính + admin = full hơn.
+- Các vai trò khác lấy data theo phạm vi.
+- Ví dụ: y tá + bác sĩ lâm sàng thì lịch hẹn sắp tới là của phòng/khoa đó thôi; CLS cũng tương tự.
+- Phải nói rõ dashboard widget nào global, widget nào scope theo phòng/khoa/người dùng.
+
+2. "Lịch hẹn"
+- Hiện cho y tá hành chính và admin.
+- Nhưng admin chỉ xem, không trực tiếp thao tác như y tá hành chính.
+- Các role còn lại ẩn tab này.
+
+3. "Bệnh nhân"
+- Hiện cho tất cả.
+- Nhưng phải phân ra:
+  - ai chỉ xem
+  - ai được sửa
+  - ai được tạo tiếp nhận
+  - ai xem theo phạm vi bệnh nhân thuộc khoa/phòng/dịch vụ của mình
+- Không làm kiểu tất cả cùng CRUD.
+
+4. "Khám bệnh"
+- Hiện cho tất cả.
+- Nhưng chức năng bị giới hạn theo vai trò + data scope.
+- Ví dụ role CLS thì không thấy/phải không truy cập được phần LS không thuộc nó.
+- Phải chỉ rõ page section nào readonly, section nào editable, section nào ẩn.
+
+5. "Khoa phòng"
+- Hiện cho tất cả.
+- Phân quyền tương tự: admin quản lý, còn lại đa phần chỉ xem và xem theo scope phù hợp.
+
+6. "staff"
+- Hiện cho tất cả.
+- Đây là màn xem thông tin mở cho đồng nghiệp.
+- Chỉ admin có thêm quyền thao tác.
+- Các role khác chủ yếu chỉ xem, và data vẫn nên có scope hợp lý nếu cần.
+
+7. "QL Nhân viên"
+- Chỉ hiện cho admin.
+- Đây là màn quản trị sâu hơn cho user/account/quyền/trạng thái/liên kết staff.
+- Không được dùng màn staff để thay thế màn này.
+- Đây chính là lý do phải tách bảng user ra khỏi staff.
+
+8. "Đơn thuốc"
+- Đều thấy.
+- Admin full quyền.
+- Y tá hành chính có quyền thao tác nhưng không bằng admin, ví dụ một số nghiệp vụ nhập kho/xử lý khác.
+- Các role còn lại chỉ xem hoặc thao tác trong phạm vi phù hợp.
+- Phải chỉ rõ action-level permission.
+
+9. "Lịch sử"
+- Hiện hết.
+- Nhưng giới hạn theo data scope theo vai trò và đối tượng.
+- Ví dụ bác sĩ thì thấy lịch sử của bác sĩ đó hoặc trong khoa đó.
+- Không ai cũng thấy toàn bộ.
+
+10. "Thông báo"
+- Tất cả đều thấy.
+- Riêng admin có quyền thao tác quản lý nhiều hơn.
+
+11. "Báo cáo"
+- Thấy hết.
+- Nhưng phải giới hạn dữ liệu / loại báo cáo / mức chi tiết.
+- Admin full hơn.
+
+YÊU CẦU QUAN TRỌNG:
+- Em phải nói rõ với AI rằng đây không chỉ là “UI menu”.
+- Nó là:
+  1. menu visibility
+  2. route guard
+  3. page-level permission
+  4. component-level permission
+  5. action-level permission
+  6. data scope/filtering ở backend
+  7. data scope/filtering ở frontend
+- Nếu chỉ sửa Sidebar là sai và chưa đạt.
+
+III. BỔ SUNG CÁC CHỨC NĂNG QUẢN LÝ THỰC SỰ CHO ADMIN
+Dự án cũ gần như làm trong bối cảnh chưa có admin hoàn chỉnh.
+Tuần 5 phải bổ sung/định nghĩa rõ thêm việc admin cần quản lý:
+- dịch vụ
+- khoa phòng
+- lịch trực
+- nhân sự
+- user account
+- role/quyền
+- template/thông báo nếu có
+- các master data cần thiết khác
+- các chức năng tổng quan điều phối/quản trị phù hợp
+
+Phải nói rõ:
+- cái nào đã có từ trước nhưng cần nâng cấp cho admin
+- cái nào cần thêm mới
+- admin khác staff thường ở đâu, khác về action nào
+
+IV. GIAO DIỆN THANH TOÁN GẮN NGAY TRONG LUỒNG TẠO PHIẾU
+Tôi muốn làm giao diện thanh toán ngay trong tab tạo phiếu, kiểu 2 bước liên tiếp:
+- tạo phiếu
+- sang ngay bước thanh toán / xác nhận thu tiền / chuyển bước kế tiếp
+
+Bối cảnh nghiệp vụ:
+- thu tiền diễn ra ở bước tạo phiếu
+- sau đó khi nhận chẩn đoán/xử lý thì mới đi tiếp tới phát thuốc hoặc bước sau
+- UI này nên đặt luôn tại luồng “tạo phiếu LS, CLS, thuốc”
+- nghĩa là không tách payment ra thành màn rời rạc
+
+AI phải hiểu đây là thay đổi workflow UI + API + state management, không phải chỉ thêm popup thanh toán.
+
+Phải xử lý:
+1. FE:
+   - wizard / multi-step / stepper hoặc flow tương tự
+   - trạng thái từng bước
+   - validate trước khi chuyển bước
+   - disable/rollback khi step trước chưa xong
+   - mapping đúng loại phiếu LS / CLS / thuốc
+2. BE:
+   - endpoint/create flow có cần tách hay gộp
+   - transaction / compensation nếu tạo phiếu thành công nhưng thanh toán fail
+   - trạng thái hóa đơn / phiếu / đơn thuốc / chỉ định phải nhất quán
+3. Data:
+   - phải rõ lúc nào sinh hóa đơn
+   - lúc nào đánh dấu đã thu / chưa thu
+   - lúc nào cho phát thuốc / thực hiện CLS
+4. UX:
+   - phải rõ file nào Dev 2 sửa
+   - phải rõ endpoint / contract Dev 1 phải chuẩn bị
+
+V. CHUẨN HÓA FE/BE CONTRACT, API, MAP TÊN, INPUT FORMAT
+Do dự án đã sửa nhiều lần nên có nguy cơ:
+- map sai tên field
+- call sai endpoint
+- input format sai
+- enum/status lệch FE-BE
+- response shape không đồng nhất
+- tên biến hiển thị FE không khớp BE
+
+Tuần 5 phải có hẳn một phần yêu cầu:
+- rà soát và chuẩn hóa contract giữa FE-BE
+- thống nhất naming convention
+- thống nhất DTO request/response
+- thống nhất enum/status
+- thống nhất error format
+- thống nhất pagination/filter/sort params nếu có
+- thống nhất date/time format
+- thống nhất id/code field nào dùng chỗ nào
+- rà lại tất cả các màn dễ lỗi map tên
+
+BẮT BUỘC:
+- Dev 1 phải có task chuẩn hóa API/DTO/response/error/seed contract.
+- Dev 2 phải có task chuẩn hóa api client/hook/mapper/render/form state theo contract mới.
+- Phải có checklist test “FE render đúng dữ liệu từ BE sau khi rename/refactor”.
+
+VI. ĐỌC KỸ ERD ĐỂ TẠO NGUỒN DATA NỀN CHUẨN CHO FLOW KHÁM NGOẠI TRÚ thay toàn bộ dataseed.cs cũ vì db đã khác nhiều 
+Tôi muốn AI hiểu rất rõ rằng:
+- dự án phải có một bộ data nền chuẩn để chạy được flow khám ngoại trú thực tế
+- tránh tình trạng đặt lịch mà không có nhân sự phù hợp
+- hoặc không có lịch trực
+- hoặc không có khoa/phòng phù hợp
+- hoặc không có dịch vụ / thuốc / tồn kho / user / role / mapping tương ứng
+
+Tuần 5 phải yêu cầu xây một nguồn data nền/seed data đồng bộ, dựa trên ERD và flow nghiệp vụ.
+Phải gồm tối thiểu các nhóm data:
+- khoa
+- phòng
+- staff / nhân sự
+- user account
+- role/quyền
+- lịch trực
+- dịch vụ
+- thuốc
+- tồn kho
+- mối liên kết staff-phòng-khoa-ca trực
+- bệnh nhân mẫu
+- loại phiếu/chỉ định liên quan
+- dữ liệu đủ để chạy:
+  - đặt lịch
+  - check-in
+  - khám LS
+  - chỉ định CLS
+  - thanh toán
+  - trả kết quả
+  - kê/phát thuốc
+  - xem lịch sử
+  - xem báo cáo/dashboards
+
+Phải yêu cầu AI nói rõ:
+- seed logic nào Dev 1 làm
+- dữ liệu FE mock/demo/test nào Dev 2 cần ăn theo
+- phải kiểm thử rằng seed xong là chạy được luồng end-to-end, không bị thiếu điều kiện.
+
+VII. TEST KỸ 100%
+Tôi muốn AI bổ sung yêu cầu test rất kỹ:
+- không chỉ unit test
+- mà cả integration test
+- permission matrix test
+- API contract test
+- migration test
+- seed test
+- UI disabled/read-only test
+- flow test end-to-end
+- test case sai quyền
+- test case data scope
+- test case đổi từ mô hình cũ sang mô hình mới
+- test case tạo phiếu + thanh toán + bước tiếp theo
+- test case mapping field sai / enum sai / null data / thiếu data
+- test case admin vs non-admin
+- test case staff vs user account tách riêng
+
+Phải có phần:
+- “các kịch bản test bắt buộc”
+- “đầu ra kỳ vọng”
+- “dấu hiệu chưa đạt”
+- “điểm dễ vỡ/rủi ro cao”
+
+==================================================
+B. YÊU CẦU VỀ CÁCH VIẾT 2 FILE TUẦN 5
+==================================================
+
+Em hãy sinh ra đúng 2 file markdown mới, ví dụ có thể đặt tên:
+- dev_1_week5_user_rbac_seed.md
+- dev_2_week5_ui_permissions_payment.md
+
+Hoặc tên tương tự, nhưng phải thể hiện đúng trọng tâm.
+Mỗi file phải có cấu trúc chi tiết như style các file tuần trước.
+
+Mỗi file PHẢI CÓ:
+1. Tiêu đề theo format:
+   - Hướng dẫn hoàn thành Tuần 5 - ...
+2. Dòng tham chiếu:
+   - File: UPGRADE_IMPLEMENTATION_PLAN.md (...) + ghi rõ đang mở rộng/override tuần trước
+3. Mục tiêu tuần 5 của dev đó
+4. Danh sách nhiệm vụ lớn
+5. Trong mỗi nhiệm vụ lớn phải có:
+   - mục tiêu
+   - việc cần làm chi tiết từng bước
+   - file dự kiến cần sửa/thêm
+   - API/DB/FE contract liên quan
+   - dependency với dev còn lại
+   - cách test
+6. Phần handoff/integration giữa Dev 1 và Dev 2
+7. Phần checklist nghiệm thu
+8. Phần rủi ro dễ sót
+9. Phần “override các giả định cũ” để tránh mâu thuẫn với kế hoạch tuần 1-4
+
+==================================================
+C. YÊU CẦU PHÂN CHIA CHO 2 DEV
+==================================================
+
+Dev 1 phải nghiêng về:
+- DB design / migration / seed
+- tách bảng User khỏi Staff
+- auth / role / permission / data scope ở backend
+- sửa entity / relation / service / controller / DTO / query
+- chuẩn hóa API contract
+- endpoint cho admin management
+- logic workflow tạo phiếu + thanh toán + trạng thái
+- test backend / integration / migration / permission
+- đảm bảo code cũ gọi đúng mô hình mới
+
+Dev 2 phải nghiêng về:
+- sidebar + route guard + page permission + disable state
+- UI cho Staff vs QL Nhân viên
+- wizard / stepper tạo phiếu + thanh toán
+- API client / hook / mapper / render / forms
+- admin screens / read-only vs editable sections
+- UI theo data scope
+- contract alignment với BE
+- FE tests / E2E / manual UAT
+- đảm bảo các màn cũ không bị vỡ do rename/refactor
+
+NHƯNG:
+- không được chia kiểu quá tách rời.
+- Phải có các điểm giao nhau bắt buộc:
+  - contract FE-BE
+  - permission matrix
+  - seed data chạy flow
+  - workflow tạo phiếu + thanh toán
+  - admin user/staff management
+
+==================================================
+D. ĐẦU RA MONG MUỐN TỪ EM
+==================================================
+
+Sau khi đọc xong các file và các yêu cầu mới ở trên, em hãy xuất ra:
+1. Hai file markdown hoàn chỉnh cho tuần 5 (nội dung đầy đủ, không phải dàn ý ngắn).
+2. Mỗi file phải đủ chi tiết để đưa thẳng cho từng dev làm.
+3. Nội dung phải thực tế, không hô khẩu hiệu, không nói chung chung.
+4. Phải chỉ rõ những chỗ nào cần SỬA CŨ chứ không chỉ THÊM MỚI.
+5. Phải ghi rõ nếu tuần 5 đang OVERRIDE một phần định hướng cũ của tuần 1-4.
+6. Không được lặp lại những gì đã hoàn thành từ tuần 1-4, chỉ nhắc lại khi cần dependency.
+7. Không viết phân tích lan man trước quá dài. Ưu tiên ra ngay 2 file markdown hoàn chỉnh.
+8. Văn phong tiếng Việt, rõ việc, đúng technical.
+
+BỔ SUNG QUAN TRỌNG:
+- Ở đầu câu trả lời, trước khi xuất 2 file, em hãy viết ngắn gọn 1 đoạn “Delta tuần 5”:
+  - các thay đổi mới so với plan cũ
+  - các assumption cũ bị thay thế
+  - vì sao cần tuần 5
+- Sau đó xuất đúng 2 file markdown hoàn chỉnh.
+
+Lưu ý cuối:
+- Đừng bỏ sót phần tách User khỏi Staff.
+- Đừng bỏ sót việc phải sửa code cũ đang gọi mô hình cũ.
+- Đừng bỏ sót data scope backend.
+- Đừng bỏ sót disabled/read-only UI thay vì chỉ ẩn menu.
+- Đừng bỏ sót workflow tạo phiếu + thanh toán ngay trong cùng luồng.
+- Đừng bỏ sót chuẩn hóa API/DTO/map tên FE-BE.
+- Đừng bỏ sót seed data đủ chạy flow khám ngoại trú.
+- Đừng bỏ sót test kỹ 100%.

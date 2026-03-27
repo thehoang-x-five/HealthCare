@@ -1354,5 +1354,37 @@ namespace HealthCare.Services.OutpatientCare
             return $"Đã có phiếu tổng hợp kết quả cận lâm sàng cho bệnh nhân {tenBn}.";
         }
 
+        // ============================================================
+        // =                   HỦY PHIẾU CLS                          =
+        // ============================================================
+
+        public async Task HuyPhieuClsAsync(string maPhieuKhamCls)
+        {
+            var phieu = await _db.PhieuKhamCanLamSangs
+                .Include(p => p.ChiTietDichVus)
+                .FirstOrDefaultAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls)
+                ?? throw new KeyNotFoundException($"Không tìm thấy phiếu CLS {maPhieuKhamCls}");
+
+            // Chỉ cho phép hủy khi: da_tao
+            if (!string.Equals(phieu.TrangThai, "da_tao", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    $"Phiếu CLS đang ở trạng thái '{phieu.TrangThai}' — không thể hủy. Chỉ hủy được khi 'da_tao'.");
+
+            phieu.TrangThai = "da_huy";
+
+            // Rollback trạng thái chi tiết dịch vụ
+            foreach (var ct in phieu.ChiTietDichVus)
+            {
+                ct.TrangThai = "da_huy";
+            }
+
+            await _db.SaveChangesAsync();
+
+            // Broadcast: phiếu CLS đã hủy
+            var dto = await BuildClsOrderDtoAsync(maPhieuKhamCls);
+            if (dto is not null)
+                await _realtime.BroadcastClsOrderStatusUpdatedAsync(dto);
+        }
+
     }
 }

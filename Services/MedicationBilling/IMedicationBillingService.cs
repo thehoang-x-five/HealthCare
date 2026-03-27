@@ -31,6 +31,9 @@ namespace HealthCare.Services.MedicationBilling
             string? keyword,
             int page,
             int pageSize);
+
+        // ===== HỦY ĐƠN THUỐC (+ HOÀN KHO) =====
+        Task HuyDonThuocAsync(string maDonThuoc);
     }
 
     public interface IBillingService

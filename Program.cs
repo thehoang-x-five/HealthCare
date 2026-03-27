@@ -20,6 +20,7 @@ using HealthCare.Services.MedicationBilling;
 using HealthCare.Services.Report;
 using HealthCare.Services.HttpClients;
 using HealthCare.Services.Background;
+using HealthCare.Services.Admin;
 using HealthCare.Infrastructure;
 
 
@@ -102,6 +103,7 @@ builder.Services.AddScoped<IClinicalService, ClinicalService>();
 builder.Services.AddScoped<IClsService, ClsService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IQueueService, QueueService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 // ===== Background Services =====
 builder.Services.AddHostedService<DailyResetService>();

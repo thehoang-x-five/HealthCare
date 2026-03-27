@@ -71,6 +71,9 @@ namespace HealthCare.Services.OutpatientCare
         Task<ClsSummaryDto?> CapNhatPhieuTongHopAsync(
             string maPhieuTongHop,
             ClsSummaryUpdateRequest request);
+
+        // ===== HỦY PHIẾU CLS =====
+        Task HuyPhieuClsAsync(string maPhieuKhamCls);
     }
 
     public interface IQueueService

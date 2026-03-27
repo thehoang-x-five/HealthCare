@@ -26,7 +26,7 @@ namespace HealthCare.Entities
         public string PhuongThucThanhToan { get; set; } = "tien_mat"; // tien_mat, the, chuyen_khoan, vietqr
         
         public DateTime ThoiGian { get; set; } = DateTime.Now;
-        public string TrangThai { get; set; } = "da_thu"; // chua_thu, da_thu, da_huy
+        public string TrangThai { get; set; } = "chua_thu"; // chua_thu, da_thu, da_huy
         public string NoiDung { get; set; } = default!;
         
         // NEW: Cancellation tracking

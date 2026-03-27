@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using HealthCare.Attributes;
 using HealthCare.DTOs;
@@ -120,6 +120,28 @@ namespace HealthCare.Controllers
                 maBenhNhan, fromDate, toDate, trangThai, keyword, page, pageSize);
 
             return Ok(result);
+        }
+
+        /// <summary>
+        /// Hủy đơn thuốc + hoàn kho (chỉ khi da_ke | cho_phat).
+        /// </summary>
+        [HttpPut("prescriptions/{maDonThuoc}/cancel")]
+        [Authorize]
+        public async Task<IActionResult> HuyDonThuoc(string maDonThuoc)
+        {
+            try
+            {
+                await _pharmacyService.HuyDonThuocAsync(maDonThuoc);
+                return Ok(new { message = "Đã hủy đơn thuốc và hoàn kho thành công." });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

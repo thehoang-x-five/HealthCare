@@ -230,7 +230,23 @@ namespace HealthCare.Services.MedicationBilling
             if (entity == null)
                 return null;
 
+            // ===== TRANSITION GUARD =====
             var oldStatus = entity.TrangThai;
+            var newStatus = request.TrangThai;
+
+            // Terminal states: da_thu, da_huy — không chuyển sang trạng thái khác
+            var terminalStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "da_thu", "da_huy" };
+            if (terminalStates.Contains(oldStatus))
+                throw new InvalidOperationException(
+                    $"Hóa đơn đang ở trạng thái '{oldStatus}' — không thể chuyển sang '{newStatus}'.");
+
+            // Chỉ cho phép: chua_thu → da_thu | da_huy
+            var allowedTransitions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "da_thu", "da_huy" };
+            if (string.Equals(oldStatus, "chua_thu", StringComparison.OrdinalIgnoreCase)
+                && !allowedTransitions.Contains(newStatus))
+                throw new InvalidOperationException(
+                    $"Trạng thái '{newStatus}' không hợp lệ. Chỉ cho phép: da_thu, da_huy.");
+
             entity.TrangThai = request.TrangThai;
             await _db.SaveChangesAsync();
 

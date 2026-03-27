@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -206,6 +206,10 @@ namespace HealthCare.Services.Report
                        //  - CLS: "da_hoan_tat"
             int daHoanTat = todayLs.Count(p => p.TrangThai == "da_hoan_tat") +
             todayCls.Count(p => p.TrangThai == "da_hoan_tat");
+
+            // Đã hủy:
+            int examDaHuy = todayLs.Count(p => p.TrangThai == "da_huy") +
+            todayCls.Count(p => p.TrangThai == "da_huy");
             
                         // So sánh với hôm qua: cũng tính CLS theo số ChiTietDichVu
             var yesterdayLsCount = await _db.PhieuKhamLamSangs
@@ -255,6 +259,7 @@ namespace HealthCare.Services.Report
                 ChoKham = choKham,
                 DangKham = dangKham,
                 DaHoanTat = daHoanTat,
+                DaHuy = examDaHuy,
                 TangTruongPhanTram = examGrowth,
                 PhanBoTheoGio = examByHourList
             };
@@ -300,6 +305,91 @@ namespace HealthCare.Services.Report
             // ===== 6. HOẠT ĐỘNG GẦN ĐÂY =====
             var activities = await BuildRecentActivitiesAsync(today, tomorrow);
 
+            // ===== 7. KPI: DỊCH VỤ CLS HÔM NAY (cho vai trò CLS/KTV) =====
+            int dichVuHoanTat = todayCls.Count(p => p.TrangThai == "da_hoan_tat");
+            int dichVuDangLam = todayCls.Count(p => p.TrangThai == "dang_thuc_hien");
+            int dichVuDaHuy = todayCls.Count(p => p.TrangThai == "da_huy");
+            int tongDichVu = todayCls.Count;
+
+            var servicesByHour = todayCls
+                .GroupBy(x => x.NgayGioLap.Hour)
+                .Select(g => new TodayHourValueItemDto { Gio = g.Key, GiaTri = g.Count() })
+                .OrderBy(x => x.Gio)
+                .ToList();
+            servicesByHour = EnsureFullDaySeries(servicesByHour);
+
+            decimal svcGrowth = 0;
+            if (yesterdayClsCount > 0)
+                svcGrowth = (decimal)(tongDichVu - yesterdayClsCount) / yesterdayClsCount * 100m;
+
+            var dichVuKpi = new TodayServicesKpiDto
+            {
+                TongDichVu = tongDichVu,
+                HoanTat = dichVuHoanTat,
+                DangLam = dichVuDangLam,
+                DaHuy = dichVuDaHuy,
+                TangTruongPhanTram = svcGrowth,
+                PhanBoTheoGio = servicesByHour
+            };
+
+            // ===== 8. DỊCH VỤ SẮP LÀM (cho CLS/KTV) =====
+            var dichVuSapLam = await (
+                from ct in _db.ChiTietDichVus
+                join cls in _db.PhieuKhamCanLamSangs
+                    on ct.MaPhieuKhamCls equals cls.MaPhieuKhamCls
+                join ls in _db.PhieuKhamLamSangs
+                    on cls.MaPhieuKhamLs equals ls.MaPhieuKham
+                join bn in _db.BenhNhans
+                    on ls.MaBenhNhan equals bn.MaBenhNhan
+                join dv in _db.DichVuYTes
+                    on ct.MaDichVu equals dv.MaDichVu
+                where cls.NgayGioLap >= today && cls.NgayGioLap < tomorrow
+                      && (ct.TrangThai == "da_lap" || ct.TrangThai == "dang_thuc_hien")
+                orderby cls.NgayGioLap
+                select new UpcomingServiceItemDto
+                {
+                    MaChiTietDV = ct.MaChiTietDv,
+                    TenDichVu = dv.TenDichVu,
+                    TenBenhNhan = bn.HoTen,
+                    TrangThai = ct.TrangThai,
+                    GioChiDinh = cls.NgayGioLap,
+                    CoKetQua = ct.KetQuaDichVu != null
+                }
+            ).Take(20).ToListAsync();
+
+            // ===== 9. DỊCH VỤ TĂNG MẠNH (cho Admin/HC) =====
+            // Gồm cả LS (khám lâm sàng = 1 lượt/phiếu) và CLS (theo chi tiết dịch vụ)
+            var trendingLs = todayLs
+                .GroupBy(_ => "Khám lâm sàng")
+                .Select(g => new TrendingServiceItemDto
+                {
+                    TenDichVu = g.Key,
+                    LoaiDichVu = "ls",
+                    SoLuong = g.Count()
+                }).ToList();
+
+            var trendingCls = await (
+                from ct in _db.ChiTietDichVus
+                join cls in _db.PhieuKhamCanLamSangs
+                    on ct.MaPhieuKhamCls equals cls.MaPhieuKhamCls
+                join dv in _db.DichVuYTes
+                    on ct.MaDichVu equals dv.MaDichVu
+                where cls.NgayGioLap >= today && cls.NgayGioLap < tomorrow
+                group ct by new { dv.TenDichVu } into g
+                select new TrendingServiceItemDto
+                {
+                    TenDichVu = g.Key.TenDichVu,
+                    LoaiDichVu = "cls",
+                    SoLuong = g.Count()
+                }
+            ).ToListAsync();
+
+            var dichVuTangManh = trendingLs
+                .Concat(trendingCls)
+                .OrderByDescending(x => x.SoLuong)
+                .Take(10)
+                .ToList();
+
             return new DashboardTodayDto
             {
                 Ngay = today,
@@ -307,6 +397,9 @@ namespace HealthCare.Services.Report
                 LichHenHomNay = lichHenKpi,
                 DoanhThuHomNay = doanhThuKpi,
                 LuotKhamHomNay = examKpi,
+                DichVuHomNay = dichVuKpi,
+                DichVuSapLam = dichVuSapLam,
+                DichVuTangManh = dichVuTangManh,
                 LichHenSapToi = upcomingDtos,
                 HoatDongGanDay = activities
             };

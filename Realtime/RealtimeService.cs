@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthCare.DTOs;
 using HealthCare.Hubs;
@@ -592,6 +592,24 @@ namespace HealthCare.Realtime
 
             var userGroup = RealtimeHub.GetUserGroupName(thongBao.LoaiNguoiNhan ?? "", thongBao.MaNguoiNhan ?? "");
             return _hub.Clients.Group(userGroup).NotificationUpdated(thongBao);
+        }
+
+
+        // ==========================
+        // ===== NHÂN SỰ (ADMIN) ===
+        // ==========================
+
+        public Task BroadcastStaffChangedAsync(AdminUserDto staff)
+        {
+            // Gửi cho tất cả nhân sự (bác sĩ + y tá) vì:
+            // - Trang Staff lookup cần cập nhật realtime
+            // - Dashboard KPI online count cần update
+            var tasks = new List<Task>
+            {
+                _hub.Clients.Group(DoctorRoleGroupName).StaffChanged(staff),
+                _hub.Clients.Group(NurseRoleGroupName).StaffChanged(staff)
+            };
+            return Task.WhenAll(tasks);
         }
 
     }

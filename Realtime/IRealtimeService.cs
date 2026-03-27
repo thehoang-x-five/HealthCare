@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthCare.DTOs;
 
@@ -138,5 +138,13 @@ namespace HealthCare.Realtime
 
         /// <summary>Bắn realtime khi cập nhật trạng thái / nội dung thông báo.</summary>
         Task BroadcastNotificationUpdatedAsync(NotificationDto thongBao);
+
+
+        // ==========================
+        // ===== NHÂN SỰ (ADMIN) ===
+        // ==========================
+
+        /// <summary>Khi tạo/sửa/khóa-mở nhân viên (Admin CRUD).</summary>
+        Task BroadcastStaffChangedAsync(AdminUserDto staff);
     }
 }

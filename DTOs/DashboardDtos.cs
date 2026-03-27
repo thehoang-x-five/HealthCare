@@ -1,4 +1,4 @@
-﻿namespace HealthCare.DTOs
+namespace HealthCare.DTOs
 {
 
     /// <summary>
@@ -76,6 +76,7 @@
         public int ChoKham { get; set;}
         public int DangKham { get; set;}
         public int DaHoanTat { get; set;}
+        public int DaHuy { get; set;}
 
         /// <summary>% tăng/giảm tổng lượt khám so với hôm trước.</summary>
         public decimal TangTruongPhanTram { get; set;}
@@ -83,6 +84,44 @@
         /// <summary>Chart: giờ – số lượt khám.</summary>
         public IReadOnlyList<TodayHourValueItemDto> PhanBoTheoGio { get; set;}
             = Array.Empty<TodayHourValueItemDto>();
+    }
+
+    /// <summary>
+    /// KPI: Dịch vụ CLS hôm nay (thay cho Lịch hẹn ở vai trò CLS/KTV).
+    /// </summary>
+    public record class TodayServicesKpiDto
+    {
+        public int TongDichVu { get; set;}
+        public int HoanTat { get; set;}
+        public int DangLam { get; set;}
+        public int DaHuy { get; set;}
+        public decimal TangTruongPhanTram { get; set;}
+        public IReadOnlyList<TodayHourValueItemDto> PhanBoTheoGio { get; set;}
+            = Array.Empty<TodayHourValueItemDto>();
+    }
+
+    /// <summary>
+    /// Dòng dịch vụ CLS sắp thực hiện (cho Dashboard CLS/KTV).
+    /// </summary>
+    public record class UpcomingServiceItemDto
+    {
+        public string MaChiTietDV { get; set;} = default!;
+        public string TenDichVu { get; set;} = default!;
+        public string TenBenhNhan { get; set;} = default!;
+        public string TrangThai { get; set;} = default!;
+        public DateTime GioChiDinh { get; set;}
+        public bool CoKetQua { get; set;}
+    }
+
+    /// <summary>
+    /// Dịch vụ được thực hiện nhiều nhất hôm nay (cho Dashboard Admin/HC).
+    /// </summary>
+    public record class TrendingServiceItemDto
+    {
+        public string TenDichVu { get; set;} = default!;
+        /// <summary>"ls" hoặc "cls"</summary>
+        public string LoaiDichVu { get; set;} = default!;
+        public int SoLuong { get; set;}
     }
 
     /// <summary>
@@ -123,7 +162,13 @@
         public TodayRevenueKpiDto DoanhThuHomNay { get; set;} = default!;
         public TodayExamOverviewDto LuotKhamHomNay { get; set;} = default!;
 
-      
+        // === Role-specific data ===
+        public TodayServicesKpiDto? DichVuHomNay { get; set;}
+        public IReadOnlyList<UpcomingServiceItemDto> DichVuSapLam { get; set;}
+            = Array.Empty<UpcomingServiceItemDto>();
+        public IReadOnlyList<TrendingServiceItemDto> DichVuTangManh { get; set;}
+            = Array.Empty<TrendingServiceItemDto>();
+
         // Lịch hẹn sắp tới (hôm nay)
         public IReadOnlyList<UpcomingAppointmentDashboardItemDto> LichHenSapToi { get; set;}
             = Array.Empty<UpcomingAppointmentDashboardItemDto>();
