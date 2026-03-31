@@ -1,0 +1,321 @@
+@startuml ARCHITECTURE_SLIDE
+allowmixing
+' ╔══════════════════════════════════════════════════════════════════════════════╗
+' ║  HEALTHCARE+ — TỔNG QUAN KIẾN TRÚC CSDL (BA-FRIENDLY OVERVIEW)            ║
+' ║  Polyglot Persistence · CQRS · Defense in Depth                            ║
+' ╚══════════════════════════════════════════════════════════════════════════════╝
+
+skinparam backgroundColor #FAFBFC
+skinparam shadowing false
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam nodesep 35
+skinparam ranksep 35
+hide circle
+hide empty members
+
+top to bottom direction
+
+skinparam package {
+    BackgroundColor transparent
+    BorderColor #CBD5E0
+    FontColor #1A202C
+    FontStyle bold
+    FontSize 12
+}
+skinparam rectangle {
+    BackgroundColor #F7FAFC
+    BorderColor #A0AEC0
+    FontColor #2D3748
+    RoundCorner 8
+}
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #CBD5E0
+    ArrowColor #718096
+    FontSize 10
+}
+skinparam note {
+    BackgroundColor #FFFFF0
+    BorderColor #E2E8F0
+    FontSize 10
+}
+
+title <size:18><b>Kiến trúc Tổng thể Cơ sở Dữ liệu — HealthCare+</b></size>\n<size:12><color:#4A5568>Polyglot Persistence (MySQL + MongoDB) · CQRS · Defense in Depth</color></size>\n
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  HEADER: TẠI SAO KIẾN TRÚC NÀY?                                ║
+' ╚══════════════════════════════════════════════════════════════════╝
+note as WhyNote #E6FFFA
+  <b><size:12>💡 TẠI SAO CHỌN KIẾN TRÚC NÀY? (Polyglot Persistence)</size></b>
+  ───────────────────────────────────────────────────
+  <b>Vấn đề nếu chỉ dùng 1 DB:</b>
+  • <b>Chỉ MySQL</b>: 100+ loại bệnh án khác nhau → hàng chục bảng hoặc 100+ cột NULL → lãng phí, ALTER TABLE = downtime
+  • <b>Chỉ MongoDB</b>: Không FK, không ACID mạnh → nguy hiểm cho Hóa đơn, Thanh toán, Tồn kho
+
+  <b>Giải pháp — Dùng CẢ HAI, mỗi DB đúng thế mạnh:</b>
+  • <b>MySQL</b>  → Giao dịch (ACID), Quy trình (Workflow), Tài chính = <b>CHÍNH XÁC tuyệt đối</b>
+  • <b>MongoDB</b> → Lịch sử khám (Schema linh hoạt), Audit Logs = <b>LINH HOẠT, tốc độ đọc cao</b>
+end note
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  TẦNG 1: BUSINESS LAYER                                         ║
+' ╚══════════════════════════════════════════════════════════════════╝
+package "① TẦNG NGHIỆP VỤ (Business Layer) — Defense Tier 1: Code-First Validation" as BL #EDF2F7 {
+    rectangle "<b>Logistics</b>\nLịch hẹn · Hàng đợi\nLượt khám · Lịch trực" <<Svc>> as SvcQ #EBF8FF
+    rectangle "<b>Clinical & Rx</b>\nKhám bệnh · Kê đơn\nChẩn đoán" <<Svc>> as SvcC #E6FFFA
+    rectangle "<b>Finance & Stock</b>\nHóa đơn · Kho thuốc\nXuất kho · VietQR" <<Svc>> as SvcF #FFF5F5
+    rectangle "<b>Admin & Security</b>\nRBAC 6 vai trò\nRefreshToken · JWT" <<Svc>> as SvcS #F0FFF4
+}
+
+note bottom of BL
+  <b>Defense Tier 1 (Backend — C# Service):</b>
+  Bắt lỗi SỚM → trả 400 ngay, không tốn DB connection.
+  Xác thực RBAC (Admin, BacSi, YTaHC, YTaLS, YTaCLS, KTV).
+  99% request bình thường được lọc tại đây.
+end note
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  TẦNG 2: CQRS                                                   ║
+' ╚══════════════════════════════════════════════════════════════════╝
+package "② TẦNG CQRS (Command/Query Responsibility Segregation)" as CQRS #EDF2F7 {
+    rectangle "<b>[Command] WRITE</b>\n<i>Ghi tuần tự · Transaction · Lock</i>" <<Cmd>> as WR #FED7D7
+    rectangle "<b>[Query] READ</b>\n<i>Aggregation · Truy vấn nhanh</i>" <<Qry>> as RD #C6F6D5
+}
+
+SvcQ -down-> WR
+SvcC -down-> WR
+SvcF -down-> WR
+SvcS -down-> WR
+SvcC .up.> RD : <size:9>Lịch sử bệnh</size>
+SvcF .up.> RD : <size:9>Báo cáo</size>
+
+note right of CQRS
+  <b>Tại sao tách Command / Query?</b>
+  Đọc lịch sử ≠ lock bảng đang ghi
+  → Hệ thống chạy song song, không nghẽn
+end note
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  TẦNG 3: POLYGLOT — MYSQL + MONGODB                              ║
+' ╚══════════════════════════════════════════════════════════════════╝
+package "③ TẦNG LƯU TRỮ (Polyglot Persistence)" as PL {
+
+    ' ─────────────────────────────────────────────
+    '  MYSQL
+    ' ─────────────────────────────────────────────
+    package "MySQL — Relational Database  [ACID · FK · SP · CHECK · TRIGGER]" as MYDB #EBF8FF {
+
+        class "<b>D1: Identity & Security</b>" as D1 #DBEAFE {
+            <b>NhanSu</b> (6 vai trò RBAC)
+            <b>RefreshToken</b> (JWT, IP tracking)
+            ..
+            <i>Tách NhanSu/UserAccount (1:1)</i>
+            <i>→ Bảo mật, mở rộng RBAC</i>
+        }
+
+        class "<b>D2: Patient & Reception</b>" as D2 #D1FAE5 {
+            <b>BenhNhan</b> (Self-ref FK: MaCha, MaMe)
+            <b>LichHen</b> · <b>PhieuKham</b> · <b>PhieuKhamCls</b>
+            <b>ChiTietDichVu</b> · <b>KetQuaDichVu</b>
+            ..
+            <i>PhieuKham(YTa) ≠ PhieuChanDoan(BS)</i>
+            <i>→ Vòng đời khác, tách bảng</i>
+        }
+
+        class "<b>D3: Queue & Visit</b>" as D3 #FEF3C7 {
+            <b>HangDoi</b> (SoThuTu, DoUuTien, CapCuu)
+            <b>LuotKham</b> (SinhHieu, ThoiGianKham)
+            <b>PhieuTongHop</b> · <b>PhieuChanDoan</b>
+            ..
+            <i>HangDoi(Logistics) ≠ LuotKham(Clinical)</i>
+            <i>→ Y tá gọi BN không lock bảng BS ghi</i>
+        }
+
+        class "<b>D4: Rx & Finance</b>" as D4 #FCE7F3 {
+            <b>KhoThuoc</b> · <b>DonThuoc</b> · <b>ChiTietDon</b>
+            <b>HoaDon</b> (Polymorphic FK × 3 đợt thu)
+            <b>LichSuXuatKho</b> (Truy vết, Hoàn trả)
+            ..
+            <i>3 đợt thu: KhamLS | CLS | Thuoc</i>
+            <i>CHECK SoLuongTon >= 0 chống âm kho</i>
+        }
+
+        class "<b>D5: Notification</b>" as D5 #F5F3FF {
+            <b>ThongBao</b> · <b>ThongBaoNguoiNhan</b>
+            <b>ThongBaoMau</b> (Template động)
+            ..
+            <i>Admin sửa template qua UI</i>
+            <i>→ Không cần re-deploy code</i>
+        }
+
+        class "<b>D0: Master Data</b>" as D0 #E0F2FE {
+            <b>Khoa</b> · <b>Phong</b>
+            <b>LichTruc</b> · <b>DichVu</b>
+            ..
+            <i>Reference data, FK source</i>
+        }
+
+        D0 -[hidden]right- D1
+        D1 -[hidden]right- D2
+        D2 -[hidden]right- D3
+        D3 -[hidden]down- D4
+        D4 -[hidden]right- D5
+    }
+
+    ' ─────────────────────────────────────────────
+    '  MONGODB
+    ' ─────────────────────────────────────────────
+    package "MongoDB — Document Database  [Schema Evolution · Aggregation Pipeline · TTL]" as MGDB #F0FFF4 {
+
+        class "<b>medical_histories</b>\n<size:10>(Lịch sử khám bệnh toàn diện)</size>" as MH #D1FAE5 {
+            patient_id · visit_id · doctor_id
+            event_type · event_date
+            <b>data</b>: Object (Schema-flexible)
+            metadata: { created_by, version }
+            ..
+            <b>5 Event Types:</b>
+            kham_lam_sang | xet_nghiem
+            chan_doan_hinh_anh | don_thuoc | thanh_toan
+            ..
+            <i>100+ bệnh án → 1 Collection duy nhất</i>
+            <i>Thêm loại mới = 0 migration, 0 downtime</i>
+        }
+
+        class "<b>audit_logs</b>\n<size:10>(Audit trail — Ai làm gì, khi nào?)</size>" as AL #FEF3C7 {
+            actor_id · actor_role · ip_address
+            action (CREATE/UPDATE/DELETE)
+            resource_type · resource_id
+            changes: { old_value, new_value }
+            timestamp (TTL Index — auto-delete)
+            ..
+            <i>Tự động xóa sau 365 ngày</i>
+            <i>Ghi cực nhanh, không ảnh hưởng MySQL</i>
+        }
+
+        MH -[hidden]right- AL
+    }
+}
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  TẦNG 4: DEFENSE IN DEPTH — TIER 2                              ║
+' ╚══════════════════════════════════════════════════════════════════╝
+package "④ DEFENSE TIER 2 (Database Enforcement)" as DEF #FFF5F5 {
+    rectangle "<b>Stored Procedures</b>\nsp_BookAppointment\nSERIALIZABLE Lock" <<SP>> as SP #FED7D7
+    rectangle "<b>CHECK Constraints</b>\nSoLuongTon >= 0\nDonGia > 0" <<CHK>> as CHK #FEFCBF
+    rectangle "<b>TRIGGERs & FKs</b>\ntr_ValidateTransition\nFK ON DELETE RESTRICT" <<TRG>> as TRG #C6F6D5
+}
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  LUỒNG DỮ LIỆU                                                  ║
+' ╚══════════════════════════════════════════════════════════════════╝
+WR -down-> MYDB : <color:#2B6CB0><b>(1) Transaction</b></color>\n<size:9>Trạng thái, Tiền, FK</size>
+WR -down-> MGDB : <color:#2F855A><b>(2) Snapshot</b></color>\n<size:9>Lịch sử lâm sàng</size>
+RD <-down- MGDB : <color:#2F855A><b>Aggregation</b></color>\n<size:9>Đọc lịch sử</size>
+RD <-down- MYDB : <color:#2B6CB0><b>JOINs</b></color>\n<size:9>Workflow</size>
+MYDB .down.> DEF : <size:9>Defense\nTier 2</size>
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  NOTE: MySQL vs MongoDB — Vai trò                                ║
+' ╚══════════════════════════════════════════════════════════════════╝
+note right of MYDB #EBF8FF
+  <b>📊 MySQL — "Sổ sách Kế toán" (WRITE-intensive)</b>
+  <b>24 Tables · 6 Domains</b>
+  ─────────────────────────────────
+  ✅ ACID Transaction → Không bao giờ sai tiền
+  ✅ Foreign Key → Ràng buộc chặt chẽ quan hệ
+  ✅ SP + TRIGGER → Chống Race Condition tuyệt đối
+  ✅ Query JOINs → Xử lý Workflow phức tạp
+
+  <b>Quyết định thiết kế nổi bật:</b>
+  • <b>NhanSu ↔ UserAccount (1:1)</b>: Bảo mật, mở rộng RBAC
+  • <b>HangDoi ≠ LuotKham</b>: Vòng đời khác (Logistics vs Clinical)
+  • <b>PhieuKham ≠ PhieuChanDoan</b>: YTa lập vs BS lập
+  • <b>HoaDon: Polymorphic FK × 3 đợt thu</b>
+  • <b>BenhNhan.MaCha/MaMe</b>: Self-ref FK cho Recursive CTE
+end note
+
+note right of MGDB #F0FFF4
+  <b>📋 MongoDB — "Hồ sơ Lưu trữ" (READ-intensive)</b>
+  <b>2 Collections · Schema-free</b>
+  ─────────────────────────────────
+  ✅ Schema Evolution → Thêm loại khám = 0 downtime
+  ✅ Flexible JSON → Mỗi sự kiện cấu trúc riêng
+  ✅ Aggregation Pipeline → Thống kê siêu mạnh
+  ✅ TTL Index → Tự dọn Audit Logs quá hạn
+
+  <b>Tại sao không dùng JSON column MySQL?</b>
+  MySQL JSON: Không index nested field hiệu quả
+  MongoDB: Native index + $unwind/$group/$match
+end note
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  NOTE: Hybrid Data Flow                                          ║
+' ╚══════════════════════════════════════════════════════════════════╝
+note bottom of MGDB #E6FFFA
+  <b>🔄 HYBRID DATA FLOW</b>
+  ───────────────────────────
+  Bác sĩ mở "Phiếu Tổng Hợp CLS":
+  ① MySQL → TrangThai, ThoiGian
+  ② MongoDB → Chi tiết XN (RBC, Glucose, ảnh...)
+  ③ Backend → Ghép thành 1 DTO → UI
+
+  <b>One-way Sync: MySQL → MongoDB</b>
+  MySQL = Gốc (nếu mất → backup/restore)
+  MongoDB = Bản SAO tối ưu đọc (tái tạo được)
+end note
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  NOTE: Defense in Depth Table                                    ║
+' ╔══════════════════════════════════════════════════════════════════╝
+note right of DEF #FFF5F5
+  <b>🛡️ Tại sao cần CẢ HAI tầng kiểm tra?</b>
+  ─────────────────────────────────────────
+  | <b>Tình huống</b>             | <b>Chỉ BE</b> | <b>Chỉ DB</b> | <b>Cả 2</b> |
+  |──────────────────────|───────|───────|───────|
+  | 2 request cùng lúc    | ❌     | ✅     | ✅     |
+  | User nhập sai         | ✅     | ❌     | ✅     |
+  | DBA bypass Backend    | ❌     | ✅     | ✅     |
+
+  <b>"Never trust the layer above you"</b>
+  BE lọc 99% → DB bảo vệ 1% nguy hiểm còn lại.
+end note
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  BẢNG THỐNG KÊ TỔNG HỢP                                        ║
+' ╚══════════════════════════════════════════════════════════════════╝
+note as Stats #F7FAFC
+  <b><size:12>📋 PHÂN BỔ DỮ LIỆU TỔNG HỢP</size></b>
+  ══════════════════════════════════════════════════════════════════════════════════════════
+  | <b>Domain</b>               | <b>DB</b>     | <b>Tables</b> | <b>Bảng chính</b>                                           | <b>Lý do chọn</b>                                 |
+  |───────────────────────|──────────|────────|──────────────────────────────────────────|──────────────────────────────────────────|
+  | 0. Master Data         | MySQL    |   4    | Khoa, Phong, LichTruc, DichVu           | Reference data, FK source                 |
+  | 1. Identity & Security | MySQL    |   2    | NhanSu, RefreshToken                     | UNIQUE, FK, JWT rotation, IP tracking     |
+  | 2. Patient & Reception | MySQL    |   6    | BenhNhan, LichHen, PhieuKham…            | FK chain, Workflow states, ACID           |
+  | 3. Queue & Visit       | MySQL    |   4    | HangDoi, LuotKham, PhieuTongHop…         | Priority sort, Lock isolation, SRP        |
+  | 4. Rx & Finance        | MySQL    |   5    | KhoThuoc, DonThuoc, HoaDon…              | ACID (tiền), CHECK >= 0, Lock kho         |
+  | 5. Notification        | MySQL    |   3    | ThongBao, ThongBaoNguoiNhan, ThongBaoMau | FK tới BN/NS, Polymorphic receiver        |
+  |───────────────────────|──────────|────────|──────────────────────────────────────────|──────────────────────────────────────────|
+  | 6. Clinical History    | MongoDB  |   1    | medical_histories (5 event types)        | Schema Evolution, 100+ loại bệnh án      |
+  | 7. Audit Trail         | MongoDB  |   1    | audit_logs (TTL auto-delete)             | Ghi nhanh, Big Data, TTL cleanup          |
+  ══════════════════════════════════════════════════════════════════════════════════════════
+  <b>TỔNG: 24 MySQL tables + 2 MongoDB collections = 26 data stores</b>
+end note
+
+' ╔══════════════════════════════════════════════════════════════════╗
+' ║  CÂU CHỐT BẢO VỆ                                                ║
+' ╚══════════════════════════════════════════════════════════════════╝
+note as Conclusion #E8F5E9
+  <b><size:12>🎯 KẾT LUẬN — CÂU CHỐT KHI BẢO VỆ</size></b>
+  ══════════════════════════════════════════════════════════════════════
+  Hệ thống sử dụng kiến trúc <b>Polyglot Persistence</b> kết hợp <b>MySQL + MongoDB</b>:
+  • <b>MySQL</b> — Toàn bộ dữ liệu giao dịch cần ACID: Hóa đơn, Lịch hẹn, Kho thuốc, Phân quyền
+  • <b>MongoDB</b> — Lịch sử khám bệnh: <b>Schema Evolution</b> cho 100+ loại bệnh án không cần ALTER TABLE
+
+  Áp dụng <b>Defense in Depth</b>: Mỗi nghiệp vụ được kiểm tra ở <b>CẢ 2 TẦNG</b> —
+  Backend (Code-first → tốc độ & UX) + Database (SP/CHECK/TRIGGER → Data Integrity tuyệt đối).
+  <b>Kết quả</b>: Nhanh · An toàn · Dễ mở rộng chuyên khoa mới mà không ảnh hưởng module đang chạy.
+end note
+
+@enduml
