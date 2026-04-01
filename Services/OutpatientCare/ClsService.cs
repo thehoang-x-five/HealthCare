@@ -1319,3 +1319,47 @@ namespace HealthCare.Services.OutpatientCare
 
     }
 }
+
+        // ========= HỦY PHIẾU CLS =========
+
+        public async Task<ClsOrderDto?> HuyPhieuClsAsync(string maPhieuKhamCls, string? lyDo = null)
+        {
+            var phieu = await QueryPhieuCls()
+                .FirstOrDefaultAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls);
+
+            if (phieu == null) return null;
+
+            // Chỉ cho phép hủy phiếu chưa hoàn thành
+            var oldStatus = phieu.TrangThai;
+
+            if (string.Equals(oldStatus, "da_huy", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Phiếu CLS đã bị hủy trước đó");
+            }
+
+            if (string.Equals(oldStatus, "hoan_thanh", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Không thể hủy phiếu CLS đã hoàn thành");
+            }
+
+            // Cập nhật trạng thái
+            phieu.TrangThai = "da_huy";
+
+            await _db.SaveChangesAsync();
+
+            // Reload để map DTO
+            var updated = await QueryPhieuCls()
+                .AsNoTracking()
+                .FirstAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls);
+
+            var dto = MapClsOrder(updated);
+
+            // Realtime: phiếu CLS bị hủy
+            await _realtime.BroadcastClsOrderChangedAsync(dto);
+
+            // Cập nhật Dashboard
+            var dashboard = await _dashboard.LayDashboardHomNayAsync();
+            await _realtime.BroadcastDashboardTodayAsync(dashboard);
+
+            return dto;
+        }

@@ -173,3 +173,31 @@ namespace HealthCare.Controllers
         }
     }
 }
+
+        /// <summary>
+        /// Hủy phiếu CLS (chỉ hủy được phiếu chưa hoàn thành).
+        /// </summary>
+        [HttpPost("orders/{maPhieuKhamCls}/cancel")]
+        [RequireRole("bac_si", "y_ta", "admin")]
+        public async Task<ActionResult<ClsOrderDto>> CancelClsOrder(
+            string maPhieuKhamCls,
+            [FromBody] CancelClsOrderRequest? request = null)
+        {
+            try
+            {
+                var dto = await _service.HuyPhieuClsAsync(maPhieuKhamCls, request?.LyDo);
+                if (dto == null) return NotFound();
+
+                return Ok(dto);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+    }
+
+    public class CancelClsOrderRequest
+    {
+        public string? LyDo { get; set; }
+    }

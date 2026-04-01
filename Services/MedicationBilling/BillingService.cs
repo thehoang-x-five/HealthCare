@@ -388,3 +388,45 @@ namespace HealthCare.Services.MedicationBilling
 
     }
 }
+
+        // ============================================================
+        // =                   5. HỦY HÓA ĐƠN                         =
+        // ============================================================
+
+        public async Task<InvoiceDto?> HuyHoaDonAsync(string maHoaDon, string? lyDo = null)
+        {
+            var entity = await QueryHoaDon()
+                .FirstOrDefaultAsync(h => h.MaHoaDon == maHoaDon);
+
+            if (entity == null)
+                return null;
+
+            // Chỉ cho phép hủy hóa đơn ở trạng thái "chua_thu"
+            if (!string.Equals(entity.TrangThai, "chua_thu", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"Không thể hủy hóa đơn ở trạng thái '{entity.TrangThai}'. Chỉ hủy được hóa đơn 'chua_thu'.");
+            }
+
+            entity.TrangThai = "da_huy";
+            if (!string.IsNullOrWhiteSpace(lyDo))
+            {
+                entity.NoiDung = string.IsNullOrWhiteSpace(entity.NoiDung)
+                    ? $"[HỦY] {lyDo}"
+                    : $"{entity.NoiDung} | [HỦY] {lyDo}";
+            }
+
+            await _db.SaveChangesAsync();
+
+            var updated = await QueryHoaDon()
+                .AsNoTracking()
+                .FirstAsync(h => h.MaHoaDon == maHoaDon);
+
+            var dto = MapInvoice(updated);
+
+            await _realtime.BroadcastInvoiceChangedAsync(dto);
+
+            var dashboard = await _dashboard.LayDashboardHomNayAsync();
+            await _realtime.BroadcastDashboardTodayAsync(dashboard);
+
+            return dto;
+        }

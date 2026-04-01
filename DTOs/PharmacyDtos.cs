@@ -155,6 +155,7 @@ namespace HealthCare.DTOs
     public record class PrescriptionStatusUpdateRequest
     {
         public string TrangThai { get; set; } = default!;
+        public string? NguoiThucHien { get; set; }
     }
 
 }

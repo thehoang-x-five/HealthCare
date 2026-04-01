@@ -31,6 +31,7 @@ namespace HealthCare.Services.MedicationBilling
             string? keyword,
             int page,
             int pageSize);
+        Task<PrescriptionDto?> HuyDonThuocAsync(string maDonThuoc, string? lyDo = null, string? nguoiThucHien = null);
     }
 
     public interface IBillingService
@@ -42,5 +43,6 @@ namespace HealthCare.Services.MedicationBilling
         Task<InvoiceDto?> CapNhatTrangThaiHoaDonAsync(
             string maHoaDon, 
             InvoiceStatusUpdateRequest request);
+        Task<InvoiceDto?> HuyHoaDonAsync(string maHoaDon, string? lyDo = null);
     }
 }

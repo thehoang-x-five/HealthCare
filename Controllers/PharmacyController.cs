@@ -123,3 +123,37 @@ namespace HealthCare.Controllers
         }
     }
 }
+
+        /// <summary>
+        /// Hủy đơn thuốc (với rollback tồn kho nếu đã phát).
+        /// </summary>
+        [HttpPost("prescriptions/{maDonThuoc}/cancel")]
+        [Authorize]
+        [RequireRole("bac_si", "y_ta_hanh_chinh", "admin")]
+        public async Task<ActionResult<PrescriptionDto>> CancelPrescription(
+            string maDonThuoc,
+            [FromBody] CancelPrescriptionRequest? request = null)
+        {
+            try
+            {
+                var dto = await _pharmacyService.HuyDonThuocAsync(
+                    maDonThuoc,
+                    request?.LyDo,
+                    request?.NguoiThucHien);
+
+                if (dto == null) return NotFound();
+
+                return Ok(dto);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+    }
+
+    public class CancelPrescriptionRequest
+    {
+        public string? LyDo { get; set; }
+        public string? NguoiThucHien { get; set; }
+    }

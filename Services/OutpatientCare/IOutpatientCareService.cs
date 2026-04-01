@@ -49,6 +49,7 @@ namespace HealthCare.Services.OutpatientCare
             string? trangThai,
             int page,
             int pageSize);
+        Task<ClsOrderDto?> HuyPhieuClsAsync(string maPhieuKhamCls, string? lyDo = null);
 
         // ===== CHI TIẾT DỊCH VỤ CLS =====
         Task<IReadOnlyList<ClsItemDto>> LayDanhSachDichVuClsAsync(string maPhieuKhamCls);

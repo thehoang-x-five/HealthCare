@@ -50,6 +50,7 @@ builder.Services.AddSingleton<IMongoDbContext, MongoDbContext>();
 
 // ===== MongoDB Repositories =====
 builder.Services.AddScoped<HealthCare.Infrastructure.Repositories.IMongoHistoryRepository, HealthCare.Infrastructure.Repositories.MongoHistoryRepository>();
+builder.Services.AddScoped<HealthCare.Infrastructure.Repositories.IAuditLogRepository, HealthCare.Infrastructure.Repositories.AuditLogRepository>();
 
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.Configure<OtpOptions>(builder.Configuration.GetSection("Otp"));
@@ -91,10 +92,12 @@ builder.Services.AddScoped<IRealtimeService, RealtimeService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 builder.Services.AddScoped<IPatientService, PatientService>();
 builder.Services.AddScoped<IMasterDataService, MasterDataService>();
 builder.Services.AddScoped<IPharmacyService, PharmacyService>();
+builder.Services.AddScoped<ILichSuXuatKhoService, LichSuXuatKhoService>();
 builder.Services.AddScoped<IHistoryService, HistoryService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
 builder.Services.AddScoped<IClinicalService, ClinicalService>();
@@ -225,6 +228,9 @@ app.UseCors(CorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// ===== Audit Log Middleware (after authentication) =====
+app.UseMiddleware<HealthCare.Middleware.AuditLogMiddleware>();
 
 app.MapControllers();
 app.MapHub<RealtimeHub>("/hubs/realtime");

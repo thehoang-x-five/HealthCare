@@ -81,3 +81,31 @@ namespace HealthCare.Controllers
         }
     }
 }
+
+        /// <summary>
+        /// Hủy hóa đơn (chỉ hủy được hóa đơn ở trạng thái 'chua_thu').
+        /// </summary>
+        [HttpPost("invoices/{maHoaDon}/cancel")]
+        [Authorize]
+        public async Task<ActionResult<InvoiceDto>> CancelInvoice(
+            string maHoaDon,
+            [FromBody] CancelInvoiceRequest? request = null)
+        {
+            try
+            {
+                var dto = await _billingService.HuyHoaDonAsync(maHoaDon, request?.LyDo);
+                if (dto == null) return NotFound();
+
+                return Ok(dto);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+    }
+
+    public class CancelInvoiceRequest
+    {
+        public string? LyDo { get; set; }
+    }
