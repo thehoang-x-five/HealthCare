@@ -1,0 +1,183 @@
+# 🔍 Đánh Giá Trung Thực — Dự Án HealthCare+ (sau W1-W3)
+
+> Rà soát toàn bộ code, architecture, flow — ghi nhận cả điểm tốt và điểm chưa chuẩn.
+
+---
+
+## ✅ Điểm làm tốt (Giữ nguyên)
+
+| # | Hạng mục | Đánh giá |
+|---|---------|---------|
+| 1 | **Polyglot Persistence** | MySQL (operational) + MongoDB (historical/analytics) — đúng kiến trúc CQRS |
+| 2 | **SignalR Groups** | Phân nhóm rõ ràng: role, nurse_type, room, user — FE join đúng |
+| 3 | **Notification targeting** | Phân loại chi tiết 6 vai trò, không broadcast thừa |
+| 4 | **State machines** | 7 entity có transition validation, không gán thẳng |
+| 5 | **Auto-billing + Auto-queue** | Tự động, không cần user trigger |
+| 6 | **AuditLog middleware** | Intercept mutation requests, TTL 365 ngày |
+| 7 | **Cancellation + Rollback** | HuyDonThuoc hoàn kho, HuyPhieuCls rollback ChiTietDichVu |
+
+---
+
+## 🔴 Vấn đề NGHIÊM TRỌNG (Phải sửa)
+
+### 1. MongoDB ghi KHÔNG CÓ try-catch → MySQL transaction bị block
+
+**File**: `ClsService.cs` line 756-760, `ClinicalService.cs`, `PharmacyService.cs`, `BillingService.cs`
+
+```csharp
+// HIỆN TẠI: Gọi trực tiếp, không wrap
+await _mongoHistory.LogEventAsync(...);  // ← Nếu MongoDB down → EXCEPTION
+// Kết quả: MySQL đã SaveChanges rồi (line 702), nhưng code SAU bị crash
+// → Phiếu/đơn đã tạo nhưng response trả lỗi 500 cho FE
+```
+
+**Hậu quả**: Nếu MongoDB chậm/down, user tạo phiếu CLS thành công ở MySQL nhưng **FE nhận 500** → user nghĩ thất bại → bấm lại → **duplicate data**.
+
+**Cần sửa**:
+```csharp
+// Wrap MongoDB write trong try-catch — fire-and-forget
+try
+{
+    await _mongoHistory.LogEventAsync(...);
+}
+catch (Exception ex)
+{
+    _logger.LogWarning(ex, "MongoDB dual-write failed for CLS result {MaKetQua}", ketQua.MaKetQua);
+    // MySQL data vẫn OK, chỉ log miss cho retry/sync later
+}
+```
+
+---
+
+### 2. Inbox query: Y tá CLS thấy notification của Y tá hành chính
+
+**File**: `NotificationService.cs` — `GetAllowedNotifTypes`
+
+**Hiện tại**: FE gửi `LoaiNguoiNhan = "y_ta"` cho TẤT CẢ y tá (vì token chỉ có `VaiTro = "y_ta"`). BE `GetAllowedNotifTypes("y_ta")` trả về **TẤT CẢ subtype**:
+```
+["y_ta", "y_ta_hanh_chinh", "y_ta_phong_kham", "y_ta_cls", "nhan_vien_y_te", ...]
+```
+
+**Hậu quả**: Y tá CLS query inbox → thấy cả notification hóa đơn mới (dành cho hành chính). Y tá hành chính thấy notification phiếu CLS (dành cho CLS).
+
+**Cần sửa**: FE cần gửi thêm `LoaiYTa` (từ JWT claim `loai_y_ta`) để BE filter đúng:
+```javascript
+// FE notifications.js — inferRecipientFromToken
+const loaiYTa = payload.loai_y_ta || payload.LoaiYTa || null;
+// Khi query inbox, truyền thêm LoaiYTa
+```
+
+```csharp
+// BE GetAllowedNotifTypes — filter theo sub-type cụ thể
+if (loaiYTa == "hanhchinh")
+    set.AddRange(["y_ta", "y_ta_hanh_chinh"]);  // KHÔNG thêm y_ta_cls
+else if (loaiYTa == "cls")
+    set.AddRange(["y_ta", "y_ta_cls"]);  // KHÔNG thêm y_ta_hanh_chinh
+```
+
+---
+
+### 3. HuyDonThuocAsync — Không có Transaction wrapping
+
+**File**: `PharmacyService.cs` line 694-738
+
+```csharp
+// HIỆN TẠI: Multiple SaveChanges không trong transaction
+foreach (var ct in don.ChiTietDonThuocs)
+{
+    drug.SoLuongTon += ct.SoLuong;  // Hoàn kho
+}
+don.TrangThai = "da_huy";
+await _db.SaveChangesAsync();  // ← Nếu fail ở đây → kho đã cộng nhưng đơn chưa hủy??
+```
+
+**Thực tế**: EF Core `SaveChangesAsync()` gom tất cả changes trong 1 transaction, nên TRƯỜNG HỢP NÀY OK vì chỉ có 1 lần `SaveChangesAsync()`. Nhưng nếu sau này thêm 2 lần `SaveChanges` riêng biệt thì sẽ lỗi.
+
+**Khuyến nghị**: Wrap trong `using var transaction = await _db.Database.BeginTransactionAsync()` + `await transaction.CommitAsync()` để rõ ràng và an toàn về sau.
+
+---
+
+## 🟡 Vấn đề TRUNG BÌNH (Nên sửa)
+
+### 4. FE App.jsx — nurseType lấy từ authStore nhưng chưa verify mapping
+
+**File**: `App.jsx` line 102
+
+```javascript
+const nurseType = user?.LoaiYTa || user?.loaiYTa || user?.nurseType || null;
+```
+
+JWT claim là `loai_y_ta` (snake_case). Khi FE decode JWT, payload key sẽ là `loai_y_ta` chứ KHÔNG PHẢI `LoaiYTa`. Cần verify `authStore` có map `loai_y_ta` → `LoaiYTa` không. Nếu không, `nurseType` sẽ luôn null → y tá KHÔNG join đúng nurse_type group → **notification realtime không nhận được theo subtype**.
+
+**Cần kiểm tra**: `authStore` — khi bootstrap/login, có lưu `LoaiYTa` từ JWT `loai_y_ta` claim không?
+
+---
+
+### 5. NoiDungKetQua — Dual-write lãng phí + tăng DB size
+
+**Đã biết**: `NoiDungKetQua` (longtext) vẫn ghi vào MySQL + MongoDB. Cùng data lưu 2 nơi, MySQL column `longtext` tốn tài nguyên index/backup nhưng KHÔNG được dùng cho CQRS read.
+
+---
+
+### 6. Cancellation race condition — Không có optimistic concurrency
+
+**File**: `PharmacyService.HuyDonThuocAsync`, `ClsService.HuyPhieuClsAsync`, `BillingService.HuyHoaDonAsync`
+
+Nếu 2 nhân viên bấm "Hủy" cùng đơn thuốc đồng thời:
+- User A: đọc đơn, SoLuongTon = 10
+- User B: đọc đơn, SoLuongTon = 10
+- User A: hoàn 5, SoLuongTon = 15, save ✅
+- User B: hoàn 5, SoLuongTon = 15 (đọc cũ), save ✅ → **kho = 15 thay vì 20!**
+
+**Giải pháp**: Thêm `[ConcurrencyCheck]` / `RowVersion` trên Entity hoặc dùng raw SQL `UPDATE ... SET SoLuongTon = SoLuongTon + @soLuong` thay vì read-then-write.
+
+---
+
+### 7. RealtimeService — FinalDiagnosis, ClsResult, ClsSummary return `Task.CompletedTask`
+
+**File**: `RealtimeService.cs` line 234-356
+
+3 method broadcast quan trọng **không gửi gì cả**:
+```csharp
+public Task BroadcastFinalDiagnosisChangedAsync(FinalDiagnosisDto chanDoan)
+    => Task.CompletedTask;  // ⚠️ KHÔNG GỬI GÌ
+
+public Task BroadcastClsResultCreatedAsync(ClsResultDto ketQua)
+    => Task.CompletedTask;  // ⚠️ KHÔNG GỬI GÌ
+
+public Task BroadcastClsSummaryCreatedAsync(ClsSummaryDto tongHop)
+    => Task.CompletedTask;  // ⚠️ KHÔNG GỬI GÌ
+```
+
+Lý do: DTO thiếu `MaPhong`/`MaBacSi` nên không biết gửi cho ai. Nhưng kết quả là:
+- FE **KHÔNG** nhận realtime khi có chẩn đoán cuối mới
+- FE **KHÔNG** nhận realtime khi có kết quả CLS mới
+- FE phải manual refresh
+
+---
+
+## 🟢 Vấn đề NHỎ (Nice to have)
+
+### 8. Controller level — Inconsistent error response format
+
+Một số controller trả `BadRequest(string)`, một số trả `BadRequest(new { Message = ... })`. Cần chuẩn hóa theo plan (Week 4-5): `{ Code, Message, Details }`.
+
+### 9. DateTime.Now vs DateTime.UtcNow
+
+Code dùng hỗn hợp `DateTime.Now` và `DateTime.UtcNow`. Trong môi trường production multi-timezone sẽ gây lệch giờ. Nhưng cho phạm vi project này (Vietnam timezone only) thì chấp nhận được.
+
+### 10. Magic strings
+
+Status values (`"da_ke"`, `"cho_phat"`, `"da_huy"`) là string literals hardcode ở nhiều nơi. Đã có `StatusEnums.cs` nhưng chưa dùng nhất quán. Dễ typo.
+
+---
+
+## 📊 Tổng kết
+
+| Mức độ | Số lượng | Ưu tiên sửa |
+|--------|---------|-------------|
+| 🔴 Nghiêm trọng | **3** (MongoDB error handling, Inbox filter, NoiDungKetQua) | Trước Week 4 |
+| 🟡 Trung bình | **4** (nurseType mapping, race condition, realtime stubs, transaction) | Trong Week 4 |
+| 🟢 Nhỏ | **3** (error format, DateTime, magic strings) | Week 5 / polish |
+
+**Kết luận**: Dự án ở mức **85-90% chuẩn**. Kiến trúc rất tốt, flow nghiệp vụ đúng. Nhưng có 3 lỗi runtime ẩn (MongoDB crash → 500, inbox lộ data sai vai trò, race condition kho) cần fix trước khi demo.

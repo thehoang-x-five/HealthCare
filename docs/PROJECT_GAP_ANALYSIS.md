@@ -1,6 +1,8 @@
 # Phân Tích & Đánh Giá Nâng Cấp HealthCare+ (Gap Analysis)
 
 > **Đã đối chiếu với: Source code (22 Entity, 14 Controller, 9 Service folder) + Tất cả sơ đồ UML (5 module) + DB_DESIGN_DEFENSE.md**
+>
+> **Cập nhật lần cuối: 2026-04-02 — Sau khi hoàn tất Week 1-2-3**
 
 ---
 
@@ -8,18 +10,18 @@
 
 ### 1.1 Kiến trúc tổng thể
 
-| Đặc điểm | Code hiện tại | Sơ đồ thiết kế mới (ERD/ARCH) | Gap |
-|:---|:---|:---|:---|
-| **Database** | MySQL only (EF Core) | **Polyglot**: MySQL + MongoDB | ❌ THIẾU MongoDB |
-| **Đặt Lịch** | C# code check conflict (`FindConflictsForConfirmedAsync`) | **Stored Procedure + SERIALIZABLE** (ERD_02, ARCH_04) | ⚠️ CẦN NÂNG CẤP |
-| **Pha hệ** | Không có cột `MaCha`/`MaMe` | Self-referencing FK + **Recursive CTE** (ERD_02, DEFENSE 4.1) | ❌ CHƯA CÓ |
-| **Lịch sử khám** | SQL cứng (`BenhNhan` 8 cột y tế) | **MongoDB `medical_histories`** — flat document per event (ERD_06) | ❌ CHƯA CÓ |
-| **Analytics** | Không có | **MongoDB Aggregation Pipeline** (ERD_06, UC_11) | ❌ CHƯA CÓ |
-| **Kết quả CLS** | `KetQuaDichVu.NoiDungKetQua` (string) | ~~NoiDungKetQua~~ **ĐÃ XÓA** per design → MongoDB (ERD_Diff) | ⚠️ CODE CHƯA CẬP NHẬT |
-| **Phiếu Tổng Hợp** | `PhieuTongHopKetQua` có thể có SnapshotJson | ~~SnapshotJson~~ **ĐÃ XÓA** per design → MongoDB (ERD_Diff, DEFENSE 4.9) | ⚠️ CODE CHƯA CẬP NHẬT |
-| **Hóa đơn** | `PhuongThucThanhToan = "tien_mat"` only | `ENUM(TienMat,The,ChuyenKhoan,VietQR)` + `MaGiaoDich`, `SoTienPhaiTra` (ERD_04) | ⚠️ CẦN MỞ RỘNG |
-| **VietQR** | Không có | UC_10: Tạo mã QR động theo chuẩn Napas (UC82.5-82.12) | ❌ CHƯA CÓ |
-| **Audit Logs** | Không có | MongoDB `audit_logs` collection + TTL 365 ngày (ERD_06) | ❌ CHƯA CÓ |
+| Đặc điểm | Code hiện tại | Sơ đồ thiết kế mới (ERD/ARCH) | Gap | Trạng thái |
+|:---|:---|:---|:---|:---:|
+| **Database** | MySQL + MongoDB | **Polyglot**: MySQL + MongoDB | — | ✅ W1 |
+| **Đặt Lịch** | C# code check conflict + **SP SERIALIZABLE** | **Stored Procedure + SERIALIZABLE** (ERD_02, ARCH_04) | — | ✅ W1 |
+| **Pha hệ** | `MaCha`/`MaMe` + **GenealogyService + Recursive CTE** | Self-referencing FK + **Recursive CTE** (ERD_02, DEFENSE 4.1) | — | ✅ W2 |
+| **Lịch sử khám** | **MongoDB `medical_histories`** — dual-write từ 4 service | **MongoDB `medical_histories`** — flat document per event (ERD_06) | ⚠️ Dual-write xong, chưa chuyển FE đọc từ MongoDB | 🟡 W2 |
+| **Analytics** | **AnalyticsService** + MongoDB Aggregation + SQL stats | **MongoDB Aggregation Pipeline** (ERD_06, UC_11) | — | ✅ W3 |
+| **Kết quả CLS** | `KetQuaDichVu.NoiDungKetQua` (string) + dual-write MongoDB | ~~NoiDungKetQua~~ **ĐÃ XÓA** per design → MongoDB (ERD_Diff) | ⚠️ **Chưa xóa `NoiDungKetQua`** — FE/HistoryService vẫn đọc từ SQL | 🔴 CHƯA |
+| **Phiếu Tổng Hợp** | `PhieuTongHopKetQua` — status only, detail → MongoDB | ~~SnapshotJson~~ **ĐÃ XÓA** per design → MongoDB (ERD_Diff, DEFENSE 4.9) | — | ✅ W2 |
+| **Hóa đơn** | `PhuongThucThanhToan` mở rộng + `SoTienPhaiTra`, `MaGiaoDich` | `ENUM(TienMat,The,ChuyenKhoan,VietQR)` + `MaGiaoDich`, `SoTienPhaiTra` (ERD_04) | — | ✅ W1 |
+| **VietQR** | Không có | UC_10: Tạo mã QR động theo chuẩn Napas (UC82.5-82.12) | ❌ | 🟢 Tùy chọn |
+| **Audit Logs** | **AuditLogMiddleware** + **AuditLogRepository** + TTL 365 ngày | MongoDB `audit_logs` collection + TTL 365 ngày (ERD_06) | — | ✅ W3 |
 
 ### 1.2 Các tính năng ĐÃ CÓ SẴN (Giữ nguyên, không sửa)
 
@@ -30,409 +32,160 @@
 | Auto-Billing (Khám) | `ClinicalService` (line 352-401) | ✅ |
 | Inventory Transaction + Rollback | `PharmacyService` (line 310-388) | ✅ |
 | SignalR Real-time | `RealtimeService` + `RealtimeHub` | ✅ |
-| Notification System | `NotificationService` | ✅ |
+| Notification System | `NotificationService` — **phân loại chi tiết 6 vai trò** (W3) | ✅ |
 | Daily Reset | `DailyResetService` | ✅ |
 | Visit History (SQL) | `HistoryService` (653 dòng) + `HistoryController` + `LuotKhamBenh` | ✅ |
 
 ---
 
-## 2. Chi Tiết Từng GAP
+## 2. Chi Tiết Từng GAP — Trạng thái sau W1-W2-W3
 
-### A. Bảng `BenhNhan` — Cần sửa đổi SQL
+### A. Bảng `BenhNhan` — ✅ ĐÃ XONG (W1)
 
-**Hiện tại (Code):**
-```csharp
-// BenhNhan.cs — 8 cột y tế lưu cứng
-public string? DiUng { get; set; }
-public string? ChongChiDinh { get; set; }
-public string? ThuocDangDung { get; set; }
-public string? TieuSuBenh { get; set; }
-public string? TienSuPhauThuat { get; set; }
-public string? NhomMau { get; set; }
-public string? BenhManTinh { get; set; }
-public string? SinhHieu { get; set; }
-// THIẾU: MaCha, MaMe, CCCD
-```
+- ✅ Thêm `MaCha`, `MaMe`, `CCCD`, `NgayTao`, `NgayCapNhat`
+- ⚠️ **8 cột y tế: ĐANG GIỮ** (chờ MongoDB chuyển xong mới xóa)
+  - `DiUng`, `ChongChiDinh`, `ThuocDangDung`, `TieuSuBenh`, `TienSuPhauThuat`, `NhomMau`, `BenhManTinh`, `SinhHieu`
+  - **Plan**: FE/BE chuyển đọc từ MongoDB `medical_histories` (event_type: medicalProfile) → xóa 8 cột
 
-**Thiết kế mới (ERD_02):**
-```
-BenhNhan:
-  + MaCha : VARCHAR(20) <<FK>> <<NULLABLE>>  ← CẦN THÊM
-  + MaMe  : VARCHAR(20) <<FK>> <<NULLABLE>>  ← CẦN THÊM
-  + CCCD  : VARCHAR(12) <<UNIQUE>>           ← CẦN THÊM
-  + NgayTao, NgayCapNhat                     ← CẦN THÊM
-  ─ 8 cột y tế: GIỮ (chờ MongoDB xong mới xóa)
-```
+### B. MongoDB — ✅ ĐÃ XONG (W1-W2)
 
-> [!CAUTION]
-> `ClinicalService.TaoPhieuKhamAsync` (line 134-142) đang ghi trực tiếp 8 cột y tế vào SQL. Phải chuyển sang ghi MongoDB trước khi xóa.
+**Collection 1: `medical_histories`** — ✅ Dual-write hoạt động
+- ✅ `kham_lam_sang` — ClinicalService.TaoChanDoanCuoiAsync → LogEventAsync
+- ✅ `xet_nghiem` — ClsService.LuuKetQuaClsAsync → LogEventAsync
+- ✅ `chan_doan_hinh_anh` — ClsService.LuuKetQuaClsAsync → LogEventAsync
+- ✅ `don_thuoc` — PharmacyService.XuatThuocAsync → LogEventAsync
+- ✅ `thanh_toan` — BillingService.TaoHoaDonAsync → LogEventAsync
+- ✅ Indexes: `patient_id`, `event_type`, `event_date`, compound index
+- ✅ API `GET /api/patients/{id}/medical-history`
 
-### B. MongoDB — Xây hoàn toàn mới
+**Collection 2: `audit_logs`** — ✅ ĐÃ XONG (W3)
+- ✅ AuditLogMiddleware chặn POST/PUT/DELETE
+- ✅ TTL Index 365 ngày
+- ✅ Schema: action, entity, entity_id, user_*, timestamp, old_value, new_value
 
-**Hiện tại:** Không có code MongoDB. Sơ đồ `ERD_06_MongoDB.puml` chỉ là thiết kế trên giấy.
+### C. Entities SQL — ✅ ĐÃ XONG (W1)
 
-**Cần xây (theo ERD_06):**
-
-**Collection 1: `medical_histories`** — MỖI document = MỘT event (flat, KHÔNG embedded array)
-```json
-{
-  "_id": "ObjectId",
-  "patient_id": "BN001",
-  "event_type": "kham_lam_sang",  // 5 loại: kham_lam_sang, xet_nghiem, chan_doan_hinh_anh, don_thuoc, thanh_toan
-  "event_date": "ISODate",
-  "metadata": { "created_by": "...", "version": 1 },
-  "data": { /* flexible per event_type */ }
-}
-```
-
-Event types và data schema (từ ERD_06):
-| event_type | data chứa | Nguồn SQL tương ứng |
+| Entity | Trạng thái | Week |
 |---|---|---|
-| `kham_lam_sang` | sinh_hieu, trieu_chung, chan_doan_so_bo, chan_doan_cuoi, ma_icd10, huong_xu_tri, loi_khuyen | `PhieuKham` + `PhieuChanDoanCuoi` |
-| `xet_nghiem` | chi_so[] (ten, gia_tri, don_vi, nguong_min/max, bat_thuong), ket_luan | `KetQuaDichVu` |
-| `chan_doan_hinh_anh` | loai (X-quang/SA/CT/MRI), mo_ta_hinh_anh, ket_luan, files[] | `KetQuaDichVu` |
-| `don_thuoc` | thuoc[] (ten, hoat_chat, so_luong, lieu_dung, tan_suat, so_ngay), tong_tien | `DonThuoc` + `ChiTietDonThuoc` |
-| `thanh_toan` | loai_dot_thu, chi_tiet[], tong_tien, phuong_thuc, ma_giao_dich | `HoaDonThanhToan` |
-
-Indexes: `patient_id`, `event_type`, `event_date` (desc), compound: `(patient_id, event_type, event_date)`
-
-**Collection 2: `audit_logs`** — Ghi các hành động CRUD
-- TTL Index: Tự xóa sau 365 ngày
-- Schema: `action, entity, entity_id, user_*, timestamp, old_value, new_value, changes`
-
-### C. Entities SQL cần cập nhật (theo ERD_Diff)
-
-| Entity | Cần thêm | Cần xóa |
-|---|---|---|
-| `BenhNhan` | `MaCha`, `MaMe`, `CCCD`, `NgayTao`, `NgayCapNhat` | 8 cột y tế (SAU KHI MongoDB xong) |
-| `KetQuaDichVu` | `LoaiKetQua`, `KetLuanChuyen`, `GhiChu`, `TepDinhKem` (JSON), `ThoiGianChot` | ~~`NoiDungKetQua`~~ |
-| `PhieuChanDoanCuoi` | `MaICD10`, `NgayTaiKham`, `GhiChuTaiKham`, `ThoiGianTao`, `ThoiGianCapNhat` | — |
-| `HoaDonThanhToan` | `SoTienPhaiTra`, `MaGiaoDich`, `ThoiGianHuy`, `MaNhanSuHuy` + Mở rộng `PhuongThucThanhToan` enum | — |
-| `DonThuoc` | `ThoiGianThanhToan`, `ThoiGianPhat`, `MaNhanSuPhat` | — |
-| `ChiTietDonThuoc` | `LieuDung`, `TanSuatDung`, `SoNgayDung`, `GhiChu` | — |
-| `HangDoi` | `SoLanGoi`, `ThoiGianGoiGanNhat` | — |
-| `LuotKhamBenh` | `ThoiGianThucTe`, `SinhHieuTruocKham` (JSON), `GhiChu` | — |
-| **`LichSuXuatKho`** | **ENTITY MỚI** (MaThuoc, MaDonThuoc, MaNhanSuXuat, LoaiGiaoDich, SoLuong, SoLuongConLai) | — |
-| **`ThongBaoMau`** | **ENTITY MỚI** (MaMau, TenMau, NoiDungMau, BienDong) | — |
+| `BenhNhan` + MaCha/MaMe/CCCD/NgayTao/NgayCapNhat | ✅ | W1 |
+| `KetQuaDichVu` + LoaiKetQua/KetLuanChuyen/GhiChu/TepDinhKem/ThoiGianChot | ✅ | W1 |
+| `KetQuaDichVu` — **Xóa `NoiDungKetQua`** | 🔴 **CHƯA** | — |
+| `PhieuChanDoanCuoi` + MaICD10/NgayTaiKham/GhiChuTaiKham/timestamps | ✅ | W1 |
+| `HoaDonThanhToan` + SoTienPhaiTra/MaGiaoDich/ThoiGianHuy/MaNhanSuHuy | ✅ | W1 |
+| `DonThuoc` + ThoiGianThanhToan/ThoiGianPhat/MaNhanSuPhat | ✅ | W1 |
+| `ChiTietDonThuoc` + LieuDung/TanSuatDung/SoNgayDung/GhiChu | ✅ | W1 |
+| `HangDoi` + SoLanGoi/ThoiGianGoiGanNhat | ✅ | W1 |
+| `LuotKhamBenh` + ThoiGianThucTe/SinhHieuTruocKham/GhiChu | ✅ | W1 |
+| **`LichSuXuatKho`** (ENTITY MỚI) | ✅ | W1 |
+| **`ThongBaoMau`** (ENTITY MỚI) | ✅ | W1 |
 
 ### D. Logic Backend — 4 Chức năng bắt buộc (The Big 4)
 
-#### 1. Đặt Lịch SERIALIZABLE (SQL Stored Procedure)
-- **Code hiện tại:** `AppointmentService.FindConflictsForConfirmedAsync` — check trùng bằng C#, không có Transaction Isolation
-- **Thiết kế mới:** ERD_02 ghi rõ "SERIALIZABLE Transaction de tranh trung lich"
-- **Gap:** Cần viết SP `sp_BookAppointment` với `SET TRANSACTION ISOLATION LEVEL SERIALIZABLE`
-
-#### 2. Pha Hệ Di Truyền (Recursive CTE)
-- **Code hiện tại:** Không có `MaCha`/`MaMe`
-- **Thiết kế mới:** ERD_02 + DEFENSE 4.1 định nghĩa rõ:
-  ```sql
-  WITH RECURSIVE PhaHe AS (
-    SELECT * FROM BenhNhan WHERE MaBenhNhan = ?
-    UNION ALL
-    SELECT bn.* FROM BenhNhan bn
-    JOIN PhaHe ph ON bn.MaBenhNhan = ph.MaCha
-       OR bn.MaBenhNhan = ph.MaMe
-  )
-  SELECT * FROM PhaHe;
-  ```
-- **Gap:** Cần thêm `MaCha`/`MaMe` + API `GET /api/patients/{id}/genealogy`
-- **UC_04 định nghĩa:** 6 Use Case (UC23.1-23.6): Xem/Liên kết pha hệ, Cây pha hệ, Tiền sử bệnh gia đình
-
-#### 3. Lịch Sử Khám MongoDB (Schema Evolution)
-- **Code hiện tại:** `HistoryService` (653 dòng) quản lý `LuotKhamBenh` (SQL)
-- **Thiết kế mới:** Ghi **thêm** vào `medical_histories` (MongoDB) khi hoàn tất lượt khám (One-way sync: MySQL → MongoDB, DEFENSE 4.5)
-- **Gap:** Cần tích hợp MongoDB ghi vào `HistoryService`/`ClinicalService`/`ClsService`
-- **UC_04 định nghĩa:** 6 Use Case (UC24.1-24.6): Timeline, Lọc theo loại/thời gian, Chi tiết XN/Don thuoc
-
-#### 4. Phân Tích MongoDB (Aggregation Pipeline)
-- **Code hiện tại:** Không có analytics
-- **Thiết kế mới:** ERD_06 ghi rõ aggregation example:
-  ```javascript
-  db.medical_histories.aggregate([
-    { $match: { event_type: "xet_nghiem" } },
-    { $unwind: "$data.chi_so" },
-    { $match: { "data.chi_so.bat_thuong": true } },
-    { $group: { _id: "$data.chi_so.ten", count: { $sum: 1 } } }
-  ])
-  ```
-- **UC_11 định nghĩa:** "Phan tich theo Nhom benh (ICD)" (UC91.6) + "Thong ke Thuoc hay dung" (UC94.5)
-
-### E. VietQR (Tùy chọn nhưng đã thiết kế sẵn)
-
-- **Code hiện tại:** Không có
-- **Thiết kế mới (UC_10, ERD_04):**
-  - UC82.5-82.12: Tạo mã VietQR động, nhúng Số tiền + Mã Hóa đơn, Hiển thị cho BN
-  - ERD_04: HoaDon có `PhuongThucThanhToan: ENUM(TienMat,The,ChuyenKhoan,VietQR)` + `MaGiaoDich`
-  - DEFENSE 4.4: Giải thích tại sao VietQR thay vì Stripe/PayPal (phong khám VN)
-
-### F. Phân Quyền & Tác Nhân (Role-based Access Control)
-
-#### F.1 Tác nhân theo UC_00 vs Code thực tế
-
-**Sơ đồ UC_00 định nghĩa 6 tác nhân:**
-
-| Tác nhân (UC_00) | Backend: Entity `NhanVienYTe` | Backend: `[RequireRole]` | Trạng thái |
+| # | Chức năng | Trạng thái | Week |
 |---|---|---|---|
-| **Admin** | `ChucVu = "admin"` | Chỉ có trên `BillingController` | ⚠️ THIẾU trên MasterData, Reports |
-| **Y tá HC** | `VaiTro = "y_ta"` + `LoaiYTa = "hanhchinh"` | `"y_ta"` trên Appointments, Patients, Clinical, Pharmacy | ✅ OK |
-| **Y tá LS** | `VaiTro = "y_ta"` + `LoaiYTa = "phong_kham"` | `"y_ta"` trên Clinical | ✅ OK |
-| **Y tá CLS** | `VaiTro = "y_ta"` + `LoaiYTa = "can_lam_sang"` | `"y_ta"` trên CLS | ✅ OK |
-| **Bác sĩ** | `ChucVu = "bac_si"` | `"bac_si"` trên Clinical, CLS, Pharmacy (kê đơn) | ✅ OK |
-| **KTV** | `ChucVu = "ky_thuat_vien"` | `"ky_thuat_vien"` trên CLS (4 endpoint) | ✅ OK |
+| 1 | **Đặt Lịch SERIALIZABLE** (SP `sp_BookAppointment`) | ✅ | W1 |
+| 2 | **Pha Hệ Di Truyền** (Recursive CTE + GenealogyService + GenealogyController) | ✅ | W2 |
+| 3 | **Lịch Sử Khám MongoDB** (Dual-write 5 event types + API GET) | ✅ (dual-write) | W2 |
+| 4 | **Analytics MongoDB** (Aggregation Pipeline + AnalyticsService + AnalyticsController) | ✅ | W3 |
 
-#### F.2 Ma trận phân quyền chuẩn (theo UC_00 + UC_03)
+### E. VietQR — 🟢 Tùy chọn
 
-| Trang Frontend | Admin | Y tá HC | Y tá LS | Y tá CLS | Bác sĩ | KTV |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| Tổng quan (Dashboard) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Lịch hẹn | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Bệnh nhân | ❌ | ✅ CRUD | ✅ xem | ❌ | ✅ xem | ❌ |
-| Khám bệnh (Hàng đợi) | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Khoa phòng | ✅ CRUD | ✅ xem | ✅ xem | ✅ xem | ✅ xem | ✅ xem |
-| Nhân sự | ✅ CRUD | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Đơn thuốc | ❌ | ✅ phát | ❌ | ❌ | ✅ kê | ❌ |
-| Lịch sử | ❌ | ✅ | ❌ | ❌ | ✅ | ❌ |
-| Thông báo | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Báo cáo | ✅ full | ✅ doanh thu, kho | ❌ | ❌ | ✅ lượt khám | ❌ |
-| Cài đặt | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+- Chưa triển khai. Đây là tính năng tùy chọn, không bắt buộc.
 
-#### F.3 Gap: Sidebar không lọc theo vai trò
+### F. Phân Quyền & Tác Nhân — ⏳ Week 4
 
-**`Sidebar.jsx` (line 7-18)** — Hardcode 10 link cố định, hiện cho MỌI user:
-```js
-const links = [
-  ["/", "Tổng quan"],        // Tất cả
-  ["/appointments", "Lịch hẹn"],  // Chỉ Y tá HC → HIỆN cho tất cả ❌
-  ["/patients", "Bệnh nhân"],     // Y tá HC + BS → HIỆN cho tất cả ❌
-  ["/examination", "Khám bệnh"],  // Tất cả (trừ Admin)
-  ["/departments", "Khoa phòng"], // Admin=CRUD, Others=Read
-  ["/staff", "Nhân sự"],          // Admin ONLY → HIỆN cho tất cả ❌
-  ["/prescriptions", "Đơn thuốc"],// Y tá HC + BS → HIỆN cho tất cả ❌
-  ["/history", "Lịch sử"],        // Y tá HC + BS
-  ["/notifications", "Thông báo"],// Tất cả
-  ["/reports", "Báo cáo"],        // Admin + Y tá HC + BS
-];
-```
+- ⏳ Backend `[RequireRole]` trên nhiều Controller — **Week 4**
+- ⏳ Frontend Sidebar lọc menu theo vai trò — **Week 4**
+- ✅ **Notification targeting chi tiết 6 vai trò** — W3 (BroadcastNotification route theo nurse_type group)
 
-**Hậu quả:** KTV đăng nhập vẫn thấy "Lịch hẹn", "Nhân sự", "Đơn thuốc"... → bấm vào API trả 403 nhưng UI vẫn hiện menu.
+### G. Trạng Thái & Luồng Nghiệp Vụ — ✅ ĐÃ XONG (W1-W3)
 
-**`permissions.js` đã có sẵn các helper** (`canManageReception`, `canManageClinical`, `canManageCls`, `isAdmin`) **nhưng CHƯA** được dùng trong Sidebar.
-
-#### F.4 Gap: Backend thiếu `[RequireRole]` trên nhiều Controller
-
-| Controller | Hiện tại | Cần sửa |
-|---|---|---|
-| `MasterDataController` | Chỉ `[Authorize]` chung | Thêm `[RequireRole("admin")]` trên endpoint CUD (Thêm/Sửa/Xóa). GET giữ `[Authorize]` cho tất cả. |
-| `HistoryController` | Chỉ `[Authorize]` chung | Thêm `[RequireRole("y_ta", "bac_si")]` — KTV không cần xem lịch sử. |
-| `DashboardController` | Chỉ `[Authorize]` chung | Giữ `[Authorize]` (tất cả xem Dashboard). |
-| `NotificationsController` | Chỉ `[Authorize]` chung | Giữ `[Authorize]` (tất cả xem thông báo). |
-| `ReportsController` | Chỉ `[Authorize]` chung | Phân quyền: Admin=full, Y tá HC=doanh thu+kho, BS=lượt khám. |
-| `PatientsController` | `[RequireRole("y_ta")]` trên CUD | Thêm cho BS quyền GET (xem thông tin BN). |
-
-### G. Trạng Thái & Luồng Nghiệp Vụ (Status Enums & State Machines)
-
-> **Vấn đề cốt lõi:** Hiện tại hệ thống chỉ cài đặt **happy path** (luôn hoàn thành, không cho gãy giữa chừng). Các giá trị enum như `da_huy`, `tam_nghi` tồn tại trên Entity nhưng **không có code xử lý thực sự** trên cả BE lẫn FE.
-
-#### G.1 Tổng hợp 10 Entity có TrangThai
-
-| # | Entity | Trường | Enum values hiện tại | Default |
-|---|---|---|---|---|
-| 1 | `LichHenKham` | `TrangThai` | `dang_cho`, `da_xac_nhan`, `da_checkin`, `da_huy` | `dang_cho` |
-| 2 | `BenhNhan` | `TrangThaiHomNay` | `cho_tiep_nhan`, `cho_kham`, `dang_kham`, `cho_xu_ly`, `hoan_tat`, `da_huy` + 4 biến thể `_dv` | nullable |
-| 3 | `BenhNhan` | `TrangThaiTaiKhoan` | `hoat_dong`, `khong_hoat_dong`, `da_xoa` | `hoat_dong` |
-| 4 | `HangDoi` | `TrangThai` | `cho_goi`, `dang_goi`, `da_phuc_vu` | `cho_goi` |
-| 5 | `LuotKhamBenh` | `TrangThai` | `dang_thuc_hien`, `hoan_tat` | `dang_thuc_hien` |
-| 6 | `PhieuKhamLamSang` | `TrangThai` | `da_lap`, `dang_thuc_hien`, `da_lap_chan_doan`, `da_hoan_tat`, `da_huy` | `da_lap` |
-| 7 | `PhieuKhamCanLamSang` | `TrangThai` | `da_lap`, `dang_thuc_hien`, `da_hoan_tat`, **`da_huy`** *(StatusEnums.cs có, Entity comment chưa cập nhật)* | `da_lap` |
-| 8 | `ChiTietDichVu` | `TrangThai` | `da_lap`, `dang_thuc_hien`, `da_co_ket_qua`, `chua_co_ket_qua`, **`da_huy`** *(StatusEnums.cs có thêm 3 giá trị)* | `da_lap` |
-| 9 | `PhieuTongHopKetQua` | `TrangThai` | `cho_xu_ly`, `dang_xu_ly`, `da_hoan_tat` | `cho_xu_ly` |
-| 10 | `DonThuoc` | `TrangThai` | `da_ke`, `cho_phat`, `da_phat`, **`da_huy`** *(StatusEnums.cs có, Entity comment chưa cập nhật)* | `da_ke` |
-| 11 | `HoaDonThanhToan` | `TrangThai` | **`chua_thu`**, `da_thu`, `da_huy` *(StatusEnums.cs đã có `chua_thu`)* | `da_thu` |
-| 12 | `ThongBaoHeThong` | `TrangThai` | `cho_gui`, `da_gui`, `da_doc` | `cho_gui` |
-| 13 | `KhoThuoc` | `TrangThai` | `hoat_dong`, `tam_dung`, `sap_het_han`, `sap_het_ton` | `hoat_dong` |
-| 14 | `KhoaChuyenMon` | `TrangThai` | `hoat_dong`, `tam_dung` | `hoat_dong` |
-| 15 | `Phong` | `TrangThai` | `hoat_dong`, `tam_dung` | `hoat_dong` |
-| 16 | `NhanVienYTe` | `TrangThaiCongTac` | `dang_cong_tac`, `tam_nghi`, `nghi_viec` | `dang_cong_tac` |
-
-#### G.2 State Machine: Happy Path hiện tại vs Cần bổ sung
-
-##### ① `LichHenKham` — Lịch hẹn
-
-```
-HIỆN TẠI (Happy Path):
-  dang_cho → da_xac_nhan → da_checkin → [kết thúc]
-
-THIẾU:
-  dang_cho → da_huy     ← FE: có nút Hủy trên Appointments.jsx (filter out) nhưng KHÔNG có API call
-  da_xac_nhan → da_huy  ← BE: AppointmentService nhận status bất kỳ nhưng KHÔNG validate transition
-  da_checkin → [???]     ← Không có trạng thái "đã khám xong" sau checkin
-```
-
-| Layer | Hiện tại | Cần bổ sung |
-|---|---|---|
-| **DB** | Enum 4 giá trị — OK | — |
-| **BE** | `UpdateAppointmentStatus` nhận `targetStatus` bất kỳ → gán thẳng, không validate | Thêm **transition validation** (chỉ cho phép dang_cho→da_xac_nhan, da_xac_nhan→da_checkin/da_huy, etc.) |
-| **FE** | `Appointments.jsx` có `useUpdateAppointmentStatus` nhưng chỉ gọi cho CheckIn | Thêm nút **Xác nhận** (dang_cho→da_xac_nhan) + nút **Hủy** (→da_huy) với confirm dialog |
-
-##### ② `BenhNhan.TrangThaiHomNay` — Trạng thái khám trong ngày
-
-```
-HIỆN TẠI (Happy Path):
-  cho_tiep_nhan → cho_kham → dang_kham → cho_xu_ly → hoan_tat
-
-THIẾU:
-  Bất kỳ bước nào → da_huy   ← BN bỏ về giữa chừng → không có cách đánh dấu
-  cho_xu_ly → cho_kham         ← BN cần quay lại khám sau khi xét nghiệm → không có reverse
-```
-
-| Layer | Hiện tại | Cần bổ sung |
-|---|---|---|
-| **DB** | 10 giá trị (kể cả `_dv`) — OK | — |
-| **BE** | `PatientService.UpdateDailyStatus` gán status thẳng, không validate | Thêm **transition matrix** + cho phép `da_huy` từ mọi trạng thái |
-| **FE** | `PatientModal` gọi `onMutatePatient(pid, {status})` nhiều nơi | Thêm nút **"BN bỏ về"** → set `da_huy` + confirm dialog |
-
-##### ③ `LuotKhamBenh` — Lượt khám
-
-```
-HIỆN TẠI:
-  dang_thuc_hien → hoan_tat   ← CHỈ CÓ 2 trạng thái
-
-THIẾU:
-  dang_thuc_hien → da_huy     ← Hủy lượt khám (BN không đến / bỏ về)
-  Entity THIẾU enum da_huy
-```
-
-| Layer | Hiện tại | Cần bổ sung |
-|---|---|---|
-| **DB** | Chỉ 2 enum — THIẾU | Thêm `da_huy` vào comment + code |
-| **BE** | `ClinicalService` chỉ set `hoan_tat` khi lưu chẩn đoán cuối | Thêm method `HuyLuotKham` cho phép hủy + rollback hàng đợi |
-| **FE** | Không có nút hủy lượt khám ở đâu cả | Thêm nút **"Hủy lượt khám"** trên `Examination.jsx` |
-
-##### ④ `PhieuKhamLamSang` — Phiếu khám lâm sàng
-
-```
-HIỆN TẠI (Happy Path):
-  da_lap → dang_thuc_hien → da_lap_chan_doan → da_hoan_tat
-
-THIẾU:
-  da_lap → da_huy            ← Có enum nhưng KHÔNG có code gọi
-  dang_thuc_hien → da_huy    ← BS hủy phiếu giữa chừng
-```
-
-| Layer | Hiện tại | Cần bổ sung |
-|---|---|---|
-| **DB** | 5 enum kể cả `da_huy` — OK | — |
-| **BE** | `ClinicalService.UpdateExamination` nhận `request.TrangThai` gán thẳng | Thêm validate: chỉ cho `da_huy` từ `da_lap`/`dang_thuc_hien` |
-| **FE** | `Examination.jsx` không có nút hủy phiếu | Thêm nút **"Hủy phiếu"** khi phiếu ở trạng thái `da_lap` |
-
-##### ⑤ `PhieuKhamCanLamSang` — Phiếu CLS (xét nghiệm)
-
-```
-HIỆN TẠI (Happy Path):
-  da_lap → dang_thuc_hien → da_hoan_tat
-
-THIẾU:
-  StatusEnums.cs ĐÃ CÓ da_huy (Entity comment chưa cập nhật)
-  Nhưng KHÔNG có code gọi da_huy ở BE/FE
-```
-
-| Layer | Hiện tại | Cần bổ sung |
-|---|---|---|
-| **DB** | `StatusEnums.cs` ĐÃ CÓ `DaHuy` — Entity comment cần cập nhật | Cập nhật comment Entity cho khớp |
-| **BE** | `ClsService` không có method hủy | Thêm method `HuyPhieuCls` |
-| **FE** | Không có nút hủy | Thêm nút **"Hủy phiếu CLS"** |
-
-##### ⑥ `DonThuoc` — Đơn thuốc
-
-```
-HIỆN TẠI (Happy Path):
-  da_ke → cho_phat → da_phat
-
-THIẾU:
-  StatusEnums.cs ĐÃ CÓ da_huy (Entity comment chưa cập nhật)
-  da_ke → da_huy             ← BS hủy đơn trước khi phát
-  cho_phat → da_huy           ← Y tá hủy trước khi phát
-  da_phat → hoàn thuốc?       ← Không có reverse (trả thuốc về kho)
-```
-
-| Layer | Hiện tại | Cần bổ sung |
-|---|---|---|
-| **DB** | `StatusEnums.cs` ĐÃ CÓ `DaHuy` — Entity comment cần cập nhật | Cập nhật comment Entity cho khớp |
-| **BE** | `PharmacyService` không có method hủy + không rollback kho | Thêm `HuyDonThuoc` + rollback `KhoThuoc.SoLuong` |
-| **FE** | `Prescriptions.jsx` chỉ filter theo 3 tab (Đã kê / Chờ phát / Đã phát) | Thêm nút **"Hủy đơn"** + tab "Đã hủy" |
-
-##### ⑦ `HoaDonThanhToan` — Hóa đơn
-
-```
-HIỆN TẠI:
-  da_thu (mặc định khi tạo)
-
-THIẾU:
-  StatusEnums.cs ĐÃ CÓ chua_thu (Entity comment chưa liệt kê)
-  - BE: BillingService.UpdateInvoiceStatus gán thẳng → không validate, không rollback
-  - FE: billing.js có useUpdateInvoiceStatus nhưng không có nút Hủy trên UI
-  Cần dùng chua_thu (ĐÃ CÓ SẴN) thay vì tạo enum mới
-```
-
-| Layer | Hiện tại | Cần bổ sung |
-|---|---|---|
-| **DB** | `StatusEnums.cs` ĐÃ CÓ `ChuaThu` — Entity comment cần cập nhật | Cập nhật comment Entity + đổi default `"da_thu"` → `"chua_thu"` |
-| **BE** | Tạo HĐ = `da_thu` luôn → bỏ qua bước chờ thanh toán | Đổi default → `chua_thu`, thêm validate transition |
-| **FE** | Không có nút Hủy HĐ | Thêm nút **"Thu tiền"** (chua_thu→da_thu) + **"Hủy hóa đơn"** (→da_huy) |
-
-##### ⑧ `HangDoi` — Hàng đợi
-
-```
-HIỆN TẠI (Happy Path):
-  cho_goi → dang_goi → da_phuc_vu
-
-KHÔNG CẦN HỦY — khi hủy lượt khám, hàng đợi tự động đánh dấu da_phuc_vu.
-→ ĐÃ ĐỦ (trạng thái chỉ cần 3 giá trị)
-```
-
-#### G.3 Tóm tắt: Thiếu gì ở mỗi layer?
-
-| Hạng mục | DB (Entity) | BE (Service) | FE (Component) |
+| # | Entity | Trạng thái | Week |
 |---|---|---|---|
-| **Transition validation** | — | ⚠️ Tất cả Service gán `TrangThai` thẳng, không validate | — |
-| **Enum `da_huy` thiếu** | `LuotKham` *(StatusEnums.cs cũng thiếu)* | — | — |
-| **Entity comment lệch StatusEnums** | `PhieuCLS`, `DonThuoc`, `HoaDon`, `ChiTietDV` *(comment Entity thiếu, StatusEnums.cs đã đủ)* | — | — |
-| **Method hủy thiếu** | — | `ClinicalService`, `ClsService`, `PharmacyService`, `BillingService` | — |
-| **Nút Hủy trên UI thiếu** | — | — | `Appointments`, `Examination`, `Prescriptions`, Billing |
-| **Reverse/Rollback** | — | `PharmacyService` (hoàn thuốc kho) | — |
+| ① | `LichHenKham` — Xác nhận + Hủy | ✅ Transition validation + FE nút | W1 |
+| ② | `BenhNhan.TrangThaiHomNay` — BN bỏ về | ✅ Transition matrix | W1 |
+| ③ | `LuotKhamBenh` — Hủy lượt khám | ✅ HuyLuotKhamAsync + rollback | W1 |
+| ④ | `PhieuKhamLamSang` — Hủy phiếu LS | ✅ Validate transition | W1 |
+| ⑤ | `PhieuKhamCanLamSang` — Hủy CLS | ✅ HuyPhieuClsAsync + rollback | W3 |
+| ⑥ | `DonThuoc` — Hủy đơn + Hoàn kho | ✅ HuyDonThuocAsync + rollback kho | W3 |
+| ⑦ | `HoaDonThanhToan` — Thu tiền / Hủy | ✅ Default `chua_thu`, HuyHoaDonAsync | W3 |
+| ⑧ | `HangDoi` — Không cần hủy | ✅ 3 giá trị đủ | — |
 
 ---
 
 ## 3. Nguyên tắc Kiến trúc (từ DB_DESIGN_DEFENSE.md)
 
-| Nguyên tắc | Chi tiết |
-|---|---|
-| **CQRS** | SQL = Write/Validate (Operational), MongoDB = Read/History (Historical) — DEFENSE 4.11 |
-| **One-way Sync** | MySQL → MongoDB (không đồng bộ ngược) — DEFENSE 4.5 |
-| **Single Responsibility** | HangDoi (Logistics) ≠ LuotKham (Clinical) — DEFENSE 3.3 |
-| **Schema Evolution** | Thêm event_type mới → không cần ALTER TABLE — DEFENSE 2.2 |
-| **PhieuTongHop = "Đèn báo"** | Chỉ giữ TrangThai, không lưu chi tiết (chi tiết → MongoDB) — DEFENSE 4.9 |
-| **KetQuaDichVu = "Mục lục"** | Chỉ giữ metadata, chi tiết → MongoDB — DEFENSE 4.10 |
+| Nguyên tắc | Chi tiết | Trạng thái |
+|---|---|---|
+| **CQRS** | SQL = Write/Validate (Operational), MongoDB = Read/History (Historical) — DEFENSE 4.11 | ⚠️ **Chưa hoàn tất**: FE/HistoryService vẫn đọc từ SQL thay vì MongoDB |
+| **One-way Sync** | MySQL → MongoDB (không đồng bộ ngược) — DEFENSE 4.5 | ✅ Dual-write hoạt động |
+| **Single Responsibility** | HangDoi (Logistics) ≠ LuotKham (Clinical) — DEFENSE 3.3 | ✅ |
+| **Schema Evolution** | Thêm event_type mới → không cần ALTER TABLE — DEFENSE 2.2 | ✅ |
+| **PhieuTongHop = "Đèn báo"** | Chỉ giữ TrangThai, không lưu chi tiết (chi tiết → MongoDB) — DEFENSE 4.9 | ✅ |
+| **KetQuaDichVu = "Mục lục"** | Chỉ giữ metadata, chi tiết → MongoDB — DEFENSE 4.10 | ⚠️ `NoiDungKetQua` vẫn còn |
 
 ---
 
-## 4. Tóm Tắt Khối Lượng Công Việc
+## 4. CÒN THIẾU — Cần hoàn tất trước Week 4
 
-| Hạng mục | Khối lượng | Ưu tiên |
+> [!WARNING]
+> Các mục sau đây là **nợ kỹ thuật từ plan gốc** mà chưa hoàn tất trong W1-W3.
+> Phải xử lý trước khi bắt đầu Week 4 (Tách User + Phân quyền).
+
+### 4.1 🔴 Chuyển READ từ SQL → MongoDB cho KetQuaDichVu
+
+**Thiết kế gốc (DEFENSE 4.10)**: `KetQuaDichVu = "Mục lục"` — chỉ giữ metadata (LoaiKetQua, KetLuanChuyen, ThoiGianChot), **chi tiết đọc từ MongoDB**.
+
+**Hiện tại**: 10+ chỗ vẫn đọc/ghi `NoiDungKetQua` từ MySQL:
+- `ClsService.cs` line 683, 693 — ghi khi tạo/cập nhật kết quả
+- `ClsService.cs` line 725-741 — parse + dual-write sang MongoDB
+- `ClsService.cs` line 773, 919 — map ra DTO
+- `HistoryService.cs` line 220 — đọc cho lịch sử
+- `ClsDtos.cs` — DTO field
+- `DataSeed.cs` — seed data
+
+**Cần làm**:
+1. Sửa **ClsService**: khi tạo KQ CLS, chỉ ghi `KetLuanChuyen`, `TepDinhKem`, `ThoiGianChot` vào SQL. Chi tiết (`chi_so[]`, `mo_ta_hinh_anh`) chỉ ghi MongoDB.
+2. Sửa **HistoryService**: đọc chi tiết KQ từ MongoDB thay vì `kq.NoiDungKetQua`.
+3. Sửa **DTO**: loại `NoiDungKetQua` khỏi `ClsResultDto`, thay bằng data từ MongoDB.
+4. Xóa `NoiDungKetQua` khỏi Entity + Migration DROP column.
+5. Cập nhật DataSeed.
+
+### 4.2 🟡 Chuyển READ 8 cột y tế BenhNhan → MongoDB
+
+**Thiết kế gốc (GAP line 64-68)**: 8 cột y tế GIỮ tạm, chờ MongoDB xong mới xóa.
+
+**Hiện tại**: `ClinicalService.TaoPhieuKhamAsync` (line 134-142) đọc 8 cột y tế từ SQL để hiển thị trong phiếu khám.
+
+**Cần làm**:
+1. Migration script: chuyển 8 cột SQL → MongoDB `medicalProfile` document cho BN hiện có
+2. Sửa `ClinicalService`: đọc profile từ MongoDB thay vì SQL
+3. Sau migration: Xóa 8 cột khỏi `BenhNhan.cs` + DROP columns
+
+> [!NOTE]
+> Mục 4.2 có thể để sau Week 4 vì không ảnh hưởng tính năng mới (tách User/phân quyền). Nhưng 4.1 (`NoiDungKetQua`) nên làm ngay vì thiết kế yêu cầu XÓA.
+
+---
+
+## 5. Tóm Tắt Khối Lượng Công Việc
+
+| Hạng mục | Khối lượng | Trạng thái |
 |---|---|---|
-| MongoDB Setup (Driver, Context, 2 Collections) | ~3h | 🔴 Cao |
-| SQL Migration (MaCha, MaMe, CCCD, Entity mới) | ~2h | 🔴 Cao |
-| SP `sp_BookAppointment` (SERIALIZABLE) | ~3h | 🔴 Cao |
-| Recursive CTE + GenealogyService | ~2h | 🔴 Cao |
-| MongoDB ghi lịch sử (tích hợp ClinicalService/ClsService) | ~4h | 🔴 Cao |
-| Aggregation Pipeline Analytics | ~3h | 🔴 Cao |
-| Entity SQL cập nhật (ERD_Diff: ~10 entity) | ~3h | 🟡 Trung bình |
-| LichSuXuatKho + ThongBaoMau entity mới | ~2h | 🟡 Trung bình |
-| Audit Logs (MongoDB) | ~2h | 🟡 Trung bình |
-| **Phân quyền Backend** (`[RequireRole]` trên 5 Controller) | ~2h | 🟡 Trung bình |
-| **Phân quyền Frontend** (Sidebar lọc menu + route guard) | ~3h | 🟡 Trung bình |
-| **Trang quản trị Admin** (CRUD người dùng — UC10) | ~4h | 🟡 Trung bình |
-| **Luồng trạng thái** (DB enum + BE validate + FE nút Hủy) | ~6h | 🟡 Trung bình |
-| Frontend (Timeline, Pha hệ, Analytics, VietQR) | ~8h | 🟡 Trung bình |
-| VietQR Integration | ~4h | 🟢 Thấp |
-| **Tổng ước tính** | **~51h** | |
+| MongoDB Setup (Driver, Context, 2 Collections) | ~3h | ✅ W1 |
+| SQL Migration (MaCha, MaMe, CCCD, Entity mới) | ~2h | ✅ W1 |
+| SP `sp_BookAppointment` (SERIALIZABLE) | ~3h | ✅ W1 |
+| Recursive CTE + GenealogyService | ~2h | ✅ W2 |
+| MongoDB ghi lịch sử (tích hợp ClinicalService/ClsService) | ~4h | ✅ W2 |
+| Aggregation Pipeline Analytics | ~3h | ✅ W3 |
+| Entity SQL cập nhật (ERD_Diff: ~10 entity) | ~3h | ✅ W1 |
+| LichSuXuatKho + ThongBaoMau entity mới | ~2h | ✅ W1+W3 |
+| Audit Logs (MongoDB) | ~2h | ✅ W3 |
+| Luồng trạng thái (DB enum + BE validate + FE nút Hủy) | ~6h | ✅ W1-W3 |
+| Notification phân loại chi tiết 6 vai trò | ~2h | ✅ W3 |
+| **Chuyển READ KetQuaDichVu SQL → MongoDB + Xóa NoiDungKetQua** | ~3h | 🔴 CHƯA |
+| **Chuyển READ 8 cột y tế BenhNhan → MongoDB** | ~3h | 🟡 CHƯA |
+| **Phân quyền Backend** (`[RequireRole]` trên 5 Controller) | ~2h | ⏳ W4 |
+| **Phân quyền Frontend** (Sidebar lọc menu + route guard) | ~3h | ⏳ W4 |
+| **Trang quản trị Admin** (CRUD người dùng — UC10) | ~4h | ⏳ W4 |
+| Frontend (Timeline, Pha hệ, Analytics, VietQR) | ~8h | ⏳ W4-W5 |
+| VietQR Integration | ~4h | 🟢 Tùy chọn |

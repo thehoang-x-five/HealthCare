@@ -753,11 +753,18 @@ namespace HealthCare.Services.OutpatientCare
                     }
                 }
 
-                await _mongoHistory.LogEventAsync(
-                    phieuCls.PhieuKhamLamSang.MaBenhNhan,
-                    eventType,
-                    clsPayload,
-                    request.MaNhanSuThucHien);
+                try
+                {
+                    await _mongoHistory.LogEventAsync(
+                        phieuCls.PhieuKhamLamSang.MaBenhNhan,
+                        eventType,
+                        clsPayload,
+                        request.MaNhanSuThucHien);
+                }
+                catch (Exception)
+                {
+                    // MongoDB dual-write fail → log miss, MySQL data vẫn OK
+                }
             }
 
             await _db.Entry(ketQua).Reference(k => k.NhanVienYTes).LoadAsync();
@@ -1295,13 +1302,13 @@ namespace HealthCare.Services.OutpatientCare
                 NguonLienQuan = "phieu_cls",
                 MaDoiTuongLienQuan = order.MaPhieuKhamCls,
 
-                // Broadcast cho nhân viên y tế (CLS / điều dưỡng hỗ trợ)
+                // Chỉ y tá CLS (cận lâm sàng) thực hiện
                 NguoiNhan = new List<NotificationRecipientCreateRequest>
 {
     new NotificationRecipientCreateRequest
     {
-        LoaiNguoiNhan = "y_ta",//y_ta can_lam_sang
-        MaNguoiNhan = null   // broadcast trong nhóm y_ta
+        LoaiNguoiNhan = "y_ta_cls",
+        MaNguoiNhan = null
     }
 }
             };
@@ -1384,6 +1391,53 @@ namespace HealthCare.Services.OutpatientCare
             var dto = await BuildClsOrderDtoAsync(maPhieuKhamCls);
             if (dto is not null)
                 await _realtime.BroadcastClsOrderStatusUpdatedAsync(dto);
+
+            // Dashboard refresh
+            var dashboard = await _dashboard.LayDashboardHomNayAsync();
+            await _realtime.BroadcastDashboardTodayAsync(dashboard);
+
+            // Thông báo cho bác sĩ chỉ định CLS
+            if (dto is not null)
+                await TaoThongBaoHuyPhieuClsAsync(dto);
+        }
+
+        private async Task TaoThongBaoHuyPhieuClsAsync(ClsOrderDto order)
+        {
+            // Lấy bác sĩ chỉ định từ phiếu khám lâm sàng gốc
+            var phieuCls = await _db.PhieuKhamCanLamSangs
+                .Include(p => p.PhieuKhamLamSang)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.MaPhieuKhamCls == order.MaPhieuKhamCls);
+
+            var maBacSi = phieuCls?.PhieuKhamLamSang?.MaBacSiKham;
+            if (string.IsNullOrWhiteSpace(maBacSi))
+                return;
+
+            var tenBn = string.IsNullOrWhiteSpace(order.TenBenhNhan)
+                ? order.MaBenhNhan
+                : $"{order.TenBenhNhan} ({order.MaBenhNhan})";
+
+            var request = new NotificationCreateRequest
+            {
+                LoaiThongBao = "cls",
+                TieuDe = "Phiếu CLS đã hủy",
+                NoiDung = $"Phiếu cận lâm sàng {order.MaPhieuKhamCls} của bệnh nhân {tenBn} đã bị hủy.",
+                MucDoUuTien = "normal",
+
+                NguonLienQuan = "phieu_cls",
+                MaDoiTuongLienQuan = order.MaPhieuKhamCls,
+
+                NguoiNhan = new List<NotificationRecipientCreateRequest>
+                {
+                    new NotificationRecipientCreateRequest
+                    {
+                        LoaiNguoiNhan = "bac_si",
+                        MaNguoiNhan = maBacSi
+                    }
+                }
+            };
+
+            await _notifications.TaoThongBaoAsync(request);
         }
 
     }

@@ -279,7 +279,14 @@ namespace HealthCare.Services.MedicationBilling
                     { "thoi_gian", entity.ThoiGian }
                 };
 
-                await _mongoHistory.LogEventAsync(entity.MaBenhNhan, "thanh_toan", payload, entity.MaNhanSuThu);
+                try
+                {
+                    await _mongoHistory.LogEventAsync(entity.MaBenhNhan, "thanh_toan", payload, entity.MaNhanSuThu);
+                }
+                catch (Exception)
+                {
+                    // MongoDB dual-write fail → log miss, MySQL data vẫn OK
+                }
             }
 
             var updated = await QueryHoaDon()
@@ -373,6 +380,80 @@ namespace HealthCare.Services.MedicationBilling
             };
         }
 
+        // ============================================================
+        // =                 5. HỦY HÓA ĐƠN                          =
+        // ============================================================
+
+        public async Task<InvoiceDto?> HuyHoaDonAsync(string maHoaDon, string? lyDo = null)
+        {
+            var entity = await QueryHoaDon()
+                .FirstOrDefaultAsync(h => h.MaHoaDon == maHoaDon);
+
+            if (entity == null)
+                return null;
+
+            // Chỉ cho phép hủy khi: chua_thu
+            if (!string.Equals(entity.TrangThai, "chua_thu", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    $"Hóa đơn đang ở trạng thái '{entity.TrangThai}' — chỉ hủy được khi 'chua_thu'.");
+
+            entity.TrangThai = "da_huy";
+            entity.ThoiGianHuy = DateTime.Now;
+
+            await _db.SaveChangesAsync();
+
+            var updated = await QueryHoaDon()
+                .AsNoTracking()
+                .FirstAsync(h => h.MaHoaDon == maHoaDon);
+
+            var dto = MapInvoice(updated);
+
+            // Realtime: hóa đơn đã hủy
+            await _realtime.BroadcastInvoiceChangedAsync(dto);
+
+            // Dashboard refresh
+            var dashboard = await _dashboard.LayDashboardHomNayAsync();
+            await _realtime.BroadcastDashboardTodayAsync(dashboard);
+
+            // Thông báo cho y_ta_hanh_chinh (phụ trách thanh toán)
+            await TaoThongBaoHuyHoaDonAsync(dto, lyDo);
+
+            return dto;
+        }
+
+        private async Task TaoThongBaoHuyHoaDonAsync(InvoiceDto invoice, string? lyDo)
+        {
+            var tenBn = string.IsNullOrWhiteSpace(invoice.TenBenhNhan)
+                ? invoice.MaBenhNhan
+                : $"{invoice.TenBenhNhan} ({invoice.MaBenhNhan})";
+
+            var noiDung = $"Hóa đơn {invoice.MaHoaDon} của bệnh nhân {tenBn} đã bị hủy.";
+            if (!string.IsNullOrWhiteSpace(lyDo))
+                noiDung += $" Lý do: {lyDo}";
+
+            var request = new NotificationCreateRequest
+            {
+                LoaiThongBao = "hoa_don",
+                TieuDe = "Hóa đơn đã hủy",
+                NoiDung = noiDung,
+                MucDoUuTien = "normal",
+
+                NguonLienQuan = "hoa_don",
+                MaDoiTuongLienQuan = invoice.MaHoaDon,
+
+                NguoiNhan = new List<NotificationRecipientCreateRequest>
+                {
+                    new NotificationRecipientCreateRequest
+                    {
+                        LoaiNguoiNhan = "y_ta_hanh_chinh", // chỉ y tá hành chính phụ trách thanh toán
+                        MaNguoiNhan = null
+                    }
+                }
+            };
+
+            await _notifications.TaoThongBaoAsync(request);
+        }
+
         // ==========================
         // =   THÔNG BÁO - HÓA ĐƠN  =
         // ==========================
@@ -393,7 +474,7 @@ namespace HealthCare.Services.MedicationBilling
 {
     new NotificationRecipientCreateRequest
     {
-        LoaiNguoiNhan = "y_ta",
+        LoaiNguoiNhan = "y_ta_hanh_chinh", // chỉ y tá hành chính thu tiền
         MaNguoiNhan = null
     }
 }

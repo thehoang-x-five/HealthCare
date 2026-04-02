@@ -234,9 +234,15 @@ Ghi nhận sử dụng AI theo rubric:
 - Fix nhanh khi Dev 2 báo lỗi mapping/response
 - Verify API response khi Dev 2 nghi ngờ field sai
 
-### 6.2 Joint testing session (Ngày 4-5)
+### 5.2 Verify NV0 (NoiDungKetQua) từ W4
+- [ ] `NoiDungKetQua` column đã DROP khỏi DB
+- [ ] `grep -r "NoiDungKetQua" --include="*.cs"` → chỉ còn trong Request DTO input
+- [ ] Đọc KQ CLS via API → chi tiết từ MongoDB, không từ SQL
+- [ ] HistoryService lịch sử hiện chi tiết KQ đúng
+
+### 5.3 Joint testing session (Ngày 4-5)
 - Dev 1 + Dev 2 cùng chạy E2E flow trên cùng backend
-- Dev 1 monitor log backend, Dev 2 thao tác FE
+- Dev 2 thao tác FE, ghi nhận lỗi
 - Ghi nhận mọi lỗi → fix → re-test
 
 ---

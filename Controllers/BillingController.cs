@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
 using HealthCare.Attributes;
 using HealthCare.DTOs;
@@ -79,5 +79,29 @@ namespace HealthCare.Controllers
 
             return Ok(dto);
         }
+
+        /// <summary>
+        /// Hủy hoá đơn (chỉ khi chua_thu).
+        /// </summary>
+        [HttpPut("invoices/{maHoaDon}/cancel")]
+        [Authorize]
+        public async Task<IActionResult> CancelInvoice(string maHoaDon, [FromBody] CancelInvoiceRequest? request = null)
+        {
+            try
+            {
+                var dto = await _billingService.HuyHoaDonAsync(maHoaDon, request?.LyDo);
+                if (dto == null) return NotFound(new { message = "Không tìm thấy hóa đơn" });
+                return Ok(new { message = "Đã hủy hóa đơn thành công.", data = dto });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+    }
+
+    public class CancelInvoiceRequest
+    {
+        public string? LyDo { get; set; }
     }
 }

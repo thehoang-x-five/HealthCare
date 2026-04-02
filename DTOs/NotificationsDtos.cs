@@ -1,4 +1,4 @@
-﻿
+
 using System.Collections.Generic;
 
 namespace HealthCare.DTOs
@@ -81,8 +81,13 @@ namespace HealthCare.DTOs
     /// </summary>
     public record class NotificationFilterRequest
     {
-        public string LoaiNguoiNhan { get; set;} = default!;   // benh_nhan, nhan_vien_y_te
+        public string LoaiNguoiNhan { get; set;} = default!;   // benh_nhan, bac_si, y_ta
         public string MaNguoiNhan { get; set;} = default!;
+
+        /// <summary>
+        /// Loại y tá cụ thể (hanhchinh, cls, phong_kham). Dùng để filter broadcast đúng sub-type.
+        /// </summary>
+        public string? LoaiYTa { get; set; }
 
         /// <summary>
         /// Chỉ lấy chưa đọc (true) hay tất cả (false/null).

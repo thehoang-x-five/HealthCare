@@ -613,7 +613,14 @@ namespace HealthCare.Services.OutpatientCare
                 }
 
                 var maNhanSu = luot?.MaNhanSuThucHien ?? phieu.MaBacSiKham;
-                await _mongoHistory.LogEventAsync(maBenhNhan, "kham_lam_sang", payload, maNhanSu);
+                try
+                {
+                    await _mongoHistory.LogEventAsync(maBenhNhan, "kham_lam_sang", payload, maNhanSu);
+                }
+                catch (Exception)
+                {
+                    // MongoDB dual-write fail → log miss, MySQL data vẫn OK
+                }
 
                 // Broadcast after successful transaction
                 var dto = new FinalDiagnosisDto

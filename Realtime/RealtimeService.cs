@@ -233,10 +233,15 @@ namespace HealthCare.Realtime
 
         public Task BroadcastFinalDiagnosisChangedAsync(FinalDiagnosisDto chanDoan)
         {
-            // ⚠️ FinalDiagnosisDto hiện tại không có MaBacSi và MaPhong
-            // Tạm thời không gửi realtime cho đến khi DTO được bổ sung thông tin
-            // TODO: Bổ sung MaBacSi và MaPhong vào FinalDiagnosisDto để filter chính xác
-            return Task.CompletedTask;
+            // Broadcast cho tất cả nhân viên đang ở màn Examination (CLS cần biết BS đã chẩn đoán xong)
+            // MaBenhNhan có sẵn → broadcast theo role groups
+            var tasks = new List<Task>
+            {
+                _hub.Clients.Group(DoctorRoleGroupName).FinalDiagnosisChanged(chanDoan),
+                _hub.Clients.Group(NurseRoleGroupName).FinalDiagnosisChanged(chanDoan)
+            };
+
+            return Task.WhenAll(tasks);
         }
 
 
@@ -333,26 +338,36 @@ namespace HealthCare.Realtime
 
         public Task BroadcastClsResultCreatedAsync(ClsResultDto ketQua)
         {
-            // ⚠️ ClsResultDto không có MaPhong
-            // Tạm thời không gửi realtime cho đến khi DTO được bổ sung thông tin
-            // TODO: Bổ sung MaPhong vào ClsResultDto để filter chính xác
-            return Task.CompletedTask;
+            // Kết quả CLS mới → BS cần biết (đang chờ KQ để chẩn đoán cuối)
+            // Broadcast cho tất cả bác sĩ + y tá CLS
+            var tasks = new List<Task>
+            {
+                _hub.Clients.Group(DoctorRoleGroupName).ClsResultCreated(ketQua),
+                _hub.Clients.Group(ClsNurseGroupName).ClsResultCreated(ketQua)
+            };
+            return Task.WhenAll(tasks);
         }
 
         public Task BroadcastClsSummaryCreatedAsync(ClsSummaryDto tongHop)
         {
-            // ⚠️ ClsSummaryDto không có MaPhong
-            // Tạm thời không gửi realtime cho đến khi DTO được bổ sung thông tin
-            // TODO: Bổ sung MaPhong vào ClsSummaryDto để filter chính xác
-            return Task.CompletedTask;
+            // Phiếu tổng hợp CLS → BS + y tá phòng khám cần biết
+            var tasks = new List<Task>
+            {
+                _hub.Clients.Group(DoctorRoleGroupName).ClsSummaryCreated(tongHop),
+                _hub.Clients.Group(ClinicalNurseGroupName).ClsSummaryCreated(tongHop)
+            };
+            return Task.WhenAll(tasks);
         }
 
         public Task BroadcastClsSummaryUpdatedAsync(ClsSummaryDto tongHop)
         {
-            // ⚠️ ClsSummaryDto không có MaPhong
-            // Tạm thời không gửi realtime cho đến khi DTO được bổ sung thông tin
-            // TODO: Bổ sung MaPhong vào ClsSummaryDto để filter chính xác
-            return Task.CompletedTask;
+            // Cập nhật phiếu tổng hợp → BS + y tá phòng khám
+            var tasks = new List<Task>
+            {
+                _hub.Clients.Group(DoctorRoleGroupName).ClsSummaryUpdated(tongHop),
+                _hub.Clients.Group(ClinicalNurseGroupName).ClsSummaryUpdated(tongHop)
+            };
+            return Task.WhenAll(tasks);
         }
 
         public Task BroadcastClsItemUpdatedAsync(ClsItemDto item)
@@ -538,10 +553,28 @@ namespace HealthCare.Realtime
                         .NotificationCreated(thongBao);
                 }
 
-                // Y tá hành chính quy về y_ta
+                // Y tá chung (tất cả loại y tá)
                 if (loai is "y_ta" or "thu_ngan" or "phat_thuoc")
                 {
                     return _hub.Clients.Group(NurseRoleGroupName).NotificationCreated(thongBao);
+                }
+
+                // Y tá hành chính cụ thể (thanh toán, phát thuốc, quản lý lịch)
+                if (loai == "y_ta_hanh_chinh")
+                {
+                    return _hub.Clients.Group(AdminNurseGroupName).NotificationCreated(thongBao);
+                }
+
+                // Y tá CLS cụ thể (xét nghiệm, siêu âm, X-quang)
+                if (loai is "y_ta_cls" or "y_ta_can_lam_sang")
+                {
+                    return _hub.Clients.Group(ClsNurseGroupName).NotificationCreated(thongBao);
+                }
+
+                // Y tá phòng khám (hỗ trợ bác sĩ lâm sàng)
+                if (loai is "y_ta_phong_kham" or "y_ta_lam_sang")
+                {
+                    return _hub.Clients.Group(ClinicalNurseGroupName).NotificationCreated(thongBao);
                 }
 
                 // Loại khác không rõ → fallback toàn bộ nhân sự
@@ -581,6 +614,24 @@ namespace HealthCare.Realtime
                 if (loai is "y_ta" or "thu_ngan" or "phat_thuoc")
                 {
                     return _hub.Clients.Group(NurseRoleGroupName).NotificationUpdated(thongBao);
+                }
+
+                // Y tá hành chính cụ thể
+                if (loai == "y_ta_hanh_chinh")
+                {
+                    return _hub.Clients.Group(AdminNurseGroupName).NotificationUpdated(thongBao);
+                }
+
+                // Y tá CLS cụ thể
+                if (loai is "y_ta_cls" or "y_ta_can_lam_sang")
+                {
+                    return _hub.Clients.Group(ClsNurseGroupName).NotificationUpdated(thongBao);
+                }
+
+                // Y tá phòng khám
+                if (loai is "y_ta_phong_kham" or "y_ta_lam_sang")
+                {
+                    return _hub.Clients.Group(ClinicalNurseGroupName).NotificationUpdated(thongBao);
                 }
 
                 // fallback gửi toàn bộ nhân sự

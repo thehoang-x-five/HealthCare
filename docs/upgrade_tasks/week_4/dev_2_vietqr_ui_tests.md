@@ -83,6 +83,7 @@ export const hasGlobalScope = (u) => isAdmin(u) || isReceptionNurse(u);
 ### 1.5 Test
 - [ ] Login mọi vai trò → store đúng `maUser`, `vaiTro`, `loaiYTa`
 - [ ] Không còn tham chiếu `chucVu` trong FE codebase
+- [ ] **Verify JWT claim `loai_y_ta` (snake_case) map đúng vào `authStore.loaiYTa`** — nếu sai → nurseType = null → notification realtime không nhận theo subtype, SignalR group join sai
 
 ---
 
@@ -270,3 +271,11 @@ export const LOAI_Y_TA = { HANH_CHINH: 'hanhchinh', LAM_SANG: 'ls', CAN_LAM_SANG
 | 3 | VietQR popup cũ vỡ khi embed wizard | Extract QR logic thành component riêng |
 | 4 | Route guard bypass khi refresh | ProtectedRoute check auth state → redirect `/login` |
 | 5 | Wizard cancel ở bước 2 → phiếu bước 1 đã tạo | UX: "Hóa đơn đã tạo, thu tiền sau" + retry |
+
+---
+
+## 📌 GHI CHÚ: 8 cột y tế BenhNhan → MongoDB
+
+> Mục 3.7 trong `UPGRADE_IMPLEMENTATION_PLAN.md` — chuyển 8 cột y tế SQL → MongoDB `medicalProfile`.
+>
+> **Quyết định**: Thực hiện **SAU Week 5** nếu còn thời gian. Không ảnh hưởng tính năng W4-5. Dual-write hoạt động, SQL vẫn là nguồn đọc chính.

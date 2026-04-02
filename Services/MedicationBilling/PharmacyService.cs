@@ -406,7 +406,14 @@ namespace HealthCare.Services.MedicationBilling
                         { "danh_sach_thuoc", thuocList }
                     };
 
-                    await _mongoHistory.LogEventAsync(don.MaBenhNhan, "don_thuoc", payload, don.MaBacSiKeDon);
+                    try
+                    {
+                        await _mongoHistory.LogEventAsync(don.MaBenhNhan, "don_thuoc", payload, don.MaBacSiKeDon);
+                    }
+                    catch (Exception)
+                    {
+                        // MongoDB dual-write fail → log miss, MySQL data vẫn OK
+                    }
                 }
 
                 // reload để có đầy đủ nav sau khi EF track
@@ -583,11 +590,11 @@ namespace HealthCare.Services.MedicationBilling
 
                 NguoiNhan = new List<NotificationRecipientCreateRequest>
                 {
-                    // Broadcast cho tất cả nhân viên y tế
+                    // Chỉ y tá hành chính (phụ trách phát thuốc)
                     new NotificationRecipientCreateRequest
                     {
-                        LoaiNguoiNhan = "nhan_vien_y_te",
-                        MaNguoiNhan = null // => NotificationService vẫn lưu được, realtime sẽ broadcast theo role
+                        LoaiNguoiNhan = "y_ta_hanh_chinh",
+                        MaNguoiNhan = null
                     }
                 }
             };
@@ -693,6 +700,8 @@ namespace HealthCare.Services.MedicationBilling
 
         public async Task HuyDonThuocAsync(string maDonThuoc)
         {
+            using var transaction = await _db.Database.BeginTransactionAsync();
+
             var don = await _db.DonThuocs
                 .Include(d => d.ChiTietDonThuocs)
                 .FirstOrDefaultAsync(d => d.MaDonThuoc == maDonThuoc)
@@ -708,20 +717,18 @@ namespace HealthCare.Services.MedicationBilling
                 throw new InvalidOperationException(
                     $"Đơn thuốc đang ở trạng thái '{don.TrangThai}' — không thể hủy. Chỉ hủy được khi 'da_ke' hoặc 'cho_phat'.");
 
-            // Hoàn kho: cộng lại SoLuongTon cho từng thuốc
+            // Hoàn kho: dùng raw SQL atomic UPDATE để tránh race condition
             foreach (var ct in don.ChiTietDonThuocs)
             {
-                var drug = await _db.KhoThuocs
-                    .FirstOrDefaultAsync(k => k.MaThuoc == ct.MaThuoc);
-                if (drug != null)
-                {
-                    drug.SoLuongTon += ct.SoLuong;
-                }
+                await _db.Database.ExecuteSqlRawAsync(
+                    "UPDATE kho_thuoc SET SoLuongTon = SoLuongTon + {0} WHERE MaThuoc = {1}",
+                    ct.SoLuong, ct.MaThuoc);
             }
 
             don.TrangThai = "da_huy";
             don.NgayCapNhat = DateTime.Now;
             await _db.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             // Broadcast: đơn thuốc đã hủy
             var updatedDon = await LayDonThuocAsync(maDonThuoc);

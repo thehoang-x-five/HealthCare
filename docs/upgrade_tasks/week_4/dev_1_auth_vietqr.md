@@ -19,7 +19,43 @@
 
 ---
 
-## Nhiệm vụ 1: Tách Bảng UserAccount khỏi NhanVienYTe ⭐ ƯU TIÊN CAO — LÀM ĐẦU TIÊN
+## Nhiệm vụ 0: Chuyển NoiDungKetQua SQL → MongoDB + DROP Column 🔴 LÀM TRƯỚC TIÊN
+
+### 0.1 Mục tiêu
+Hoàn tất nợ kỹ thuật W2: `KetQuaDichVu = "Mục lục"` — chỉ giữ metadata (LoaiKetQua, KetLuanChuyen, ThoiGianChot) trong SQL, chi tiết đọc từ MongoDB (DEFENSE 4.10). **Làm TRƯỚC tách UserAccount** vì sau migration schema khó sửa hơn.
+
+### 0.2 Bước 1: Sửa ClsService — Chuyển nguồn đọc
+- Khi tạo/cập nhật KQ CLS: chỉ ghi `KetLuanChuyen`, `TepDinhKem`, `ThoiGianChot` vào SQL.
+- Chi tiết (`chi_so[]`, `mo_ta_hinh_anh`, `noi_dung`) → **chỉ ghi MongoDB** (giữ code dual-write hiện tại).
+- Khi đọc KQ CLS (`GetClsResultAsync`, `GetClsOrdersAsync`): lấy chi tiết từ MongoDB thay vì `kq.NoiDungKetQua`.
+
+### 0.3 Bước 2: Sửa HistoryService + ClsResultDto
+- `HistoryService.cs` line 220: đọc chi tiết KQ từ MongoDB thay vì `kq.NoiDungKetQua`.
+- `ClsResultDto`: xóa field `NoiDungKetQua`, thay bằng `ChiTiet` (object từ MongoDB).
+- `ClsResultCreateRequest`: giữ `NoiDungKetQua` cho input nhưng ClsService chỉ ghi MongoDB.
+
+### 0.4 Bước 3: Xóa field + Migration
+- Xóa `[Obsolete] NoiDungKetQua` khỏi `KetQuaDichVu.cs`.
+- Sửa `DataSeed.cs`: bỏ seed `NoiDungKetQua`.
+- Tạo migration `DROP COLUMN NoiDungKetQua`.
+
+### 0.5 File bị ảnh hưởng
+- `Services/OutpatientCare/ClsService.cs` (line 683, 693, 725-741, 773, 919)
+- `Services/OutpatientCare/HistoryService.cs` (line 220)
+- `DTOs/ClsDtos.cs`
+- `Entities/KetQuaDichVu.cs`
+- `Datas/DataSeed.cs`
+
+### 0.6 Test
+- [ ] Tạo KQ CLS → MongoDB có document, SQL KHÔNG có NoiDungKetQua
+- [ ] Đọc KQ CLS via API → chi tiết từ MongoDB, không 500
+- [ ] HistoryService lịch sử hiện chi tiết KQ từ MongoDB
+- [ ] Migration DROP column chạy OK
+- [ ] `grep -r "NoiDungKetQua" --include="*.cs"` → chỉ còn trong Request DTO input
+
+---
+
+## Nhiệm vụ 1: Tách Bảng UserAccount khỏi NhanVienYTe ⭐ ƯU TIÊN CAO — LÀM SAU NV0
 
 ### 1.1 Mục tiêu
 Tạo entity `UserAccount` quản lý xác thực/phân quyền riêng biệt. Quan hệ: `UserAccount` 1:1 `NhanVienYTe`.
@@ -133,6 +169,7 @@ Vượt qua `[RequireRole]` đơn giản → thêm **data scope** theo vai trò/
 | `ReportsController` | Nhân viên | `[RequireRole("admin")]` |
 | `AppointmentsController` | GET | BỔ SUNG: admin xem (không tạo/sửa) |
 | `DashboardController` | GET | `[Authorize]` + scope: admin/y_ta_hc = global, khác = scope khoa |
+| `MasterDataController` | `PUT staff/{id}/status` | `[RequireRole("admin")]` — FE `staff.js` đã gọi nhưng BE chưa có |
 
 ### 2.4 Implement Data Scope ở Service Layer
 
@@ -281,3 +318,12 @@ Bổ sung endpoints cho Admin quản lý rộng hơn:
 | 3 | Đổi default hóa đơn `chua_thu` → FE cũ vỡ | Bàn giao Dev 2 song song |
 | 4 | Seed thiếu lịch trực → đặt lịch fail | Seed ≥7 ngày × mỗi phòng ≥2 ca |
 | 5 | Data scope trả ít bản ghi → FE tưởng lỗi | Document rõ: shape giữ nguyên, số lượng thay đổi |
+| 6 | NV0 DROP NoiDungKetQua → HistoryService/ClsService crash | Test đọc KQ trước khi merge NV1 |
+
+---
+
+## 📌 GHI CHÚ: 8 cột y tế BenhNhan → MongoDB
+
+> Mục 3.7 trong `UPGRADE_IMPLEMENTATION_PLAN.md` (chuyển 8 cột `DiUng`, `ChongChiDinh`, `ThuocDangDung`, `TieuSuBenh`, `TienSuPhauThuat`, `NhomMau`, `BenhManTinh`, `SinhHieu` → MongoDB `medicalProfile`).
+>
+> **Quyết định**: Thực hiện **SAU Week 5** nếu còn thời gian. Lý do: không ảnh hưởng tính năng W4-5 (tách User/RBAC/thanh toán). Dual-write đang hoạt động, SQL vẫn là nguồn đọc chính cho 8 cột này.

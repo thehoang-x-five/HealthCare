@@ -45,5 +45,8 @@ namespace HealthCare.Services.MedicationBilling
         Task<InvoiceDto?> CapNhatTrangThaiHoaDonAsync(
             string maHoaDon, 
             InvoiceStatusUpdateRequest request);
+
+        // ===== HỦY HÓA ĐƠN =====
+        Task<InvoiceDto?> HuyHoaDonAsync(string maHoaDon, string? lyDo = null);
     }
 }

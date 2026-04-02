@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -143,11 +143,21 @@ namespace HealthCare.Services.UserInteraction
             }
             else
             {
-                // Nhân sự (bac_si / y_ta / nhan_vien_y_te / staff / nhan_su...)
-                // -> Không filter theo LoaiNguoiNhan để tránh mismatch "staff" / "nhan_vien_y_te" / "bac_si"...
+                // Nhân sự: lấy cả targeted (MaNhanSu == mã mình)
+                // VÀ broadcast phù hợp role (MaNhanSu == null + LoaiNguoiNhan match)
+                var allowedTypes = GetAllowedNotifTypes(loai, filter.LoaiYTa);
+
                 if (!string.IsNullOrWhiteSpace(filter.MaNguoiNhan))
                 {
-                    query = query.Where(x => x.tn.MaNhanSu == filter.MaNguoiNhan);
+                    query = query.Where(x =>
+                        x.tn.MaNhanSu == filter.MaNguoiNhan ||
+                        (x.tn.MaNhanSu == null && allowedTypes.Contains(x.tn.LoaiNguoiNhan))
+                    );
+                }
+                else
+                {
+                    // Không có mã cụ thể → chỉ filter theo loại phù hợp
+                    query = query.Where(x => allowedTypes.Contains(x.tn.LoaiNguoiNhan));
                 }
             }
 
@@ -436,6 +446,60 @@ namespace HealthCare.Services.UserInteraction
                 DaDoc = daDoc,
                 ThoiGianDoc = thoiGianDoc
             };
+        }
+
+
+        /// <summary>
+        /// Trả về tập LoaiNguoiNhan mà người có role [loaiNguoiNhan] được phép nhìn thấy.
+        /// Dùng cho inbox query: lấy broadcast notifications phù hợp vai trò.
+        /// </summary>
+        private static HashSet<string> GetAllowedNotifTypes(string loaiNguoiNhan, string? loaiYTa = null)
+        {
+            // Tất cả nhân viên đều nhận broadcast chung
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "nhan_vien_y_te", "nhan_su", "staff"
+            };
+
+            if (loaiNguoiNhan is "bac_si")
+            {
+                set.Add("bac_si");
+            }
+            else
+            {
+                // Tất cả y tá nhận broadcast chung "y_ta"
+                set.Add("y_ta");
+
+                // Chỉ thêm sub-type ĐÚNG của người dùng (không thêm tất cả)
+                var normalizedYTa = (loaiYTa ?? "").Trim().ToLowerInvariant();
+                switch (normalizedYTa)
+                {
+                    case "hanhchinh":
+                    case "hanh_chinh":
+                        set.Add("y_ta_hanh_chinh");
+                        break;
+                    case "cls":
+                    case "can_lam_sang":
+                        set.Add("y_ta_cls");
+                        set.Add("y_ta_can_lam_sang");
+                        break;
+                    case "phong_kham":
+                    case "lam_sang":
+                        set.Add("y_ta_phong_kham");
+                        set.Add("y_ta_lam_sang");
+                        break;
+                    default:
+                        // Không xác định loại cụ thể → cho xem tất cả (fallback)
+                        set.Add("y_ta_hanh_chinh");
+                        set.Add("y_ta_phong_kham");
+                        set.Add("y_ta_cls");
+                        set.Add("y_ta_lam_sang");
+                        set.Add("y_ta_can_lam_sang");
+                        break;
+                }
+            }
+
+            return set;
         }
 
     }
