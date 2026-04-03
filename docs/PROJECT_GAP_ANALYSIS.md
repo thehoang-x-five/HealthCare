@@ -2,7 +2,7 @@
 
 > **Đã đối chiếu với: Source code (22 Entity, 14 Controller, 9 Service folder) + Tất cả sơ đồ UML (5 module) + DB_DESIGN_DEFENSE.md**
 >
-> **Cập nhật lần cuối: 2026-04-02 — Sau khi hoàn tất Week 1-2-3**
+> **Cập nhật lần cuối: 2026-04-03 — Sau khi hoàn tất Week 1-2-3 + Week 4 (FE RBAC + PaymentWizard)**
 
 ---
 
@@ -92,11 +92,18 @@
 
 - Chưa triển khai. Đây là tính năng tùy chọn, không bắt buộc.
 
-### F. Phân Quyền & Tác Nhân — ⏳ Week 4
+### F. Phân Quyền & Tác Nhân — 🟡 Week 4 (FE xong, BE chờ)
 
-- ⏳ Backend `[RequireRole]` trên nhiều Controller — **Week 4**
-- ⏳ Frontend Sidebar lọc menu theo vai trò — **Week 4**
-- ✅ **Notification targeting chi tiết 6 vai trò** — W3 (BroadcastNotification route theo nurse_type group)
+- ✅ **Frontend RBAC 7 tầng hoàn tất** — W4:
+  - ✅ Tầng 1: Menu Visibility — `Sidebar.jsx` dùng `TAB_VISIBILITY` mapping
+  - ✅ Tầng 2: Route Guard — `ProtectedRoute.jsx` wrap `/appointments`, `/admin/users`
+  - ✅ Tầng 3-5: Page/Component/Action — `canManageReception`, `canCallPatient`, `canViewRevenueReport` trên 6 page
+  - ✅ Tầng 6-7: Data Scope badge — `ScopeBadge.jsx` trên Overview + Reports
+- ✅ **Enum Constants** — `src/constants/enums.js` (177 dòng), thay hardcoded strings
+- ✅ **PaymentWizard** — 4-step inline wizard tích hợp ExamDetail + billing hooks
+- ✅ **NotifBell fix** — `setPeekItem` → `setPeek` selector bug
+- ⏳ Backend `[RequireRole]` trên nhiều Controller — **Week 4-5 Dev1**
+- ✅ **Notification targeting chi tiết 6 vai trò** — W3
 
 ### G. Trạng Thái & Luồng Nghiệp Vụ — ✅ ĐÃ XONG (W1-W3)
 
@@ -184,8 +191,9 @@
 | Notification phân loại chi tiết 6 vai trò | ~2h | ✅ W3 |
 | **Chuyển READ KetQuaDichVu SQL → MongoDB + Xóa NoiDungKetQua** | ~3h | 🔴 CHƯA |
 | **Chuyển READ 8 cột y tế BenhNhan → MongoDB** | ~3h | 🟡 CHƯA |
-| **Phân quyền Backend** (`[RequireRole]` trên 5 Controller) | ~2h | ⏳ W4 |
-| **Phân quyền Frontend** (Sidebar lọc menu + route guard) | ~3h | ⏳ W4 |
-| **Trang quản trị Admin** (CRUD người dùng — UC10) | ~4h | ⏳ W4 |
+| **Phân quyền Backend** (`[RequireRole]` trên 5 Controller) | ~2h | ⏳ W4-5 |
+| **Phân quyền Frontend** (RBAC 7 tầng + enums + ScopeBadge) | ~8h | ✅ W4 |
+| **PaymentWizard** (inline 4-step wizard + billing hooks) | ~3h | ✅ W4 |
+| **Trang quản trị Admin** (CRUD người dùng — UC10) | ~4h | ⏳ W4-5 |
 | Frontend (Timeline, Pha hệ, Analytics, VietQR) | ~8h | ⏳ W4-W5 |
 | VietQR Integration | ~4h | 🟢 Tùy chọn |

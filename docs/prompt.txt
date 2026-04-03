@@ -395,3 +395,35 @@ Lưu ý cuối:
 - Đừng bỏ sót chuẩn hóa API/DTO/map tên FE-BE.
 - Đừng bỏ sót seed data đủ chạy flow khám ngoại trú.
 - Đừng bỏ sót test kỹ 100%.
+
+==================================================
+E. TRẠNG THÁI THỰC HIỆN (cập nhật 2026-04-03)
+==================================================
+
+Ghi chú: Đây là trạng thái thực tế sau Week 4 Dev 2.
+
+| # | Yêu cầu | Trạng thái | Ghi chú |
+|---|---------|:---:|---------|
+| I | Tách bảng User riêng khỏi Staff | ⏳ W5 Dev1 | Chưa bắt đầu — cần Dev1 DB + Entity |
+| II | Phân quyền 7 tầng | ✅ FE / ⏳ BE | FE: RBAC 7 tầng hoàn tất (permissions.js, ProtectedRoute, ScopeBadge, TAB_VISIBILITY, 6 page). BE: chờ [RequireRole] |
+| III | Chức năng admin | ⏳ W4-5 | Chờ API /admin/users từ Dev1. FE AdminUsers.jsx skeleton có |
+| IV | Thanh toán gắn trong luồng tạo phiếu | ✅ FE | PaymentWizard.jsx (4-step), PaymentStep.jsx (inline), tích hợp ExamDetail.jsx, billing hooks (confirmInvoice, cancelInvoice). BE endpoints có sẵn |
+| V | Chuẩn hóa FE/BE contract | 🟡 Đang tiến hành | enums.js (177 dòng), billing.js dùng PHUONG_THUC_THANH_TOAN constants. Còn lại adapter cần rà tiếp |
+| VI | Seed data nền | ⏳ W5 Dev1 | Chưa bắt đầu |
+| VII | Test kỹ 100% | ⏳ W5 | Chưa bắt đầu |
+
+**File FE mới tạo trong Week 4:**
+- `src/constants/enums.js` — 177 dòng enum constants
+- `src/utils/permissions.js` — 15 action helpers + TAB_VISIBILITY + isReadOnly + getScopeLabel
+- `src/components/common/ProtectedRoute.jsx` — Route Guard
+- `src/components/common/ScopeBadge.jsx` — Data Scope badge
+- `src/components/billing/PaymentWizard.jsx` — 4-step wizard
+- `src/components/billing/PaymentStep.jsx` — compact inline summary
+
+**File FE sửa trong Week 4:**
+- `src/components/ui/Sidebar.jsx` — TAB_VISIBILITY mapping
+- `src/routes/Overview.jsx` — ScopeBadge + data scope
+- `src/routes/Reports.jsx` — canViewRevenueReport + ScopeBadge
+- `src/components/exam/ExamDetail.jsx` — PaymentWizard integration
+- `src/api/billing.js` — confirmInvoice hook + enum constants
+- `src/components/notifications/NotifBell.jsx` — fix setPeek bug

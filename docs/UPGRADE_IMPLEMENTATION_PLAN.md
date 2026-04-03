@@ -3,7 +3,7 @@
 > **Đã đối chiếu với: Source code + Tất cả sơ đồ UML + DB_DESIGN_DEFENSE.md**
 > Chỉ liệt kê những gì THỰC SỰ cần làm. Không lặp lại tính năng đã có.
 >
-> **Cập nhật lần cuối: 2026-04-02 — Sau khi hoàn tất Week 1-2-3**
+> **Cập nhật lần cuối: 2026-04-03 — Sau khi hoàn tất Week 1-2-3 + Week 4 Dev 2 (FE RBAC + PaymentWizard)**
 
 ---
 
@@ -92,7 +92,18 @@
 - [ ] Tạo `BankingService.cs` → Generate QR.
 - [ ] API `POST /api/billing/{id}/generate-qr`.
 
-### 3.4 Phân Quyền Backend (RequireRole) — ⏳ Week 4
+### 3.4 Phân Quyền — 🟡 FE xong W4, BE chờ W4-5
+
+**Frontend (Dev 2) — ✅ ĐÃ XONG (W4):**
+- [x] `src/constants/enums.js` — 177 dòng constants centralized.
+- [x] `src/utils/permissions.js` — 15 action helpers + TAB_VISIBILITY + isReadOnly + getScopeLabel.
+- [x] `Sidebar.jsx` — menu visibility dùng TAB_VISIBILITY mapping.
+- [x] `ProtectedRoute.jsx` [NEW] — Route Guard wrap `/appointments`, `/admin/users`.
+- [x] `ScopeBadge.jsx` [NEW] — Data Scope badge (Tầng 6-7).
+- [x] RBAC Tầng 3-5 trên 6 page: `Patients.jsx`, `Appointments.jsx`, `Examination.jsx`, `Reports.jsx`, `Prescriptions.jsx`, `Overview.jsx`.
+- [x] `NotifBell.jsx` — fix `setPeekItem` → `setPeek` selector bug.
+
+**Backend (Dev 1) — ⏳ Chờ W4-5:**
 - [ ] `MasterDataController.cs` — Admin mới được CUD.
 - [ ] `PatientsController.cs` — Cho BS quyền GET.
 - [ ] `HistoryController.cs` — Giới hạn cho Y tá HC + BS.
@@ -148,26 +159,37 @@
 
 ---
 
-## Giai Đoạn 4: Frontend Integration — ⏳ Week 4-5
+## Giai Đoạn 4: Frontend Integration — 🟡 Week 4-5 (FE RBAC xong, còn 1 số tích hợp)
 
-### 4.1 Phân Quyền Sidebar (BẮT BUỘC) — ⏳ W4
-- [ ] Sửa `Sidebar.jsx`: lọc theo vai trò.
-- [ ] Dùng `permissions.js` helpers.
+### 4.1 Phân Quyền Sidebar + Route Guard + Component RBAC (BẮT BUỘC) — ✅ W4
+- [x] Sửa `Sidebar.jsx`: lọc theo vai trò dùng TAB_VISIBILITY.
+- [x] Dùng `permissions.js` helpers (15 action permissions).
+- [x] `ProtectedRoute.jsx` [NEW] — route-level guard.
+- [x] `ScopeBadge.jsx` [NEW] — data scope badge UI.
+- [x] `enums.js` [NEW] — 177 dòng constants centralized.
+- [x] RBAC Tầng 3-5 — Component/Action gating trên 6 page.
 
-### 4.2 Trang Quản Trị Admin (UC10) — ⏳ W4
+### 4.1b PaymentWizard — ✅ W4
+- [x] `PaymentWizard.jsx` [NEW] — 4-step wizard (Review → Method → Confirm → Done).
+- [x] `PaymentStep.jsx` [NEW] — compact inline payment summary card.
+- [x] `billing.js` — `confirmInvoice` + `useConfirmInvoice` hooks.
+- [x] Tích hợp vào `ExamDetail.jsx` flow sau khi xuất chẩn đoán.
+- [x] Thay hardcoded `"tien_mat"` bằng `PHUONG_THUC_THANH_TOAN.TIEN_MAT`.
+
+### 4.2 Trang Quản Trị Admin (UC10) — ⏳ W4-5
 - [ ] Route `/admin/users`.
 - [ ] Component `AdminUsers.jsx` CRUD.
 
-### 4.3 Màn Hình Bệnh Nhân — ⏳ W4
+### 4.3 Màn Hình Bệnh Nhân — ⏳ W4-5
 - [ ] Tab Pha hệ.
 - [ ] Tab Lịch sử khám (MongoDB Timeline).
 - [ ] Tab Lịch sử giao dịch.
 
-### 4.4 Màn Hình Bác Sĩ — ⏳ W4
+### 4.4 Màn Hình Bác Sĩ — ⏳ W4-5
 - [ ] Load bệnh án từ MongoDB.
 - [ ] Hiển thị timeline lịch sử.
 
-### 4.5 Màn Hình Analytics — ⏳ W4
+### 4.5 Màn Hình Analytics — ⏳ W4-5
 - [ ] Dashboard xu hướng bệnh tật.
 - [ ] Dashboard thuốc hay dùng.
 
