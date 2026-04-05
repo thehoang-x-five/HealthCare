@@ -3,6 +3,8 @@ using HealthCare.DTOs;
 using HealthCare.Entities;
 using HealthCare.Realtime;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace HealthCare.Services.Admin
 {
@@ -11,42 +13,39 @@ namespace HealthCare.Services.Admin
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
 
-        private static readonly HashSet<string> ValidStatuses = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "dang_cong_tac", "tam_nghi", "nghi_viec"
-        };
-
         public async Task<PagedResult<AdminUserDto>> GetUsersAsync(AdminUserFilter filter)
         {
-            var query = _db.NhanVienYTes
-                .Include(n => n.KhoaChuyenMon)
+            var query = _db.UserAccounts
+                .Include(u => u.NhanVienYTe)
+                    .ThenInclude(nv => nv!.KhoaChuyenMon)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(filter.Q))
             {
                 var q = filter.Q.Trim().ToLower();
-                query = query.Where(n =>
-                    n.HoTen.ToLower().Contains(q) ||
-                    n.TenDangNhap.ToLower().Contains(q) ||
-                    n.MaNhanVien.ToLower().Contains(q));
+                query = query.Where(u =>
+                    u.TenDangNhap.ToLower().Contains(q) ||
+                    u.NhanVienYTe!.HoTen.ToLower().Contains(q) ||
+                    u.MaUser.ToLower().Contains(q) ||
+                    u.MaNhanVien!.ToLower().Contains(q));
             }
 
             if (!string.IsNullOrWhiteSpace(filter.VaiTro))
-                query = query.Where(n => n.VaiTro == filter.VaiTro);
+                query = query.Where(u => u.VaiTro == filter.VaiTro);
 
             if (!string.IsNullOrWhiteSpace(filter.TrangThai))
-                query = query.Where(n => n.TrangThaiCongTac == filter.TrangThai);
+                query = query.Where(u => u.TrangThaiTaiKhoan == filter.TrangThai);
 
             if (!string.IsNullOrWhiteSpace(filter.MaKhoa))
-                query = query.Where(n => n.MaKhoa == filter.MaKhoa);
+                query = query.Where(u => u.NhanVienYTe!.MaKhoa == filter.MaKhoa);
 
             var total = await query.CountAsync();
 
             var items = await query
-                .OrderBy(n => n.HoTen)
+                .OrderBy(u => u.NgayTao)
                 .Skip((filter.Page - 1) * filter.PageSize)
                 .Take(filter.PageSize)
-                .Select(n => MapToDto(n))
+                .Select(u => MapToDto(u))
                 .ToListAsync();
 
             return new PagedResult<AdminUserDto>
@@ -58,132 +57,226 @@ namespace HealthCare.Services.Admin
             };
         }
 
-        public async Task<AdminUserDto> GetUserByIdAsync(string maNhanVien)
+        public async Task<AdminUserDto> GetUserByIdAsync(string maUser)
         {
-            var staff = await _db.NhanVienYTes
-                .Include(n => n.KhoaChuyenMon)
-                .FirstOrDefaultAsync(n => n.MaNhanVien == maNhanVien)
-                ?? throw new KeyNotFoundException($"Không tìm thấy nhân viên {maNhanVien}");
+            var userAccount = await _db.UserAccounts
+                .Include(u => u.NhanVienYTe)
+                    .ThenInclude(nv => nv!.KhoaChuyenMon)
+                .FirstOrDefaultAsync(u => u.MaUser == maUser)
+                ?? throw new KeyNotFoundException($"Không tìm thấy tài khoản {maUser}");
 
-            return MapToDto(staff);
+            return MapToDto(userAccount);
         }
 
         public async Task<AdminUserDto> CreateUserAsync(AdminUserCreateRequest request)
         {
-            // Kiểm tra trùng tên đăng nhập
-            var exists = await _db.NhanVienYTes
-                .AnyAsync(n => n.TenDangNhap == request.TenDangNhap);
-            if (exists)
-                throw new InvalidOperationException("Tên đăng nhập đã tồn tại.");
+            if (string.IsNullOrWhiteSpace(request.TenDangNhap))
+                throw new ArgumentException("Tên đăng nhập không được để trống");
 
-            var id = GenerateStaffId(request.VaiTro);
+            if (string.IsNullOrWhiteSpace(request.MatKhau) || request.MatKhau.Length < 6)
+                throw new ArgumentException("Mật khẩu phải từ 6 ký tự trở lên");
 
-            var staff = new NhanVienYTe
+            var existingUser = await _db.UserAccounts
+                .AnyAsync(u => u.TenDangNhap == request.TenDangNhap);
+            if (existingUser)
+                throw new InvalidOperationException("Tên đăng nhập đã tồn tại");
+
+            if (request.VaiTro == "y_ta" && string.IsNullOrWhiteSpace(request.LoaiYTa))
+                throw new ArgumentException("Y tá phải có loại y tá (hanhchinh, ls, cls)");
+
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
             {
-                MaNhanVien = id,
-                TenDangNhap = request.TenDangNhap,
-                MatKhauHash = BCrypt.Net.BCrypt.HashPassword(request.MatKhau),
-                HoTen = request.HoTen,
-                VaiTro = request.VaiTro,
-                ChucVu = request.ChucVu,
-                LoaiYTa = request.LoaiYTa,
-                Email = request.Email,
-                DienThoai = request.DienThoai,
-                ChuyenMon = request.ChuyenMon,
-                HocVi = request.HocVi,
-                SoNamKinhNghiem = request.SoNamKinhNghiem,
-                MaKhoa = request.MaKhoa,
-                TrangThaiCongTac = "dang_cong_tac"
-            };
+                var maNhanVien = GenerateStaffId(request.VaiTro);
+                var maUser = $"USR_{maNhanVien}";
 
-            _db.NhanVienYTes.Add(staff);
+                var nhanVien = new NhanVienYTe
+                {
+                    MaNhanVien = maNhanVien,
+                    HoTen = request.HoTen,
+                    Email = request.Email,
+                    DienThoai = request.DienThoai,
+                    ChuyenMon = request.ChuyenMon,
+                    HocVi = request.HocVi,
+                    SoNamKinhNghiem = request.SoNamKinhNghiem,
+                    MaKhoa = request.MaKhoa,
+                    TrangThaiCongTac = "dang_cong_tac",
+                    AnhDaiDien = request.AnhDaiDien,
+                    MoTa = request.MoTa
+                };
+
+                _db.NhanVienYTes.Add(nhanVien);
+                await _db.SaveChangesAsync();
+
+                var userAccount = new UserAccount
+                {
+                    MaUser = maUser,
+                    TenDangNhap = request.TenDangNhap,
+                    MatKhauHash = BCrypt.Net.BCrypt.HashPassword(request.MatKhau, workFactor: 12),
+                    VaiTro = request.VaiTro,
+                    LoaiYTa = request.LoaiYTa,
+                    TrangThaiTaiKhoan = "hoat_dong",
+                    NgayTao = DateTime.UtcNow,
+                    NgayCapNhat = DateTime.UtcNow,
+                    MaNhanVien = maNhanVien
+                };
+
+                _db.UserAccounts.Add(userAccount);
+                await _db.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
+                var created = await _db.UserAccounts
+                    .Include(u => u.NhanVienYTe)
+                        .ThenInclude(nv => nv!.KhoaChuyenMon)
+                    .FirstAsync(u => u.MaUser == maUser);
+
+                var dto = MapToDto(created);
+                await _realtime.BroadcastStaffChangedAsync(dto);
+                return dto;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+        public async Task<AdminUserDto> UpdateUserAsync(string maUser, AdminUserUpdateRequest request)
+        {
+            var userAccount = await _db.UserAccounts
+                .Include(u => u.NhanVienYTe)
+                    .ThenInclude(nv => nv!.KhoaChuyenMon)
+                .FirstOrDefaultAsync(u => u.MaUser == maUser)
+                ?? throw new KeyNotFoundException($"Không tìm thấy tài khoản {maUser}");
+
+            if (userAccount.NhanVienYTe == null)
+                throw new InvalidOperationException("Tài khoản không có thông tin nhân viên");
+
+            if (request.VaiTro == "y_ta" && string.IsNullOrWhiteSpace(request.LoaiYTa))
+                throw new ArgumentException("Y tá phải có loại y tá (hanhchinh, ls, cls)");
+
+            userAccount.VaiTro = request.VaiTro;
+            userAccount.LoaiYTa = request.LoaiYTa;
+            userAccount.NgayCapNhat = DateTime.UtcNow;
+
+            userAccount.NhanVienYTe.HoTen = request.HoTen;
+            userAccount.NhanVienYTe.Email = request.Email;
+            userAccount.NhanVienYTe.DienThoai = request.DienThoai;
+            userAccount.NhanVienYTe.ChuyenMon = request.ChuyenMon;
+            userAccount.NhanVienYTe.HocVi = request.HocVi;
+            userAccount.NhanVienYTe.SoNamKinhNghiem = request.SoNamKinhNghiem;
+            userAccount.NhanVienYTe.MaKhoa = request.MaKhoa;
+            userAccount.NhanVienYTe.AnhDaiDien = request.AnhDaiDien;
+            userAccount.NhanVienYTe.MoTa = request.MoTa;
+
             await _db.SaveChangesAsync();
 
-            // Reload với Include
-            var created = await _db.NhanVienYTes
-                .Include(n => n.KhoaChuyenMon)
-                .FirstAsync(n => n.MaNhanVien == id);
-
-            var dto = MapToDto(created);
+            var dto = MapToDto(userAccount);
             await _realtime.BroadcastStaffChangedAsync(dto);
             return dto;
         }
 
-        public async Task<AdminUserDto> UpdateUserAsync(string maNhanVien, AdminUserUpdateRequest request)
+        public async Task LockAccountAsync(string maUser, string adminUserId)
         {
-            var staff = await _db.NhanVienYTes
-                .Include(n => n.KhoaChuyenMon)
-                .FirstOrDefaultAsync(n => n.MaNhanVien == maNhanVien)
-                ?? throw new KeyNotFoundException($"Không tìm thấy nhân viên {maNhanVien}");
+            var adminCount = await _db.UserAccounts
+                .CountAsync(u => u.VaiTro == "admin" && u.TrangThaiTaiKhoan == "hoat_dong");
 
-            staff.HoTen = request.HoTen;
-            staff.VaiTro = request.VaiTro;
-            staff.ChucVu = request.ChucVu;
-            staff.LoaiYTa = request.LoaiYTa;
-            staff.Email = request.Email;
-            staff.DienThoai = request.DienThoai;
-            staff.ChuyenMon = request.ChuyenMon;
-            staff.HocVi = request.HocVi;
-            staff.SoNamKinhNghiem = request.SoNamKinhNghiem;
-            staff.MaKhoa = request.MaKhoa;
+            if (adminCount <= 1)
+            {
+                var userToLock = await _db.UserAccounts
+                    .FirstOrDefaultAsync(u => u.MaUser == maUser);
+                if (userToLock?.VaiTro == "admin")
+                    throw new InvalidOperationException("Không thể khóa tài khoản admin cuối cùng");
+            }
 
-            await _db.SaveChangesAsync();
-            var dto = MapToDto(staff);
-            await _realtime.BroadcastStaffChangedAsync(dto);
-            return dto;
-        }
+            var userAccount = await _db.UserAccounts
+                .Include(u => u.RefreshTokens)
+                .FirstOrDefaultAsync(u => u.MaUser == maUser)
+                ?? throw new KeyNotFoundException($"Không tìm thấy tài khoản {maUser}");
 
-        public async Task UpdateStatusAsync(string maNhanVien, AdminStatusUpdateRequest request)
-        {
-            if (!ValidStatuses.Contains(request.TrangThaiCongTac))
-                throw new ArgumentException($"Trạng thái không hợp lệ: {request.TrangThaiCongTac}");
+            userAccount.TrangThaiTaiKhoan = "khoa";
+            userAccount.NgayCapNhat = DateTime.UtcNow;
 
-            var staff = await _db.NhanVienYTes
-                .FirstOrDefaultAsync(n => n.MaNhanVien == maNhanVien)
-                ?? throw new KeyNotFoundException($"Không tìm thấy nhân viên {maNhanVien}");
+            var activeTokens = userAccount.RefreshTokens
+                .Where(r => r.IsTrangThai && r.ThoiGianHetHan > DateTime.UtcNow)
+                .ToList();
 
-            staff.TrangThaiCongTac = request.TrangThaiCongTac;
-            await _db.SaveChangesAsync();
+            foreach (var token in activeTokens)
+            {
+                token.IsTrangThai = false;
+                token.ThoiGianThuHoi = DateTime.UtcNow;
+            }
 
-            // Reload with Include for TenKhoa
-            var updated = await _db.NhanVienYTes
-                .Include(n => n.KhoaChuyenMon)
-                .FirstAsync(n => n.MaNhanVien == maNhanVien);
-            await _realtime.BroadcastStaffChangedAsync(MapToDto(updated));
-        }
-
-        public async Task ResetPasswordAsync(string maNhanVien, AdminResetPasswordRequest request)
-        {
-            var staff = await _db.NhanVienYTes
-                .FirstOrDefaultAsync(n => n.MaNhanVien == maNhanVien)
-                ?? throw new KeyNotFoundException($"Không tìm thấy nhân viên {maNhanVien}");
-
-            staff.MatKhauHash = BCrypt.Net.BCrypt.HashPassword(request.MatKhauMoi);
             await _db.SaveChangesAsync();
         }
 
-        // =============== Helpers ===============
-
-        private static AdminUserDto MapToDto(NhanVienYTe n) => new()
+        public async Task UnlockAccountAsync(string maUser)
         {
-            MaNhanVien = n.MaNhanVien,
-            TenDangNhap = n.TenDangNhap,
-            HoTen = n.HoTen,
-            VaiTro = n.VaiTro,
-            ChucVu = n.ChucVu,
-            LoaiYTa = n.LoaiYTa,
-            Email = n.Email,
-            DienThoai = n.DienThoai,
-            ChuyenMon = n.ChuyenMon,
-            HocVi = n.HocVi,
-            SoNamKinhNghiem = n.SoNamKinhNghiem,
-            MaKhoa = n.MaKhoa,
-            TenKhoa = n.KhoaChuyenMon?.TenKhoa,
-            TrangThaiCongTac = n.TrangThaiCongTac,
-            AnhDaiDien = n.AnhDaiDien
+            var userAccount = await _db.UserAccounts
+                .FirstOrDefaultAsync(u => u.MaUser == maUser)
+                ?? throw new KeyNotFoundException($"Không tìm thấy tài khoản {maUser}");
+
+            if (userAccount.TrangThaiTaiKhoan != "khoa")
+                throw new InvalidOperationException("Tài khoản không ở trạng thái khóa");
+
+            userAccount.TrangThaiTaiKhoan = "hoat_dong";
+            userAccount.NgayCapNhat = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+        }
+
+        public async Task<string> ResetPasswordAsync(string maUser)
+        {
+            var userAccount = await _db.UserAccounts
+                .Include(u => u.RefreshTokens)
+                .FirstOrDefaultAsync(u => u.MaUser == maUser)
+                ?? throw new KeyNotFoundException($"Không tìm thấy tài khoản {maUser}");
+
+            var newPassword = GenerateRandomPassword();
+
+            userAccount.MatKhauHash = BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 12);
+            userAccount.NgayCapNhat = DateTime.UtcNow;
+
+            var activeTokens = userAccount.RefreshTokens
+                .Where(r => r.IsTrangThai && r.ThoiGianHetHan > DateTime.UtcNow)
+                .ToList();
+
+            foreach (var token in activeTokens)
+            {
+                token.IsTrangThai = false;
+                token.ThoiGianThuHoi = DateTime.UtcNow;
+            }
+
+            await _db.SaveChangesAsync();
+
+            return newPassword;
+        }
+
+        private static AdminUserDto MapToDto(UserAccount u) => new()
+        {
+            MaUser = u.MaUser,
+            MaNhanVien = u.MaNhanVien ?? string.Empty,
+            TenDangNhap = u.TenDangNhap,
+            HoTen = u.NhanVienYTe?.HoTen ?? string.Empty,
+            VaiTro = u.VaiTro,
+            ChucVu = u.VaiTro,
+            LoaiYTa = u.LoaiYTa,
+            Email = u.NhanVienYTe?.Email,
+            DienThoai = u.NhanVienYTe?.DienThoai,
+            ChuyenMon = u.NhanVienYTe?.ChuyenMon,
+            HocVi = u.NhanVienYTe?.HocVi,
+            SoNamKinhNghiem = u.NhanVienYTe?.SoNamKinhNghiem ?? 0,
+            MaKhoa = u.NhanVienYTe?.MaKhoa,
+            TenKhoa = u.NhanVienYTe?.KhoaChuyenMon?.TenKhoa,
+            TrangThaiCongTac = u.NhanVienYTe?.TrangThaiCongTac ?? string.Empty,
+            TrangThaiTaiKhoan = u.TrangThaiTaiKhoan,
+            AnhDaiDien = u.NhanVienYTe?.AnhDaiDien,
+            NgayTao = u.NgayTao,
+            LanDangNhapCuoi = u.LanDangNhapCuoi
         };
 
-        private string GenerateStaffId(string vaiTro)
+        private static string GenerateStaffId(string vaiTro)
         {
             var prefix = vaiTro switch
             {
@@ -194,6 +287,35 @@ namespace HealthCare.Services.Admin
                 _ => "NV"
             };
             return $"{prefix}{DateTime.UtcNow:yyMMddHHmmss}{Random.Shared.Next(100, 999)}";
+        }
+
+        private static string GenerateRandomPassword()
+        {
+            const string uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const string lowercase = "abcdefghijklmnopqrstuvwxyz";
+            const string digits = "0123456789";
+            const string special = "!@#$%^&*";
+            const string all = uppercase + lowercase + digits + special;
+
+            var password = new StringBuilder();
+            password.Append(uppercase[RandomNumberGenerator.GetInt32(uppercase.Length)]);
+            password.Append(lowercase[RandomNumberGenerator.GetInt32(lowercase.Length)]);
+            password.Append(digits[RandomNumberGenerator.GetInt32(digits.Length)]);
+            password.Append(special[RandomNumberGenerator.GetInt32(special.Length)]);
+
+            for (int i = 4; i < 12; i++)
+            {
+                password.Append(all[RandomNumberGenerator.GetInt32(all.Length)]);
+            }
+
+            var chars = password.ToString().ToCharArray();
+            for (int i = chars.Length - 1; i > 0; i--)
+            {
+                int j = RandomNumberGenerator.GetInt32(i + 1);
+                (chars[i], chars[j]) = (chars[j], chars[i]);
+            }
+
+            return new string(chars);
         }
     }
 }

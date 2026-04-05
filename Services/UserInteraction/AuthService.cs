@@ -33,20 +33,26 @@ namespace HealthCare.Services.UserInteraction
         // =========================================================
         public async Task<AuthTokenResponse> LoginAsync(AuthLoginRequest request, string? ipAddress)
         {
-            var staff = await _db.NhanVienYTes
-                .FirstOrDefaultAsync(s => s.TenDangNhap == request.TenDangNhap);
+            var userAccount = await _db.UserAccounts
+                .Include(u => u.NhanVienYTe)
+                .FirstOrDefaultAsync(u => u.TenDangNhap == request.TenDangNhap);
 
-            if (staff is null)
+            if (userAccount is null)
                 throw new UnauthorizedAccessException("Sai tài khoản hoặc mật khẩu");
 
-            // MatKhauHash lưu hash BCrypt
-            if (!BCrypt.Net.BCrypt.Verify(request.MatKhau, staff.MatKhauHash))
+            if (userAccount.TrangThaiTaiKhoan != "hoat_dong")
+                throw new UnauthorizedAccessException("Tài khoản đã bị khóa hoặc tạm ngưng");
+
+            if (!BCrypt.Net.BCrypt.Verify(request.MatKhau, userAccount.MatKhauHash))
                 throw new UnauthorizedAccessException("Sai tài khoản hoặc mật khẩu");
 
-            var (accessToken, accessExp) = GenerateJwt(staff);
-            var (refreshToken, refreshExp) = await IssueRefreshTokenAsync(staff, ipAddress);
+            userAccount.LanDangNhapCuoi = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
 
-            return BuildAuthTokenResponse(staff, accessToken, accessExp, refreshToken, refreshExp);
+            var (accessToken, accessExp) = GenerateJwt(userAccount);
+            var (refreshToken, refreshExp) = await IssueRefreshTokenAsync(userAccount, ipAddress);
+
+            return BuildAuthTokenResponse(userAccount, accessToken, accessExp, refreshToken, refreshExp);
         }
 
         // =========================================================
@@ -58,29 +64,29 @@ namespace HealthCare.Services.UserInteraction
                 throw new UnauthorizedAccessException("Refresh token không hợp lệ");
 
             var old = await _db.RefreshTokens
-                .Include(r => r.NhanVien)
+                .Include(r => r.UserAccount)
+                    .ThenInclude(u => u.NhanVienYTe)
                 .FirstOrDefaultAsync(r => r.Token == refreshToken);
 
             if (old is null || !old.IsTrangThai || old.ThoiGianHetHan <= DateTime.UtcNow)
                 throw new UnauthorizedAccessException("Refresh token không hợp lệ");
 
             if (currentUserId != null &&
-                !string.Equals(old.MaNhanVien, currentUserId, StringComparison.Ordinal))
+                !string.Equals(old.MaUser, currentUserId, StringComparison.Ordinal))
                 throw new UnauthorizedAccessException("Refresh token không thuộc về người dùng hiện tại");
 
-            // Thu hồi token cũ + chuỗi kế thừa (nếu có)
             Revoke(old, ipAddress, cascade: true);
 
-            var staff = old.NhanVien;
+            var userAccount = old.UserAccount;
 
-            var (newRefresh, newRefreshExp) = await IssueRefreshTokenAsync(staff, ipAddress);
+            var (newRefresh, newRefreshExp) = await IssueRefreshTokenAsync(userAccount, ipAddress);
             old.ReplacedToken = newRefresh;
 
-            var (accessToken, accessExp) = GenerateJwt(staff);
+            var (accessToken, accessExp) = GenerateJwt(userAccount);
 
             await _db.SaveChangesAsync();
 
-            return BuildAuthTokenResponse(staff, accessToken, accessExp, newRefresh, newRefreshExp);
+            return BuildAuthTokenResponse(userAccount, accessToken, accessExp, newRefresh, newRefreshExp);
         }
 
         // =========================================================
@@ -95,7 +101,7 @@ namespace HealthCare.Services.UserInteraction
             {
                 var rt = await _db.RefreshTokens
                     .FirstOrDefaultAsync(r => r.Token == refreshToken &&
-                                              r.MaNhanVien == userId &&
+                                              r.MaUser == userId &&
                                               r.IsTrangThai);
                 if (rt != null)
                 {
@@ -105,7 +111,7 @@ namespace HealthCare.Services.UserInteraction
             else
             {
                 var tokens = await _db.RefreshTokens
-                    .Where(r => r.MaNhanVien == userId &&
+                    .Where(r => r.MaUser == userId &&
                                 r.IsTrangThai &&
                                 r.ThoiGianHetHan > DateTime.UtcNow)
                     .ToListAsync();
@@ -133,26 +139,25 @@ namespace HealthCare.Services.UserInteraction
             if (string.IsNullOrWhiteSpace(request.MatKhauMoi) || request.MatKhauMoi.Length < 6)
                 throw new ArgumentException("Mật khẩu mới phải từ 6 ký tự trở lên", nameof(request.MatKhauMoi));
 
-            var staff = await _db.NhanVienYTes
-                .Include(s => s.RefreshTokens)
-                .FirstOrDefaultAsync(s => s.TenDangNhap == request.TenDangNhap);
+            var userAccount = await _db.UserAccounts
+                .Include(u => u.NhanVienYTe)
+                .Include(u => u.RefreshTokens)
+                .FirstOrDefaultAsync(u => u.TenDangNhap == request.TenDangNhap);
 
-            if (staff is null)
+            if (userAccount is null)
                 throw new UnauthorizedAccessException("Tài khoản không hợp lệ");
 
-            // bind OTP với email tài khoản
-            EnsureOtpVerified(request.OtpIntentId, staff.Email ?? string.Empty);
+            var staffEmail = userAccount.NhanVienYTe?.Email ?? string.Empty;
+            EnsureOtpVerified(request.OtpIntentId, staffEmail);
 
-            // (tuỳ bạn: có thể verify request.Email == staff.Email thêm 1 lớp nữa)
-            if (!string.Equals(staff.Email?.Trim(), request.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(staffEmail.Trim(), request.Email.Trim(), StringComparison.OrdinalIgnoreCase))
                 throw new UnauthorizedAccessException("Email không khớp với tài khoản.");
 
-            // Cập nhật hash mật khẩu mới (BCrypt)
-            staff.MatKhauHash = BCrypt.Net.BCrypt.HashPassword(request.MatKhauMoi);
+            userAccount.MatKhauHash = BCrypt.Net.BCrypt.HashPassword(request.MatKhauMoi);
+            userAccount.NgayCapNhat = DateTime.UtcNow;
 
-            // Thu hồi tất cả refresh token đang còn hiệu lực của nhân viên này
             var activeTokens = await _db.RefreshTokens
-                .Where(r => r.MaNhanVien == staff.MaNhanVien &&
+                .Where(r => r.MaUser == userAccount.MaUser &&
                             r.IsTrangThai &&
                             r.ThoiGianHetHan > DateTime.UtcNow)
                 .ToListAsync();
@@ -163,7 +168,6 @@ namespace HealthCare.Services.UserInteraction
             }
 
             await _db.SaveChangesAsync();
-
         }
         // =========================================================
         // =                 CHANGE PASSWORD FLOW                  =
@@ -185,26 +189,25 @@ namespace HealthCare.Services.UserInteraction
             if (request.NewPassword != request.ConfirmPassword)
                 throw new ArgumentException("Xác nhận mật khẩu mới không khớp.", nameof(request.ConfirmPassword));
 
-            // BẮT BUỘC OTP
-            
-            var staff = await _db.NhanVienYTes
-                .Include(s => s.RefreshTokens)
-                .FirstOrDefaultAsync(s => s.MaNhanVien == userId);
+            var userAccount = await _db.UserAccounts
+                .Include(u => u.NhanVienYTe)
+                .Include(u => u.RefreshTokens)
+                .FirstOrDefaultAsync(u => u.MaUser == userId);
 
-            if (staff is null)
+            if (userAccount is null)
                 throw new UnauthorizedAccessException("Tài khoản không tồn tại.");
-            EnsureOtpVerified(request.OtpIntentId, staff.Email ?? string.Empty);
 
-            // Kiểm tra mật khẩu hiện tại
-            if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, staff.MatKhauHash))
+            var staffEmail = userAccount.NhanVienYTe?.Email ?? string.Empty;
+            EnsureOtpVerified(request.OtpIntentId, staffEmail);
+
+            if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, userAccount.MatKhauHash))
                 throw new UnauthorizedAccessException("Mật khẩu hiện tại không đúng.");
 
-            // Cập nhật mật khẩu mới (BCrypt)
-            staff.MatKhauHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            userAccount.MatKhauHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            userAccount.NgayCapNhat = DateTime.UtcNow;
 
-            // Thu hồi tất cả refresh token đang còn hiệu lực
             var activeTokens = await _db.RefreshTokens
-                .Where(r => r.MaNhanVien == staff.MaNhanVien &&
+                .Where(r => r.MaUser == userAccount.MaUser &&
                             r.IsTrangThai &&
                             r.ThoiGianHetHan > DateTime.UtcNow)
                 .ToListAsync();
@@ -215,9 +218,6 @@ namespace HealthCare.Services.UserInteraction
             }
 
             await _db.SaveChangesAsync();
-
-
-
         }
         // ================== Helper: revoke token ==================
 
@@ -238,7 +238,7 @@ namespace HealthCare.Services.UserInteraction
             }
         }
 
-        private async Task<(string token, DateTime expUtc)> IssueRefreshTokenAsync(NhanVienYTe staff, string? ipAddress)
+        private async Task<(string token, DateTime expUtc)> IssueRefreshTokenAsync(UserAccount userAccount, string? ipAddress)
         {
             var days = int.Parse(_cfg["Jwt:RefreshTokenDays"] ?? "14");
             var now = DateTime.UtcNow;
@@ -247,7 +247,7 @@ namespace HealthCare.Services.UserInteraction
             var rt = new RefreshToken
             {
                 Id = Guid.NewGuid().ToString("N"),
-                MaNhanVien = staff.MaNhanVien,
+                MaUser = userAccount.MaUser,
                 Token = token,
                 ThoiGianTao = now,
                 ThoiGianHetHan = now.AddDays(days),
@@ -264,7 +264,7 @@ namespace HealthCare.Services.UserInteraction
             return (rt.Token, rt.ThoiGianHetHan);
         }
 
-        private (string token, DateTime expUtc) GenerateJwt(NhanVienYTe staff)
+        private (string token, DateTime expUtc) GenerateJwt(UserAccount userAccount)
         {
             var jwtSection = _cfg.GetSection("Jwt");
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["Key"]!));
@@ -274,24 +274,24 @@ namespace HealthCare.Services.UserInteraction
             var minutes = int.Parse(jwtSection["AccessTokenMinutes"] ?? "30");
             var exp = now.AddMinutes(minutes);
 
+            var staff = userAccount.NhanVienYTe;
+
             var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, staff.MaNhanVien),
-                new Claim(JwtRegisteredClaimNames.UniqueName, staff.TenDangNhap ?? string.Empty),
-                new Claim(ClaimTypes.NameIdentifier, staff.MaNhanVien),
-                new Claim(ClaimTypes.Name, staff.HoTen ?? string.Empty),
-             // Vai trò trong hệ thống (bac_si, y_ta, admin, ...)
-                new Claim(ClaimTypes.Role, staff.VaiTro ?? "bac_si"),
-                new Claim("VaiTro", staff.VaiTro ?? "bac_si"),
-                
-                // Chức vụ chi tiết (bac_si, y_ta_hanh_chinh, y_ta_phong_kham, ky_thuat_vien, admin)
-                new Claim("ChucVu", staff.ChucVu ?? "bac_si"),
-
-                // Loại người nhận notification: NVYT
+                new Claim(JwtRegisteredClaimNames.Sub, userAccount.MaUser),
+                new Claim(JwtRegisteredClaimNames.UniqueName, userAccount.TenDangNhap),
+                new Claim(ClaimTypes.NameIdentifier, userAccount.MaUser),
+                new Claim("ma_user", userAccount.MaUser),
+                new Claim("ma_nhan_vien", staff?.MaNhanVien ?? string.Empty),
+                new Claim(ClaimTypes.Name, staff?.HoTen ?? string.Empty),
+                new Claim(ClaimTypes.Role, userAccount.VaiTro),
+                new Claim("vai_tro", userAccount.VaiTro),
+                new Claim("loai_y_ta", userAccount.LoaiYTa ?? string.Empty),
+                new Claim("ma_khoa", staff?.MaKhoa ?? string.Empty),
+                new Claim("ho_ten", staff?.HoTen ?? string.Empty),
+                new Claim("trang_thai_tai_khoan", userAccount.TrangThaiTaiKhoan),
+                new Claim("trang_thai_cong_tac", staff?.TrangThaiCongTac ?? string.Empty),
                 new Claim("LoaiNguoiNhan", "nhan_vien_y_te"),
-                new Claim("ma_khoa", staff.MaKhoa ?? string.Empty),
-                new Claim("loai_y_ta", staff.LoaiYTa ?? string.Empty),
-                new Claim("trang_thai_cong_tac", staff.TrangThaiCongTac ?? string.Empty),
                 new Claim(JwtRegisteredClaimNames.Iat,
                     new DateTimeOffset(now).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
@@ -337,36 +337,38 @@ namespace HealthCare.Services.UserInteraction
 
         // ================== Helper: map DTO ==================
 
-        private static StaffAuthInfoDto MapStaffAuthInfo(NhanVienYTe staff)
+        private static StaffAuthInfoDto MapStaffAuthInfo(UserAccount userAccount)
         {
+            var staff = userAccount.NhanVienYTe;
             return new StaffAuthInfoDto
             {
-                MaNhanVien = staff.MaNhanVien,
-                TenDangNhap = staff.TenDangNhap,
-                HoTen = staff.HoTen,
-                VaiTro = staff.VaiTro,
-                ChucVu = staff.ChucVu,
-                LoaiYTa = staff.LoaiYTa,
-                MaKhoa = staff.MaKhoa,
-                Email = staff.Email,
-                DienThoai = staff.DienThoai,
-                TrangThaiCongTac = staff.TrangThaiCongTac,
-                AnhDaiDien = staff.AnhDaiDien,
-                SoNamKinhNghiem = staff.SoNamKinhNghiem,
-                ChuyenMon = staff.ChuyenMon,
-                HocVi = staff.HocVi,
-                MoTa = staff.MoTa
+                MaNhanVien = staff?.MaNhanVien ?? string.Empty,
+                TenDangNhap = userAccount.TenDangNhap,
+                HoTen = staff?.HoTen ?? string.Empty,
+                VaiTro = userAccount.VaiTro,
+                ChucVu = userAccount.VaiTro,
+                LoaiYTa = userAccount.LoaiYTa,
+                MaKhoa = staff?.MaKhoa ?? string.Empty,
+                Email = staff?.Email,
+                DienThoai = staff?.DienThoai,
+                TrangThaiCongTac = staff?.TrangThaiCongTac ?? string.Empty,
+                AnhDaiDien = staff?.AnhDaiDien,
+                SoNamKinhNghiem = staff?.SoNamKinhNghiem ?? 0,
+                ChuyenMon = staff?.ChuyenMon,
+                HocVi = staff?.HocVi,
+                MoTa = staff?.MoTa
             };
         }
 
         private static AuthTokenResponse BuildAuthTokenResponse(
-            NhanVienYTe staff,
+            UserAccount userAccount,
             string accessToken,
             DateTime accessExp,
             string refreshToken,
             DateTime refreshExp)
         {
-            var nhanVien = MapStaffAuthInfo(staff);
+            var nhanVien = MapStaffAuthInfo(userAccount);
+            var staff = userAccount.NhanVienYTe;
 
             return new AuthTokenResponse
             {
@@ -375,22 +377,23 @@ namespace HealthCare.Services.UserInteraction
                 RefreshToken = refreshToken,
                 RefreshTokenExpiresAt = refreshExp,
 
-                MaNhanVien = staff.MaNhanVien,
-                HoTen = staff.HoTen,
-                VaiTro = staff.VaiTro,
-                ChucVu = staff.ChucVu,
-                MaKhoa = staff.MaKhoa,
+                MaUser = userAccount.MaUser,
+                MaNhanVien = staff?.MaNhanVien ?? string.Empty,
+                HoTen = staff?.HoTen ?? string.Empty,
+                VaiTro = userAccount.VaiTro,
+                ChucVu = userAccount.VaiTro,
+                MaKhoa = staff?.MaKhoa ?? string.Empty,
 
-                TenDangNhap = staff.TenDangNhap,
-                AnhDaiDien = staff.AnhDaiDien,
-                Email = staff.Email,
-                DienThoai = staff.DienThoai,
-                TrangThaiCongTac = staff.TrangThaiCongTac,
-                LoaiYTa = staff.LoaiYTa,
-                SoNamKinhNghiem = staff.SoNamKinhNghiem,
-                ChuyenMon = staff.ChuyenMon,
-                HocVi = staff.HocVi,
-                MoTa = staff.MoTa,
+                TenDangNhap = userAccount.TenDangNhap,
+                AnhDaiDien = staff?.AnhDaiDien,
+                Email = staff?.Email,
+                DienThoai = staff?.DienThoai,
+                TrangThaiCongTac = staff?.TrangThaiCongTac ?? string.Empty,
+                LoaiYTa = userAccount.LoaiYTa,
+                SoNamKinhNghiem = staff?.SoNamKinhNghiem ?? 0,
+                ChuyenMon = staff?.ChuyenMon,
+                HocVi = staff?.HocVi,
+                MoTa = staff?.MoTa,
 
                 NhanVien = nhanVien
             };

@@ -52,7 +52,7 @@ namespace HealthCare.DTOs
         public string RefreshToken { get; set;} = default!;
         public DateTime RefreshTokenExpiresAt { get; set;}
 
-        // Thông tin nhân viên (flatten + object)
+        public string MaUser { get; set;} = default!;
         public string MaNhanVien { get; set;} = default!;
         public string HoTen { get; set;} = default!;
         public string VaiTro { get; set;} = default!;

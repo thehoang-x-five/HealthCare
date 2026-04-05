@@ -13,6 +13,7 @@ namespace HealthCare.Datas
     {
 
         // ========== DbSet ==========
+        public DbSet<UserAccount> UserAccounts { get; set; } = default!;
         public DbSet<KhoaChuyenMon> KhoaChuyenMons { get; set; } = default!;
         public DbSet<Phong> Phongs { get; set; } = default!;
         public DbSet<NhanVienYTe> NhanVienYTes { get; set; } = default!;
@@ -90,6 +91,48 @@ namespace HealthCare.Datas
                 .Property(p => p.ThietBi)
                 .HasConversion(stringListConverter)
                 .Metadata.SetValueComparer(stringListComparer);
+
+            // ====== UserAccount & Authentication ======
+
+            // UserAccount - NhanVienYTe (1:1 relationship)
+            modelBuilder.Entity<UserAccount>()
+                .HasOne(u => u.NhanVienYTe)
+                .WithOne(nv => nv.UserAccount)
+                .HasForeignKey<UserAccount>(u => u.MaNhanVien)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Unique index on TenDangNhap
+            modelBuilder.Entity<UserAccount>()
+                .HasIndex(u => u.TenDangNhap)
+                .IsUnique();
+
+            // CHECK constraints for enums
+            modelBuilder.Entity<UserAccount>()
+                .ToTable(t => t.HasCheckConstraint("CK_UserAccount_VaiTro", 
+                    "[VaiTro] IN ('admin', 'bac_si', 'y_ta', 'ky_thuat_vien')"));
+
+            modelBuilder.Entity<UserAccount>()
+                .ToTable(t => t.HasCheckConstraint("CK_UserAccount_TrangThaiTaiKhoan", 
+                    "[TrangThaiTaiKhoan] IN ('hoat_dong', 'khoa', 'tam_ngung')"));
+
+            modelBuilder.Entity<UserAccount>()
+                .ToTable(t => t.HasCheckConstraint("CK_UserAccount_LoaiYTa", 
+                    "[LoaiYTa] IS NULL OR [LoaiYTa] IN ('hanhchinh', 'ls', 'cls')"));
+
+            // UserAccount - RefreshToken (1 - n)
+            modelBuilder.Entity<RefreshToken>()
+                .HasOne(r => r.UserAccount)
+                .WithMany(u => u.RefreshTokens)
+                .HasForeignKey(r => r.MaUser)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // RefreshToken indexes
+            modelBuilder.Entity<RefreshToken>()
+                .HasIndex(r => r.Token)
+                .IsUnique();
+
+            modelBuilder.Entity<RefreshToken>()
+                .HasIndex(r => new { r.MaUser, r.IsTrangThai });
 
             // ====== DuLieuNen ======
 
@@ -323,27 +366,6 @@ namespace HealthCare.Datas
                 .WithMany(nv => nv.LuotKhamYTaHoTro)
                 .HasForeignKey(lk => lk.MaYTaHoTro)
                 .OnDelete(DeleteBehavior.Restrict);
-            // NhanVienYTe - RefreshToken (1 - n)
-            modelBuilder.Entity<RefreshToken>(entity =>
-            {
-                entity.HasKey(r => r.Id);
-
-                // Khóa chính dạng string GUID "N" => 32 ký tự
-                entity.Property(r => r.Id)
-                    .HasMaxLength(64);
-
-                // Index để tìm nhanh theo token & user
-                entity.HasIndex(r => r.Token)
-                    .IsUnique();
-
-                entity.HasIndex(r => new { r.MaNhanVien, r.IsTrangThai });
-
-                entity.HasOne(r => r.NhanVien)
-                    .WithMany(nv => nv.RefreshTokens)
-                    .HasForeignKey(r => r.MaNhanVien)
-                    .OnDelete(DeleteBehavior.Cascade);
-            });
-
             // ====== Kê đơn & Thuốc ======
 
             // BenhNhan - DonThuoc (1 - n)

@@ -7,22 +7,21 @@ namespace HealthCare.Entities
     {
         [Key]
         public string MaNhanVien { get; set; } = default!;
-        public string TenDangNhap { get; set; } = default!;
-        public string MatKhauHash { get; set; } = default!;
+        
+        // Personnel information (RETAINED)
+        public string HoTen { get; set; } = default!;
         public string? AnhDaiDien { get; set; }
         public int SoNamKinhNghiem { get; set; }
         public string? ChuyenMon { get; set; }
         public string? HocVi { get; set; }
-        public string HoTen { get; set; } = default!;
-        public string VaiTro { get; set; } = "bac_si"; // bac_si,y_ta
-        public string? LoaiYTa { get; set; } // hanhchinh,ls,cls
-        public string ChucVu { get; set; } = "bac_si"; // bac_si, y_ta_hanh_chinh, y_ta_phong_kham, ky_thuat_vien, admin
         public string? Email { get; set; }
         public string? DienThoai { get; set; }
         public string TrangThaiCongTac { get; set; } = "dang_cong_tac"; // dang_cong_tac,tam_nghi,nghi_viec
         public string? MoTa { get; set; }
         public string MaKhoa { get; set; } = default!;
 
+        // Navigation properties
+        public UserAccount? UserAccount { get; set; }
         public KhoaChuyenMon KhoaChuyenMon { get; set; } = default!;
         public Phong? PhongsPhuTrach { get; set; }
         public ICollection<LichTruc> LichTrucsYTa { get; set; } = new List<LichTruc>();
@@ -37,8 +36,6 @@ namespace HealthCare.Entities
         public ICollection<PhieuTongHopKetQua> PhieuTongHopXuLy { get; set; } = new List<PhieuTongHopKetQua>();
 
         public ICollection<DonThuoc> DonThuocKe { get; set; } = new List<DonThuoc>();
-
-        public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     }
 }
 
