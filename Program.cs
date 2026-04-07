@@ -21,6 +21,7 @@ using HealthCare.Services.Report;
 using HealthCare.Services.HttpClients;
 using HealthCare.Services.Background;
 using HealthCare.Services.Admin;
+using HealthCare.Services.Banking;
 using HealthCare.Infrastructure;
 
 
@@ -107,6 +108,8 @@ builder.Services.AddScoped<IClsService, ClsService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IQueueService, QueueService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddSingleton<VietQRService>();
+builder.Services.AddScoped<DatabaseBootstrapper>();
 
 // ===== Background Services =====
 builder.Services.AddHostedService<DailyResetService>();
@@ -211,7 +214,10 @@ var app = builder.Build();
  using (var scope = app.Services.CreateScope())
  {
     var db = scope.ServiceProvider.GetRequiredService<DataContext>();
-    db.Database.Migrate();
+    var bootstrapper = scope.ServiceProvider.GetRequiredService<DatabaseBootstrapper>();
+
+    await db.Database.MigrateAsync();
+    await bootstrapper.BootstrapAsync();
     await DataSeed.EnsureSeedAsync(db);
  }
 

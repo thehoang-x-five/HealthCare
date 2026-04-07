@@ -49,33 +49,40 @@ namespace HealthCare.Services.Report
             {
                 var collection = _mongoContext.GetCollection<BsonDocument>("medical_histories");
 
-                // Build match filter for xet_nghiem events
+                // Build match filter for xet_nghiem events in the flat Mongo history schema.
                 var matchFilter = Builders<BsonDocument>.Filter.Eq("event_type", "xet_nghiem");
 
                 if (fromDate.HasValue)
-                    matchFilter &= Builders<BsonDocument>.Filter.Gte("timestamp", fromDate.Value);
+                    matchFilter &= Builders<BsonDocument>.Filter.Gte("event_date", fromDate.Value);
 
                 if (toDate.HasValue)
-                    matchFilter &= Builders<BsonDocument>.Filter.Lte("timestamp", toDate.Value);
+                    matchFilter &= Builders<BsonDocument>.Filter.Lte("event_date", toDate.Value);
 
-                // Aggregation pipeline: group by trang_thai_chot
+                matchFilter &= Builders<BsonDocument>.Filter.Exists("data.trang_thai_chot", true);
+
+                // Aggregation pipeline: group by result finalization status stored in data.trang_thai_chot.
                 var pipeline = new[]
                 {
                     new BsonDocument("$match", matchFilter.Render(
                         collection.DocumentSerializer, collection.Settings.SerializerRegistry)),
                     new BsonDocument("$group", new BsonDocument
                     {
-                        { "_id", "$payload.trang_thai_chot" },
+                        { "_id", new BsonDocument("$ifNull", new BsonArray { "$data.trang_thai_chot", "khong_xac_dinh" }) },
                         { "count", new BsonDocument("$sum", 1) }
-                    })
+                    }),
+                    new BsonDocument("$sort", new BsonDocument("count", -1))
                 };
 
                 var results = await collection.Aggregate<BsonDocument>(pipeline).ToListAsync();
 
                 var totalTests = results.Sum(r => r["count"].AsInt32);
                 var abnormalCount = results
-                    .Where(r => r["_id"].AsString?.Contains("bat_thuong") == true ||
-                                r["_id"].AsString?.Contains("abnormal") == true)
+                    .Where(r =>
+                    {
+                        var status = GetBsonString(r["_id"]);
+                        return status.Contains("bat_thuong", StringComparison.OrdinalIgnoreCase) ||
+                               status.Contains("abnormal", StringComparison.OrdinalIgnoreCase);
+                    })
                     .Sum(r => r["count"].AsInt32);
 
                 var abnormalPercentage = totalTests > 0 ? (decimal)abnormalCount / totalTests * 100 : 0;
@@ -89,7 +96,7 @@ namespace HealthCare.Services.Report
                     ToDate = toDate,
                     ByTestType = results.Select(r => new AbnormalTestTypeDto
                     {
-                        TestType = r["_id"].AsString ?? "Unknown",
+                        TestType = GetBsonString(r["_id"], "khong_xac_dinh"),
                         Count = r["count"].AsInt32,
                         Percentage = totalTests > 0 ? Math.Round((decimal)r["count"].AsInt32 / totalTests * 100, 2) : 0
                     }).ToList()
@@ -118,23 +125,31 @@ namespace HealthCare.Services.Report
             {
                 var collection = _mongoContext.GetCollection<BsonDocument>("medical_histories");
 
-                // Build match filter for kham_lam_sang events
+                // Build match filter for kham_lam_sang events in the flat Mongo history schema.
                 var matchFilter = Builders<BsonDocument>.Filter.Eq("event_type", "kham_lam_sang");
 
                 if (fromDate.HasValue)
-                    matchFilter &= Builders<BsonDocument>.Filter.Gte("timestamp", fromDate.Value);
+                    matchFilter &= Builders<BsonDocument>.Filter.Gte("event_date", fromDate.Value);
 
                 if (toDate.HasValue)
-                    matchFilter &= Builders<BsonDocument>.Filter.Lte("timestamp", toDate.Value);
+                    matchFilter &= Builders<BsonDocument>.Filter.Lte("event_date", toDate.Value);
 
-                // Aggregation pipeline: group by chan_doan_cuoi, sort desc, limit topN
+                matchFilter &= Builders<BsonDocument>.Filter.Exists("data.chan_doan_cuoi", true);
+                matchFilter &= Builders<BsonDocument>.Filter.Ne("data.chan_doan_cuoi", "");
+
+                // Aggregation pipeline: group by final diagnosis and ICD10, sort desc, limit topN.
                 var pipeline = new[]
                 {
                     new BsonDocument("$match", matchFilter.Render(
                         collection.DocumentSerializer, collection.Settings.SerializerRegistry)),
                     new BsonDocument("$group", new BsonDocument
                     {
-                        { "_id", "$payload.chan_doan_cuoi" },
+                        { "_id", new BsonDocument
+                            {
+                                { "disease", new BsonDocument("$ifNull", new BsonArray { "$data.chan_doan_cuoi", "Chua_xac_dinh" }) },
+                                { "icd10", new BsonDocument("$ifNull", new BsonArray { "$data.ma_icd10", "" }) },
+                            }
+                        },
                         { "count", new BsonDocument("$sum", 1) }
                     }),
                     new BsonDocument("$sort", new BsonDocument("count", -1)),
@@ -152,8 +167,8 @@ namespace HealthCare.Services.Report
                     ToDate = toDate,
                     TopDiseases = results.Select(r => new DiseaseStatDto
                     {
-                        DiseaseName = r["_id"].AsString ?? "Unknown",
-                        ICD10Code = "", // Extracted if stored separately
+                        DiseaseName = GetNestedBsonString(r["_id"], "disease", "Chua_xac_dinh"),
+                        ICD10Code = GetNestedBsonString(r["_id"], "icd10"),
                         Count = r["count"].AsInt32,
                         Percentage = totalDiagnoses > 0 ? Math.Round((decimal)r["count"].AsInt32 / totalDiagnoses * 100, 2) : 0
                     }).ToList()
@@ -207,6 +222,28 @@ namespace HealthCare.Services.Report
                 ToDate = toDate,
                 TopDrugs = drugStats
             };
+        }
+
+        private static string GetBsonString(BsonValue value, string fallback = "")
+        {
+            if (value == null || value.IsBsonNull)
+            {
+                return fallback;
+            }
+
+            return value.IsString ? value.AsString : value.ToString();
+        }
+
+        private static string GetNestedBsonString(BsonValue value, string fieldName, string fallback = "")
+        {
+            if (value == null || value.IsBsonNull || !value.IsBsonDocument)
+            {
+                return fallback;
+            }
+
+            return value.AsBsonDocument.TryGetValue(fieldName, out var nestedValue)
+                ? GetBsonString(nestedValue, fallback)
+                : fallback;
         }
     }
 }

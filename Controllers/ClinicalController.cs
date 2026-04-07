@@ -1,26 +1,27 @@
 using System;
 using System.Threading.Tasks;
 using HealthCare.Attributes;
+using HealthCare.Datas;
 using HealthCare.DTOs;
+using HealthCare.Infrastructure.Security;
 using HealthCare.Services.OutpatientCare;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HealthCare.Controllers
 {
     [ApiController]
     [Route("api/clinical")]
     [Authorize]
-    // ❌ REMOVED: [RequireRole("bac_si")] - Không áp dụng cho toàn controller
-    // ✅ Sẽ áp dụng RequireRole riêng cho từng endpoint theo vai trò phù hợp
-    public class ClinicalController(IClinicalService service) : ControllerBase
+    public class ClinicalController(IClinicalService service, DataContext db) : ControllerBase
     {
         private readonly IClinicalService _service = service;
+        private readonly DataContext _db = db;
 
-        // ✅ CHỈ Y tá hành chính có thể tạo phiếu khám (Bác sĩ KHÔNG có quyền)
         [HttpPost]
         [RequireRole("y_ta")]
-        [RequireNurseType("hanhchinh")] // Chỉ Y tá hành chính
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<ClinicalExamDto>> TaoPhieuKham(
             [FromBody] ClinicalExamCreateRequest request)
         {
@@ -39,16 +40,17 @@ namespace HealthCare.Controllers
             }
         }
 
-        // ✅ Xem phiếu khám - tất cả vai trò có thể xem
         [HttpGet("{maPhieuKham}")]
         public async Task<ActionResult<ClinicalExamDto>> LayPhieuKham(string maPhieuKham)
         {
+            if (!await CanAccessClinicalExamAsync(maPhieuKham))
+                return Forbid();
+
             var result = await _service.LayPhieuKhamAsync(maPhieuKham);
             if (result is null) return NotFound();
             return Ok(result);
         }
 
-        // ✅ Cập nhật trạng thái - CHỈ Y tá hành chính (Bác sĩ KHÔNG có quyền)
         [HttpPut("{maPhieuKham}/status")]
         [RequireRole("y_ta")]
         [RequireNurseType("hanhchinh")]
@@ -61,27 +63,32 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
-        // ✅ Chẩn đoán - Bác sĩ + Y tá LS
         [HttpPost("final-diagnosis")]
         [RequireRole("bac_si", "y_ta")]
         [RequireNurseType("phong_kham")]
         public async Task<ActionResult<FinalDiagnosisDto>> TaoHoacCapNhatChanDoan(
             [FromBody] FinalDiagnosisCreateRequest request)
         {
+            if (request == null || string.IsNullOrWhiteSpace(request.MaPhieuKham))
+                return BadRequest(new { message = "MaPhieuKham là bắt buộc." });
+            if (!await CanAccessClinicalExamAsync(request.MaPhieuKham))
+                return Forbid();
+
             var result = await _service.TaoChanDoanCuoiAsync(request);
             return Ok(result);
         }
 
-        // ✅ Xem chẩn đoán - tất cả vai trò
         [HttpGet("{maPhieuKham}/final-diagnosis")]
         public async Task<ActionResult<FinalDiagnosisDto>> LayChanDoanCuoi(string maPhieuKham)
         {
+            if (!await CanAccessClinicalExamAsync(maPhieuKham))
+                return Forbid();
+
             var result = await _service.LayChanDoanCuoiAsync(maPhieuKham);
             if (result is null) return NotFound();
             return Ok(result);
         }
 
-        // ✅ Hoàn tất khám - Bác sĩ + Y tá LS
         [HttpPost("{maPhieuKham}/complete")]
         [RequireRole("bac_si", "y_ta")]
         [RequireNurseType("phong_kham")]
@@ -91,6 +98,9 @@ namespace HealthCare.Controllers
         {
             try
             {
+                if (!await CanAccessClinicalExamAsync(maPhieuKham))
+                    return Forbid();
+
                 request ??= new CompleteExamRequest();
                 var result = await _service.CompleteExamAsync(maPhieuKham, request);
                 return Ok(result);
@@ -105,7 +115,6 @@ namespace HealthCare.Controllers
             }
         }
 
-        // ✅ Tìm kiếm - tất cả vai trò
         [HttpGet("search")]
         public async Task<ActionResult<PagedResult<ClinicalExamDto>>> Search(
             [FromQuery] string? maBenhNhan,
@@ -116,19 +125,33 @@ namespace HealthCare.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20)
         {
+            var scope = User.GetUserScope();
+            if (!scope.IsGlobal && string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return Forbid();
+
             var result = await _service.TimKiemPhieuKhamAsync(
-                maBenhNhan, maBacSi, fromDate, toDate, trangThai, page, pageSize);
+                maBenhNhan,
+                maBacSi,
+                fromDate,
+                toDate,
+                trangThai,
+                page,
+                pageSize,
+                scope.DepartmentScope);
 
             return Ok(result);
         }
 
-        // ✅ Hủy lượt khám - Bác sĩ + Y tá
         [HttpPut("visits/{maLuotKham}/cancel")]
         [RequireRole("bac_si", "y_ta")]
+        [RequireNurseType("phong_kham")]
         public async Task<ActionResult> HuyLuotKham(string maLuotKham)
         {
             try
             {
+                if (!await CanAccessVisitAsync(maLuotKham))
+                    return Forbid();
+
                 await _service.HuyLuotKhamAsync(maLuotKham);
                 return Ok(new { message = "Đã hủy lượt khám thành công." });
             }
@@ -140,6 +163,40 @@ namespace HealthCare.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        private async Task<bool> CanAccessClinicalExamAsync(string maPhieuKham)
+        {
+            var scope = User.GetUserScope();
+            if (scope.IsGlobal)
+                return true;
+            if (string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return false;
+
+            return await _db.PhieuKhamLamSangs
+                .AsNoTracking()
+                .ApplyClinicalDepartmentScope(scope.DepartmentScope)
+                .AnyAsync(p => p.MaPhieuKham == maPhieuKham);
+        }
+
+        private async Task<bool> CanAccessVisitAsync(string maLuotKham)
+        {
+            var scope = User.GetUserScope();
+            if (scope.IsGlobal)
+                return true;
+            if (string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return false;
+
+            var maKhoa = scope.DepartmentScope;
+            return await _db.LuotKhamBenhs
+                .AsNoTracking()
+                .AnyAsync(l =>
+                    l.MaLuotKham == maLuotKham &&
+                    (
+                        l.HangDoi.Phong.MaKhoa == maKhoa ||
+                        (l.MaNhanSuThucHien != null && l.NhanSuThucHien!.MaKhoa == maKhoa) ||
+                        (l.MaYTaHoTro != null && l.YTaHoTro.MaKhoa == maKhoa)
+                    ));
         }
     }
 }

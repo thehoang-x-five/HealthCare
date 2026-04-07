@@ -1,5 +1,6 @@
-﻿using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using HealthCare.Attributes;
 using HealthCare.DTOs;
 using HealthCare.Services.UserInteraction;
 using Microsoft.AspNetCore.Authorization;
@@ -9,20 +10,13 @@ namespace HealthCare.Controllers
 {
     [ApiController]
     [Route("api/notification")]
-    [Authorize] // Nếu chưa dùng auth thì có thể bỏ để test
+    [Authorize]
     public class NotificationsController(INotificationService notifications) : ControllerBase
     {
         private readonly INotificationService _notifications = notifications;
 
-        // ============================================================
-        // 1. TẠO THÔNG BÁO + DANH SÁCH NGƯỜI NHẬN
-        // ============================================================
-
-        /// <summary>
-        /// Tạo thông báo hệ thống và gán cho danh sách người nhận.
-        /// Dùng cho màn LS/CLS/Billing khi cần push thông báo.
-        /// </summary>
         [HttpPost]
+        [RequireRole("admin", "quan_tri_vien")]
         public async Task<ActionResult<NotificationDto>> CreateNotification(
             [FromBody] NotificationCreateRequest request)
         {
@@ -33,58 +27,56 @@ namespace HealthCare.Controllers
             return Ok(dto);
         }
 
-        // ============================================================
-        // 2. HỘP THƯ NGƯỜI NHẬN (BN / NVYT)
-        // ============================================================
-
-        /// <summary>
-        /// Lấy danh sách thông báo của một người nhận
-        /// (benh_nhan / nhan_vien_y_te), có paging.
-        /// </summary>
         [HttpGet("inbox")]
         public async Task<ActionResult<PagedResult<NotificationDto>>> GetInbox(
             [FromQuery] NotificationFilterRequest filter)
         {
-            if (filter == null)
-                return BadRequest("Filter không hợp lệ");
+            filter ??= new NotificationFilterRequest();
 
-            if (string.IsNullOrWhiteSpace(filter.LoaiNguoiNhan) ||
-                string.IsNullOrWhiteSpace(filter.MaNguoiNhan))
+            var context = GetCurrentNotificationContext();
+            if (string.IsNullOrWhiteSpace(context.LoaiNguoiNhan) ||
+                string.IsNullOrWhiteSpace(context.MaNguoiNhan))
             {
-                return BadRequest("LoaiNguoiNhan và MaNguoiNhan là bắt buộc");
+                return Unauthorized(new { message = "Không xác định được người nhận thông báo hiện tại." });
             }
+
+            filter.LoaiNguoiNhan = context.LoaiNguoiNhan;
+            filter.MaNguoiNhan = context.MaNguoiNhan;
+            filter.LoaiYTa = context.LoaiYTa;
 
             var result = await _notifications.LayThongBaoNguoiNhanAsync(filter);
             return Ok(result);
         }
 
-        // ============================================================
-        // 3. ĐÁNH DẤU 1 THÔNG BÁO ĐÃ ĐỌC (THEO NGƯỜI NHẬN)
-        // ============================================================
-
-        /// <summary>
-        /// Đánh dấu 1 bản ghi người nhận (thong_bao_nguoi_nhan) là đã đọc.
-        /// </summary>
         [HttpPut("recipient/{maTbNguoiNhan:long}/read")]
         public async Task<ActionResult<NotificationDto>> MarkAsRead(
             [FromRoute] long maTbNguoiNhan)
         {
-            var dto = await _notifications.DanhDauDaDocAsync(maTbNguoiNhan);
-            if (dto == null)
-                return NotFound();
+            var context = GetCurrentNotificationContext();
+            if (string.IsNullOrWhiteSpace(context.LoaiNguoiNhan))
+                return Unauthorized(new { message = "Không xác định được người nhận thông báo hiện tại." });
 
-            return Ok(dto);
+            try
+            {
+                var dto = await _notifications.DanhDauDaDocAsync(
+                    maTbNguoiNhan,
+                    context.LoaiNguoiNhan,
+                    context.MaNguoiNhan,
+                    context.LoaiYTa);
+
+                if (dto == null)
+                    return NotFound();
+
+                return Ok(dto);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { message = ex.Message });
+            }
         }
 
-        // ============================================================
-        // 4. TÌM KIẾM THÔNG BÁO (MÀN QUẢN TRỊ / LOG)
-        // ============================================================
-
-        /// <summary>
-        /// Tìm kiếm thông báo toàn hệ thống (màn quản trị).
-        /// </summary>
         [HttpGet("search")]
-        [Authorize] // thường chỉ admin dùng
+        [RequireRole("admin", "quan_tri_vien")]
         public async Task<ActionResult<PagedResult<NotificationDto>>> SearchNotifications(
             [FromQuery] NotificationSearchFilter filter)
         {
@@ -94,15 +86,8 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
-        // ============================================================
-        // 5. CẬP NHẬT TRẠNG THÁI HEADER THÔNG BÁO
-        // ============================================================
-
-        /// <summary>
-        /// Cập nhật trạng thái thông báo hệ thống (cho_gui, da_gui, da_doc).
-        /// Thường dùng nếu có cơ chế queue gửi sau.
-        /// </summary>
         [HttpPut("{maThongBao}/status")]
+        [RequireRole("admin", "quan_tri_vien")]
         public async Task<ActionResult<NotificationDto>> UpdateStatus(
             [FromRoute] string maThongBao,
             [FromBody] NotificationStatusUpdateRequest request)
@@ -118,6 +103,39 @@ namespace HealthCare.Controllers
                 return NotFound();
 
             return Ok(dto);
+        }
+
+        private (string LoaiNguoiNhan, string? MaNguoiNhan, string? LoaiYTa) GetCurrentNotificationContext()
+        {
+            var vaiTro = GetFirstClaim("VaiTro", ClaimTypes.Role)?.Trim().ToLowerInvariant() ?? string.Empty;
+            var loaiYTa = GetFirstClaim("loai_y_ta");
+
+            if (vaiTro == "benh_nhan")
+            {
+                return (
+                    "benh_nhan",
+                    GetFirstClaim("MaBenhNhan", "ma_benh_nhan", ClaimTypes.NameIdentifier, ClaimTypes.Name),
+                    null
+                );
+            }
+
+            return (
+                vaiTro,
+                GetFirstClaim(ClaimTypes.NameIdentifier, "sub", "MaNhanVien", "ma_nhan_su"),
+                loaiYTa
+            );
+        }
+
+        private string? GetFirstClaim(params string[] claimTypes)
+        {
+            foreach (var claimType in claimTypes)
+            {
+                var value = User.FindFirst(claimType)?.Value;
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value;
+            }
+
+            return null;
         }
     }
 }

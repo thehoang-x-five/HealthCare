@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace HealthCare.DTOs
 {
@@ -143,5 +143,44 @@ namespace HealthCare.DTOs
 
         public int Page { get; set;} = 1;
         public int PageSize { get; set;} = 50;
+    }
+
+    /// <summary>
+    /// Request xác nhận thanh toán inline (PaymentWizard FE).
+    /// Chuyển trạng thái từ chua_thu → da_thu, kèm phương thức + mã giao dịch.
+    /// </summary>
+    public record class PaymentConfirmRequest
+    {
+        /// <summary>tien_mat, the, chuyen_khoan, vietqr</summary>
+        public string PhuongThucThanhToan { get; set;} = "tien_mat";
+        
+        /// <summary>Mã giao dịch (VietQR, POS terminal, v.v.)</summary>
+        public string? MaGiaoDich { get; set;}
+        
+        /// <summary>Mã nhân sự xác nhận thanh toán</summary>
+        public string? MaNhanSuThu { get; set;}
+    }
+
+    /// <summary>
+    /// Request tạo mã QR VietQR cho thanh toán.
+    /// </summary>
+    public record class VietQRRequest
+    {
+        public decimal SoTien { get; set;}
+        /// <summary>Nội dung thanh toán (auto: mã hóa đơn)</summary>
+        public string? NoiDung { get; set;}
+    }
+
+    /// <summary>
+    /// Response chứa QR code đã generate.
+    /// </summary>
+    public record class VietQRResponse
+    {
+        public string QrDataUrl { get; set;} = default!;
+        public string BankName { get; set;} = default!;
+        public string AccountNo { get; set;} = default!;
+        public string AccountName { get; set;} = default!;
+        public decimal SoTien { get; set;}
+        public string NoiDung { get; set;} = default!;
     }
 }

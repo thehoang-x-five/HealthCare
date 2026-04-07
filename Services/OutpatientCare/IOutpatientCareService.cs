@@ -25,7 +25,8 @@ namespace HealthCare.Services.OutpatientCare
             DateTime? toDate,
             string? trangThai,
             int page,
-            int pageSize);
+            int pageSize,
+            string? maKhoaScope = null);
 
         // ===== CHẨN ĐOÁN CUỐI =====
         Task<FinalDiagnosisDto> TaoChanDoanCuoiAsync(FinalDiagnosisCreateRequest request);
@@ -51,7 +52,9 @@ namespace HealthCare.Services.OutpatientCare
             DateTime? toDate,
             string? trangThai,
             int page,
-            int pageSize);
+            int pageSize,
+            string? originMaKhoaScope = null,
+            string? serviceMaKhoaScope = null);
 
         // ===== CHI TIẾT DỊCH VỤ CLS =====
         Task<IReadOnlyList<ClsItemDto>> LayDanhSachDichVuClsAsync(string maPhieuKhamCls);
@@ -63,7 +66,10 @@ namespace HealthCare.Services.OutpatientCare
 
         // ===== PHIẾU TỔNG HỢP KẾT QUẢ =====
         Task<ClsSummaryDto> TaoTongHopAsync(string maPhieuKhamCls);
-        Task<PagedResult<ClsSummaryDto>> LayTongHopKetQuaChoLapPhieuKhamAsync(ClsSummaryFilter filter);
+        Task<PagedResult<ClsSummaryDto>> LayTongHopKetQuaChoLapPhieuKhamAsync(
+            ClsSummaryFilter filter,
+            string? originMaKhoaScope = null,
+            string? serviceMaKhoaScope = null);
         Task<ClsSummaryDto?> LayPhieuTongHopKetQuaAsync(string maPhieuTongHop);
         Task<ClsSummaryDto?> CapNhatTrangThaiTongHopAsync(
             string maPhieuTongHop,

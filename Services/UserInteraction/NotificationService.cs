@@ -74,13 +74,18 @@ namespace HealthCare.Services.UserInteraction
 
                 if (loai == "benh_nhan")
                 {
+                    if (string.IsNullOrWhiteSpace(r.MaNguoiNhan))
+                        throw new ArgumentException("Thông báo bệnh nhân phải có MaNguoiNhan.");
+
                     rec.MaBenhNhan = r.MaNguoiNhan;
                     rec.MaNhanSu = null;
                 }
                 else
                 {
-                    // Tất cả các loại nhân sự: bac_si, y_ta, nhan_vien_y_te...
-                    rec.MaNhanSu = r.MaNguoiNhan;
+                    // Cho phép gửi broadcast theo vai trò nếu không truyền mã người nhận cụ thể.
+                    rec.MaNhanSu = string.IsNullOrWhiteSpace(r.MaNguoiNhan)
+                        ? null
+                        : r.MaNguoiNhan;
                     rec.MaBenhNhan = null;
                 }
 
@@ -267,13 +272,20 @@ namespace HealthCare.Services.UserInteraction
         // ========================
         // 3. Đánh dấu đã đọc
         // ========================
-        public async Task<NotificationDto?> DanhDauDaDocAsync(long maTbNguoiNhan)
+        public async Task<NotificationDto?> DanhDauDaDocAsync(
+            long maTbNguoiNhan,
+            string loaiNguoiNhan,
+            string? maNguoiNhan,
+            string? loaiYTa = null)
         {
             var rec = await _db.ThongBaoNguoiNhans
                 .FirstOrDefaultAsync(tn => tn.MaTbNguoiNhan == maTbNguoiNhan);
 
             if (rec == null)
                 return null;
+
+            if (!CoQuyenTruyCapNguoiNhan(rec, loaiNguoiNhan, maNguoiNhan, loaiYTa))
+                throw new UnauthorizedAccessException("Bạn không có quyền đánh dấu thông báo này.");
 
             if (!rec.DaDoc)
             {
@@ -395,6 +407,40 @@ namespace HealthCare.Services.UserInteraction
             return BuildNotificationDto(header, null, header.ThoiGianGui);
         }
 
+        private static bool CoQuyenTruyCapNguoiNhan(
+            ThongBaoNguoiNhan recipient,
+            string loaiNguoiNhan,
+            string? maNguoiNhan,
+            string? loaiYTa = null)
+        {
+            var normalizedLoai = (loaiNguoiNhan ?? string.Empty).Trim().ToLowerInvariant();
+
+            if (recipient.LoaiNguoiNhan == "benh_nhan")
+            {
+                return normalizedLoai == "benh_nhan"
+                    && !string.IsNullOrWhiteSpace(maNguoiNhan)
+                    && string.Equals(recipient.MaBenhNhan, maNguoiNhan, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (normalizedLoai == "benh_nhan")
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(maNguoiNhan)
+                && !string.IsNullOrWhiteSpace(recipient.MaNhanSu)
+                && string.Equals(recipient.MaNhanSu, maNguoiNhan, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(recipient.MaNhanSu))
+            {
+                var allowedTypes = GetAllowedNotifTypes(normalizedLoai, loaiYTa);
+                return allowedTypes.Contains(recipient.LoaiNguoiNhan ?? string.Empty);
+            }
+
+            return false;
+        }
+
         // ========================
         // Helper: map entity -> DTO
         // ========================
@@ -465,7 +511,7 @@ namespace HealthCare.Services.UserInteraction
             {
                 set.Add("bac_si");
             }
-            else
+            else if (loaiNguoiNhan is "y_ta")
             {
                 // Tất cả y tá nhận broadcast chung "y_ta"
                 set.Add("y_ta");
@@ -497,6 +543,16 @@ namespace HealthCare.Services.UserInteraction
                         set.Add("y_ta_can_lam_sang");
                         break;
                 }
+            }
+            else if (loaiNguoiNhan is "ky_thuat_vien" or "kythuatvien" or "ktv")
+            {
+                set.Add("ky_thuat_vien");
+                set.Add("ktv");
+            }
+            else if (loaiNguoiNhan is "admin" or "quan_tri_vien")
+            {
+                set.Add("admin");
+                set.Add("quan_tri_vien");
             }
 
             return set;

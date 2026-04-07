@@ -13,6 +13,7 @@ using HealthCare.Services.Report;
 using HealthCare.Services.PatientManagement;
 using HealthCare.Services.MedicationBilling;
 using HealthCare.Infrastructure.Repositories;
+using HealthCare.Infrastructure.Security;
 using MongoDB.Bson;
 
 namespace HealthCare.Services.OutpatientCare
@@ -65,6 +66,8 @@ namespace HealthCare.Services.OutpatientCare
         {
             var bn = phieu.BenhNhan;
             var dv = phieu.DichVuKham;
+            var phong = dv?.PhongThucHien;
+            var khoa = phong?.KhoaChuyenMon;
             var lichHen = phieu.LichHenKham;
 
             var snapshotCls = phieu.PhieuTongHopKetQua?.SnapshotJson;
@@ -81,10 +84,10 @@ namespace HealthCare.Services.OutpatientCare
                 DiaChi = bn.DiaChi,
 
                 // Khoa/phòng: hiện BE chưa join sang Phong/Khoa, FE có thể lấy qua queue
-                MaKhoa = "",
-                TenKhoa = null,
-                MaPhong = dv?.MaPhongThucHien ?? "",
-                TenPhong = null,
+                MaKhoa = khoa?.MaKhoa ?? "",
+                TenKhoa = khoa?.TenKhoa,
+                MaPhong = phong?.MaPhong ?? dv?.MaPhongThucHien ?? "",
+                TenPhong = phong?.TenPhong,
 
                 MaBacSiKham = phieu.MaBacSiKham,
                 TenBacSiKham = phieu.BacSiKham?.HoTen,
@@ -200,6 +203,8 @@ namespace HealthCare.Services.OutpatientCare
             var existingActive = await _db.PhieuKhamLamSangs
                 .Include(p => p.BenhNhan)
                 .Include(p => p.DichVuKham)
+                    .ThenInclude(d => d.PhongThucHien)
+                        .ThenInclude(p => p.KhoaChuyenMon)
                 .Include(p => p.BacSiKham)
                 .Include(p => p.NguoiLap)
                 .Include(p => p.LichHenKham)
@@ -347,6 +352,8 @@ namespace HealthCare.Services.OutpatientCare
         .AsNoTracking()
         .Include(p => p.BenhNhan)
         .Include(p => p.DichVuKham)
+            .ThenInclude(d => d.PhongThucHien)
+                .ThenInclude(p => p.KhoaChuyenMon)
         .Include(p => p.BacSiKham)
         .Include(p => p.NguoiLap)
         .Include(p => p.LichHenKham)
@@ -437,6 +444,8 @@ namespace HealthCare.Services.OutpatientCare
                 .AsNoTracking()
                 .Include(p => p.BenhNhan)
                 .Include(p => p.DichVuKham)
+                    .ThenInclude(d => d.PhongThucHien)
+                        .ThenInclude(p => p.KhoaChuyenMon)
                 .Include(p => p.BacSiKham)
                 .Include(p => p.NguoiLap)
                 .Include(p => p.LichHenKham)
@@ -461,6 +470,8 @@ namespace HealthCare.Services.OutpatientCare
                 var phieu = await _db.PhieuKhamLamSangs
                     .Include(p => p.BenhNhan)
                     .Include(p => p.DichVuKham)
+                        .ThenInclude(d => d.PhongThucHien)
+                            .ThenInclude(p => p.KhoaChuyenMon)
                     .Include(p => p.BacSiKham)
                     .Include(p => p.NguoiLap)
                     .Include(p => p.LichHenKham)
@@ -820,7 +831,8 @@ namespace HealthCare.Services.OutpatientCare
             DateTime? toDate,
             string? trangThai,
             int page,
-            int pageSize)
+            int pageSize,
+            string? maKhoaScope = null)
         {
             page = page <= 0 ? 1 : page;
             pageSize = pageSize <= 0 ? 20 : pageSize;
@@ -829,11 +841,16 @@ namespace HealthCare.Services.OutpatientCare
                 .AsNoTracking()
                 .Include(p => p.BenhNhan)
                 .Include(p => p.DichVuKham)
+                    .ThenInclude(d => d.PhongThucHien)
+                        .ThenInclude(p => p.KhoaChuyenMon)
                 .Include(p => p.BacSiKham)
                 .Include(p => p.NguoiLap)
                 .Include(p => p.LichHenKham)
                 .Include(p => p.PhieuTongHopKetQua)
                 .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(maKhoaScope))
+                query = query.ApplyClinicalDepartmentScope(maKhoaScope);
 
             if (!string.IsNullOrWhiteSpace(maBenhNhan))
                 query = query.Where(p => p.MaBenhNhan == maBenhNhan);

@@ -24,6 +24,8 @@ namespace HealthCare.Controllers
         /// </summary>
         [HttpPost("search")]
         [Authorize]
+        [RequireRole("y_ta", "admin", "quan_tri_vien")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<PagedResult<AppointmentReadRequestDto>>> Search(
             [FromBody] AppointmentFilterRequest filter)
         {
@@ -53,6 +55,8 @@ namespace HealthCare.Controllers
         /// </summary>
         [HttpGet("{maLichHen}")]
         [Authorize]
+        [RequireRole("y_ta", "admin", "quan_tri_vien")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<AppointmentReadRequestDto>> GetById(string maLichHen)
         {
             try
@@ -78,7 +82,7 @@ namespace HealthCare.Controllers
         }
 
         /// <summary>
-        /// Tạo lịch hẹn mới - CHỈ Y tá HC + Admin
+        /// Tạo lịch hẹn mới - CHỈ Y tá hành chính
         /// </summary>
         [HttpPost]
         [Authorize]
@@ -120,7 +124,7 @@ namespace HealthCare.Controllers
         }
 
         /// <summary>
-        /// Cập nhật trạng thái lịch hẹn (dang_cho / da_xac_nhan / da_checkin / da_huy) - CHỈ Y tá HC + Admin
+        /// Cập nhật trạng thái lịch hẹn (dang_cho / da_xac_nhan / da_checkin / da_huy) - CHỈ Y tá hành chính
         /// </summary>
         [HttpPut("{maLichHen}/status")]
         [Authorize]
@@ -164,7 +168,7 @@ namespace HealthCare.Controllers
         }
 
         /// <summary>
-        /// Cập nhật thông tin lịch hẹn (ngày, giờ, ghi chú...) - CHỈ Y tá HC + Admin
+        /// Cập nhật thông tin lịch hẹn (ngày, giờ, ghi chú...) - CHỈ Y tá hành chính
         /// </summary>
         [HttpPut("{maLichHen}")]
         [Authorize]

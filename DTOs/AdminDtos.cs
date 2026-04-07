@@ -19,6 +19,7 @@ namespace HealthCare.DTOs
         public string MaKhoa { get; set; } = default!;
         public string? TenKhoa { get; set; }
         public string TrangThaiCongTac { get; set; } = default!;
+        public string TrangThaiTaiKhoan { get; set; } = "hoat_dong"; // hoat_dong, khoa
         public string? AnhDaiDien { get; set; }
     }
 
@@ -54,10 +55,16 @@ namespace HealthCare.DTOs
         public string MaKhoa { get; set; } = default!;
     }
 
-    /// <summary>Request thay đổi trạng thái công tác (khóa/mở).</summary>
+    /// <summary>Request thay đổi trạng thái công tác.</summary>
     public class AdminStatusUpdateRequest
     {
         public string TrangThaiCongTac { get; set; } = default!; // dang_cong_tac | tam_nghi | nghi_viec
+    }
+
+    /// <summary>Request khóa/mở khóa tài khoản.</summary>
+    public class AdminAccountStatusRequest
+    {
+        public string TrangThai { get; set; } = default!; // hoat_dong | khoa
     }
 
     /// <summary>Admin reset mật khẩu cho nhân viên.</summary>

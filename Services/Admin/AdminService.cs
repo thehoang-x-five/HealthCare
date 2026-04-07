@@ -152,6 +152,30 @@ namespace HealthCare.Services.Admin
             await _realtime.BroadcastStaffChangedAsync(MapToDto(updated));
         }
 
+        // ===== KHÓA / MỞ KHÓA TÀI KHOẢN =====
+        public async Task LockUnlockAsync(string maNhanVien, AdminAccountStatusRequest request)
+        {
+            var validAccountStatuses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "hoat_dong", "khoa"
+            };
+
+            if (!validAccountStatuses.Contains(request.TrangThai))
+                throw new ArgumentException($"Trạng thái tài khoản không hợp lệ: {request.TrangThai}. Chỉ cho phép: hoat_dong, khoa");
+
+            var staff = await _db.NhanVienYTes
+                .FirstOrDefaultAsync(n => n.MaNhanVien == maNhanVien)
+                ?? throw new KeyNotFoundException($"Không tìm thấy nhân viên {maNhanVien}");
+
+            staff.TrangThaiTaiKhoan = request.TrangThai;
+            await _db.SaveChangesAsync();
+
+            var updated = await _db.NhanVienYTes
+                .Include(n => n.KhoaChuyenMon)
+                .FirstAsync(n => n.MaNhanVien == maNhanVien);
+            await _realtime.BroadcastStaffChangedAsync(MapToDto(updated));
+        }
+
         public async Task ResetPasswordAsync(string maNhanVien, AdminResetPasswordRequest request)
         {
             var staff = await _db.NhanVienYTes
@@ -180,6 +204,7 @@ namespace HealthCare.Services.Admin
             MaKhoa = n.MaKhoa,
             TenKhoa = n.KhoaChuyenMon?.TenKhoa,
             TrangThaiCongTac = n.TrangThaiCongTac,
+            TrangThaiTaiKhoan = n.TrangThaiTaiKhoan,
             AnhDaiDien = n.AnhDaiDien
         };
 

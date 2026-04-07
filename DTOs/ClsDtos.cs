@@ -119,7 +119,12 @@ namespace HealthCare.DTOs
 
         /// <summary>cho_duyet | da_chot | ...</summary>
         public string TrangThaiChot { get; set;} = default!;
-        public string? NoiDungKetQua { get; set;}
+        
+        /// <summary>Kết luận chuyên khoa (từ KetLuanChuyen SQL)</summary>
+        public string? KetLuanChuyen { get; set;}
+        
+        /// <summary>Ghi chú kỹ thuật viên</summary>
+        public string? GhiChu { get; set;}
 
         public string MaNhanSuThucHien { get; set;} = default!;
         public string TenNhanSuThucHien { get; set;} = "";

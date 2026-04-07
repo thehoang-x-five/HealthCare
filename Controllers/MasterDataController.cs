@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using HealthCare.Attributes;
 using HealthCare.DTOs;
 using HealthCare.Services.MasterData;
 using Microsoft.AspNetCore.Authorization;
@@ -10,6 +11,7 @@ namespace HealthCare.Controllers
 {
     [ApiController]
     [Route("api/master-data")]
+    [Authorize]
     public class MasterDataController(IMasterDataService masterDataService) : ControllerBase
     {
         private readonly IMasterDataService _masterDataService = masterDataService;
@@ -22,6 +24,46 @@ namespace HealthCare.Controllers
         {
             var list = await _masterDataService.LayDanhSachKhoaAsync();
             return Ok(list);
+        }
+
+        [HttpPost("departments")]
+        [RequireRole("admin", "quan_tri_vien")]
+        public async Task<ActionResult<DepartmentDto>> CreateDepartment([FromBody] DepartmentUpsertRequest request)
+        {
+            try
+            {
+                var dto = await _masterDataService.TaoKhoaAsync(request);
+                return CreatedAtAction(nameof(GetDepartments), new { id = dto.MaKhoa }, dto);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("departments/{maKhoa}")]
+        [RequireRole("admin", "quan_tri_vien")]
+        public async Task<ActionResult<DepartmentDto>> UpdateDepartment(
+            [FromRoute] string maKhoa,
+            [FromBody] DepartmentUpsertRequest request)
+        {
+            try
+            {
+                var dto = await _masterDataService.CapNhatKhoaAsync(maKhoa, request);
+                return Ok(dto);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPost("departments/search")]
@@ -105,6 +147,46 @@ namespace HealthCare.Controllers
             return Ok(list);
         }
 
+        [HttpPost("rooms")]
+        [RequireRole("admin", "quan_tri_vien")]
+        public async Task<ActionResult<RoomDto>> CreateRoom([FromBody] RoomUpsertRequest request)
+        {
+            try
+            {
+                var dto = await _masterDataService.TaoPhongAsync(request);
+                return CreatedAtAction(nameof(GetRoomDetail), new { maPhong = dto.MaPhong }, dto);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("rooms/{maPhong}")]
+        [RequireRole("admin", "quan_tri_vien")]
+        public async Task<ActionResult<RoomDto>> UpdateRoom(
+            [FromRoute] string maPhong,
+            [FromBody] RoomUpsertRequest request)
+        {
+            try
+            {
+                var dto = await _masterDataService.CapNhatPhongAsync(maPhong, request);
+                return Ok(dto);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("rooms/search")]
         [Authorize]
         public async Task<ActionResult<PagedResult<RoomDto>>> SearchRooms(
@@ -153,6 +235,36 @@ namespace HealthCare.Controllers
             if (result == null) return NotFound();
 
             return Ok(result);
+        }
+
+        [HttpPut("rooms/{maPhong}/duty-week")]
+        [RequireRole("admin", "quan_tri_vien")]
+        public async Task<ActionResult<RoomDutyWeekDto>> UpdateRoomDutyWeek(
+            [FromRoute] string maPhong,
+            [FromBody] RoomDutyWeekUpsertRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(maPhong))
+                return BadRequest("MaPhong is required");
+            if (request == null)
+                return BadRequest("Request is required");
+
+            try
+            {
+                var result = await _masterDataService.CapNhatLichDieuDuongPhongTuanAsync(maPhong, request);
+                return Ok(result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
         // ===== NHÂN SỰ =====
 
@@ -212,6 +324,21 @@ namespace HealthCare.Controllers
             var result = await _masterDataService.LayLichTrucNhanSuTuanAsync(maNhanVien, today);
             if (result == null) return NotFound();
 
+            return Ok(result);
+        }
+
+        [HttpPut("staff/{maNhanVien}/duty-week")]
+        [RequireRole("admin", "quan_tri_vien")]
+        public async Task<ActionResult<StaffDutyWeekDto>> UpdateStaffDutyWeek(
+            [FromRoute] string maNhanVien,
+            [FromBody] StaffDutyWeekUpsertRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(maNhanVien))
+                return BadRequest("MaNhanVien is required");
+            if (request == null)
+                return BadRequest("Request is required");
+
+            var result = await _masterDataService.CapNhatLichTrucNhanSuTuanAsync(maNhanVien, request);
             return Ok(result);
         }
 
@@ -290,6 +417,46 @@ namespace HealthCare.Controllers
 
             var result = await _masterDataService.TimKiemDichVuAsync(filter);
             return Ok(result);
+        }
+
+        [HttpPost("services")]
+        [RequireRole("admin", "quan_tri_vien")]
+        public async Task<ActionResult<ServiceDto>> CreateService([FromBody] ServiceUpsertRequest request)
+        {
+            try
+            {
+                var dto = await _masterDataService.TaoDichVuAsync(request);
+                return CreatedAtAction(nameof(GetServiceInfoByMaDv), new { maDv = dto.MaDichVu }, dto);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("services/{maDichVu}")]
+        [RequireRole("admin", "quan_tri_vien")]
+        public async Task<ActionResult<ServiceDto>> UpdateService(
+            [FromRoute] string maDichVu,
+            [FromBody] ServiceUpsertRequest request)
+        {
+            try
+            {
+                var dto = await _masterDataService.CapNhatDichVuAsync(maDichVu, request);
+                return Ok(dto);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpGet("services/info")]

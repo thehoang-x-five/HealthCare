@@ -1,10 +1,13 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using HealthCare.Datas;
+using HealthCare.Infrastructure.Security;
 using HealthCare.Infrastructure.Repositories;
 using MongoDB.Bson;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 // ===== WEEK 2 DEV 1: Old SQL-based imports (commented out) =====
 // using HealthCare.DTOs;
@@ -18,10 +21,12 @@ namespace HealthCare.Controllers
     public class HistoryController : ControllerBase
     {
         private readonly IMongoHistoryRepository _mongoHistory;
+        private readonly DataContext _db;
 
-        public HistoryController(IMongoHistoryRepository mongoHistory)
+        public HistoryController(IMongoHistoryRepository mongoHistory, DataContext db)
         {
             _mongoHistory = mongoHistory;
+            _db = db;
         }
 
         /// <summary>
@@ -43,6 +48,8 @@ namespace HealthCare.Controllers
         {
             if (string.IsNullOrWhiteSpace(maBenhNhan))
                 return BadRequest("MaBenhNhan là bắt buộc");
+            if (!await CanAccessPatientAsync(maBenhNhan))
+                return Forbid();
 
             if (limit <= 0 || limit > 500)
                 limit = 100;
@@ -62,6 +69,18 @@ namespace HealthCare.Controllers
             };
 
             return Ok(response);
+        }
+
+        private async Task<bool> CanAccessPatientAsync(string maBenhNhan)
+        {
+            var scope = User.GetUserScope();
+            if (scope.IsGlobal)
+                return true;
+            if (string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return false;
+
+            return await _db.ScopedPatientIdsByDepartment(scope.DepartmentScope)
+                .AnyAsync(id => id == maBenhNhan);
         }
 
         // ================================================================

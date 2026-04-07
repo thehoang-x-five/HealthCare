@@ -5,9 +5,8 @@ using System.Security.Claims;
 namespace HealthCare.Attributes
 {
     /// <summary>
-    /// Attribute để kiểm tra quyền truy cập dựa trên VaiTro của nhân viên
-    /// VaiTro: y_ta, bac_si, ky_thuat_vien, admin
-    /// Admin luôn có quyền truy cập
+    /// Attribute để kiểm tra quyền truy cập dựa trên VaiTro của nhân viên.
+    /// Chỉ những vai trò được khai báo tường minh mới được phép truy cập.
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
     public class RequireRoleAttribute : Attribute, IAuthorizationFilter
@@ -21,15 +20,8 @@ namespace HealthCare.Attributes
 
         public void OnAuthorization(AuthorizationFilterContext context)
         {
-            // Lấy ChucVu và VaiTro từ JWT claims
-            var chucVu = context.HttpContext.User.FindFirst("ChucVu")?.Value;
+            // Lấy VaiTro từ JWT claims
             var vaiTro = context.HttpContext.User.FindFirst("VaiTro")?.Value;
-
-            // ✅ Admin luôn có quyền (check ChucVu trước)
-            if (chucVu == "admin")
-            {
-                return; // Bypass kiểm tra
-            }
 
             if (string.IsNullOrEmpty(vaiTro))
             {
@@ -47,7 +39,7 @@ namespace HealthCare.Attributes
                 // Không có quyền -> Forbidden
                 context.Result = new ObjectResult(new
                 {
-                    message = $"Bạn không có quyền truy cập. Yêu cầu vai trò: {string.Join(", ", _allowedRoles)} hoặc admin"
+                    message = $"Bạn không có quyền truy cập. Yêu cầu vai trò: {string.Join(", ", _allowedRoles)}"
                 })
                 {
                     StatusCode = 403

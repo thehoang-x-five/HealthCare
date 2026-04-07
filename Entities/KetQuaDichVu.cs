@@ -9,15 +9,10 @@ namespace HealthCare.Entities
         public string MaKetQua { get; set; } = default!;
         public string MaChiTietDv { get; set; } = default!;
         
-        // NEW: Result type enum
+        // Result type enum
         public string LoaiKetQua { get; set; } = "xet_nghiem"; // xet_nghiem, chan_doan_hinh_anh
         
-        // DEPRECATED: Will be removed after MongoDB migration
-        // Data will move to MongoDB medical_histories collection
-        [Obsolete("Sẽ xóa sau khi MongoDB migration hoàn tất")]
-        public string NoiDungKetQua { get; set; } = "";
-        
-        // NEW: Specialist conclusion
+        // Specialist conclusion
         public string? KetLuanChuyen { get; set; }
         
         // NEW: Additional notes

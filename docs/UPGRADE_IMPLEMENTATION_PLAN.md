@@ -3,213 +3,166 @@
 > **Đã đối chiếu với: Source code + Tất cả sơ đồ UML + DB_DESIGN_DEFENSE.md**
 > Chỉ liệt kê những gì THỰC SỰ cần làm. Không lặp lại tính năng đã có.
 >
-> **Cập nhật lần cuối: 2026-04-03 — Sau khi hoàn tất Week 1-2-3 + Week 4 Dev 2 (FE RBAC + PaymentWizard)**
+> **Cập nhật lần cuối: 2026-04-05 — Sau khi hoàn tất Week 1-2-3-4 (Full audit verified)**
 
 ---
 
-## Giai Đoạn 1: Hạ Tầng (Infrastructure) — ✅ ĐÃ XONG (Week 1)
-
-### 1.1 Cài MongoDB — ✅
-- [x] Cài **MongoDB Community Server**.
-- [x] Thêm NuGet `MongoDB.Driver` vào `HealthCare.csproj`.
-- [x] Cấu hình `appsettings.json`:
-  ```json
-  "MongoDb": { "ConnectionString": "mongodb://localhost:27017", "DatabaseName": "healthcare_plus" }
-  ```
-- [x] Tạo `MongoDbContext.cs` (Singleton, DI Registration).
-
-### 1.2 Migration SQL — Thêm cột/bảng mới (theo ERD_Diff) — ✅
-- [x] **`BenhNhan`**: Thêm `MaCha`, `MaMe`, `CCCD`, `NgayTao`, `NgayCapNhat`.
-- [x] **`KetQuaDichVu`**: Thêm `LoaiKetQua`, `KetLuanChuyen`, `GhiChu`, `TepDinhKem` (JSON), `ThoiGianChot`.
-- [ ] ~~Xóa `NoiDungKetQua`~~ → **🔴 CHƯA XÓA** — xem Giai Đoạn 3.6
-- [x] **`PhieuChanDoanCuoi`**: Thêm `MaICD10`, `NgayTaiKham`, `GhiChuTaiKham`, `ThoiGianTao`, `ThoiGianCapNhat`.
-- [x] **`HoaDonThanhToan`**: Thêm `SoTienPhaiTra`, `MaGiaoDich`, `ThoiGianHuy`, `MaNhanSuHuy`. Mở rộng `PhuongThucThanhToan`.
-- [x] **`DonThuoc`**: Thêm `ThoiGianThanhToan`, `ThoiGianPhat`, `MaNhanSuPhat`.
-- [x] **`ChiTietDonThuoc`**: Thêm `LieuDung`, `TanSuatDung`, `SoNgayDung`, `GhiChu`.
-- [x] **`HangDoi`**: Thêm `SoLanGoi`, `ThoiGianGoiGanNhat`.
-- [x] **`LuotKhamBenh`**: Thêm `ThoiGianThucTe`, `SinhHieuTruocKham` (JSON), `GhiChu`.
-- [x] **ENTITY MỚI `LichSuXuatKho`**: Entity + table `lich_su_xuat_kho`.
-- [x] **ENTITY MỚI `ThongBaoMau`**: Entity + table `thong_bao_mau`.
-- [x] Chạy migration thành công.
-- [x] **CHƯA XÓA 8 cột y tế `BenhNhan`** — chờ MongoDB xong mới xóa (đúng plan).
-
-### 1.3 DB Constraints — CHECK + TRIGGER (Defense in Depth) — ✅
-- [x] **CHECK** `kho_thuoc`: `CHECK (SoLuong >= 0)`.
-- [x] **CHECK** `lich_hen_kham`: `CHECK (TrangThai IN (...))`.
-- [x] **CHECK** `luot_kham_benh`, `don_thuoc`, `hoa_don_thanh_toan`.
-- [x] **TRIGGER** `tr_LichHen_ValidateTransition`.
-- [x] **TRIGGER** `tr_KhoThuoc_PreventNegative`.
-- [x] **TRIGGER** `tr_DonThuoc_RollbackKho`.
+> [!IMPORTANT]
+> **Quyết định kiến trúc 2026-04-05:**
+> - ❌ KHÔNG tách bảng `UserAccount` khỏi `NhanVienYTe` — Auth fields giữ nguyên trong NhanVienYTe
+> - ❌ KHÔNG tạo trang `/user-management` riêng — Admin quản lý qua Staff page (toggle Card↔Table)
+> - ✅ RBAC thực hiện qua `[RequireRole]` attribute + data-scoped permissions
+> - ✅ Staff page dùng chung: Admin thấy auth fields + admin actions, Non-admin thấy HR cards read-only
 
 ---
 
-## Giai Đoạn 2: 4 Chức Năng Bắt Buộc ("The Big 4") — ✅ ĐÃ XONG (Week 1-3)
+## Giai Đoạn 1: Hạ Tầng (Infrastructure) — ✅ HOÀN TẤT (Week 1)
 
-### 2.1 Đặt Lịch SERIALIZABLE (SQL Stored Procedure) — ✅ W1
-- [x] SP `sp_BookAppointment` với `SERIALIZABLE`.
-- [x] `TaoLichHenAsync()` → gọi SP.
-- [x] **GIỮ NGUYÊN** `FindConflicts` ở trước làm pre-check.
+### 1.1 MongoDB — ✅
+- [x] `MongoDB.Driver` NuGet + `MongoDbContext.cs` (Singleton DI)
+- [x] `appsettings.json`: `MongoDb` section (Atlas connection)
+- [x] 2 collections: `medical_histories`, `audit_logs`
 
-### 2.2 Pha Hệ Di Truyền (SQL Recursive CTE) — ✅ W2
-- [x] `GenealogyService.cs` + `GenealogyController.cs`.
-- [x] SQL CTE recursive.
-- [x] API `GET /api/patients/{id}/genealogy`.
-- [x] API `POST /api/patients/{id}/link-parent`.
-- [x] API `GET /api/patients/{id}/family-diseases`.
+### 1.2 SQL Migration — ✅
+- [x] **`BenhNhan`**: +MaCha, +MaMe, +CCCD, +NgayTao, +NgayCapNhat
+- [x] **`KetQuaDichVu`**: +LoaiKetQua, +KetLuanChuyen, +GhiChu, +TepDinhKem, +ThoiGianChot
+- [x] **`PhieuChanDoanCuoi`**: +MaICD10, +NgayTaiKham, +GhiChuTaiKham, +timestamps
+- [x] **`HoaDonThanhToan`**: +SoTienPhaiTra, +MaGiaoDich, +ThoiGianHuy, +MaNhanSuHuy
+- [x] **`DonThuoc`**: +ThoiGianThanhToan, +ThoiGianPhat, +MaNhanSuPhat
+- [x] **`ChiTietDonThuoc`**: +LieuDung, +TanSuatDung, +SoNgayDung, +GhiChu
+- [x] **`HangDoi`**: +SoLanGoi, +ThoiGianGoiGanNhat
+- [x] **`LuotKhamBenh`**: +ThoiGianThucTe, +SinhHieuTruocKham, +GhiChu
+- [x] **ENTITY MỚI**: `LichSuXuatKho`, `ThongBaoMau`
+- [x] Migration chạy thành công
 
-### 2.3 Lịch Sử Khám MongoDB (Schema Evolution) — ✅ W2 (dual-write)
-- [x] Tạo `IMongoHistoryRepository.cs` + `MongoHistoryRepository.cs`.
-- [x] `ClinicalService.TaoChanDoanCuoiAsync()` → push `event_type: "kham_lam_sang"`.
-- [x] `ClsService` lưu kết quả CLS → push `event_type: "xet_nghiem"` / `"chan_doan_hinh_anh"`.
-- [x] `PharmacyService` phát đơn → push `event_type: "don_thuoc"`.
-- [x] `BillingService` thu tiền → push `event_type: "thanh_toan"`.
-- [ ] ~~Sửa `ClinicalService.TaoPhieuKhamAsync`: Ghi `medicalProfile` vào MongoDB thay SQL~~ → **🟡 CHƯA** (xem 3.7)
-- [x] API `GET /api/patients/{id}/medical-history?type=...&from=...&to=...` → query MongoDB.
-- [ ] ~~Viết Migration Script: Chuyển 8 cột y tế SQL → MongoDB~~ → **🟡 CHƯA** (xem 3.7)
-- [ ] ~~Sau migration: Xóa 8 cột khỏi `BenhNhan.cs`~~ → **🟡 CHƯA** (xem 3.7)
-
-### 2.4 Analytics MongoDB (Aggregation Pipeline) — ✅ W3
-- [x] `AnalyticsService.cs` + `AnalyticsController.cs`.
-- [x] API `GET /api/analytics/abnormal-stats`.
-- [x] API `GET /api/analytics/disease-trends`.
-- [x] API `GET /api/analytics/popular-drugs`.
+### 1.3 DB Constraints — ✅
+- [x] CHECK constraints: `kho_thuoc`, `lich_hen_kham`, `luot_kham_benh`, `don_thuoc`, `hoa_don_thanh_toan`
+- [x] TRIGGER: `tr_LichHen_ValidateTransition`, `tr_KhoThuoc_PreventNegative`, `tr_DonThuoc_RollbackKho`
 
 ---
 
-## Giai Đoạn 3: Tính Năng Bổ Sung — ✅ PHẦN LỚN ĐÃ XONG (Week 1-3)
+## Giai Đoạn 2: 4 Chức Năng Bắt Buộc — ✅ HOÀN TẤT (Week 1-3)
+
+### 2.1 Đặt Lịch SERIALIZABLE — ✅ W1
+- [x] SP `sp_BookAppointment` với `SERIALIZABLE` isolation
+- [x] `TaoLichHenAsync()` → gọi SP, giữ `FindConflicts` pre-check
+
+### 2.2 Pha Hệ Di Truyền — ✅ W2
+- [x] `GenealogyService.cs` + `GenealogyController.cs` + SQL Recursive CTE
+- [x] APIs: genealogy, link-parent, family-diseases
+
+### 2.3 Lịch Sử Khám MongoDB — ✅ W2
+- [x] `MongoHistoryRepository` — dual-write 5 event types
+- [x] API `GET /api/patients/{id}/medical-history`
+
+### 2.4 Analytics MongoDB — ✅ W3
+- [x] `AnalyticsService.cs` + `AnalyticsController.cs`
+- [x] APIs: abnormal-stats, disease-trends, popular-drugs
+
+---
+
+## Giai Đoạn 3: Tính Năng Bổ Sung — ✅ PHẦN LỚN HOÀN TẤT (Week 1-4)
 
 ### 3.1 Audit Logs (MongoDB) — ✅ W3
-- [x] `IAuditLogRepository.cs` + `MongoAuditLogRepository.cs`.
-- [x] TTL Index: tự xóa sau 365 ngày.
-- [x] `AuditLogMiddleware`: Tự ghi audit log cho POST/PUT/DELETE.
+- [x] `AuditLogMiddleware` + `AuditLogRepository` + TTL 365 ngày
 
 ### 3.2 LichSuXuatKho — ✅ W3
-- [x] `LichSuXuatKhoService.cs`.
-- [x] Tích hợp vào `PharmacyService.XuatThuocAsync()`.
+- [x] `LichSuXuatKhoService.cs` tích hợp `PharmacyService`
 
-### 3.3 VietQR (Tùy chọn) — 🟢 Chưa làm
-- [ ] Mở rộng `HoaDonThanhToan.PhuongThucThanhToan` enum — Entity đã có sẵn enum mở rộng.
-- [ ] Tạo `BankingService.cs` → Generate QR.
-- [ ] API `POST /api/billing/{id}/generate-qr`.
+### 3.3 VietQR — ✅ W4
+- [x] `VietQRService.cs` (Services/Banking/) — VietQR.io API integration
+- [x] `POST /api/billing/invoices/{id}/generate-qr` endpoint
+- [x] `VietQRRequest` + `VietQRResponse` DTOs
+- [x] `appsettings.json` → `VietQR` section (BankId, AccountNo, AccountName, BankName)
+- [x] DI: `builder.Services.AddSingleton<VietQRService>()`
+- [x] FE: `generateVietQR()` + `useGenerateVietQR()` hook (billing.js)
 
-### 3.4 Phân Quyền — 🟡 FE xong W4, BE chờ W4-5
+### 3.4 Phân Quyền — ✅ HOÀN TẤT (W4)
 
-**Frontend (Dev 2) — ✅ ĐÃ XONG (W4):**
-- [x] `src/constants/enums.js` — 177 dòng constants centralized.
-- [x] `src/utils/permissions.js` — 15 action helpers + TAB_VISIBILITY + isReadOnly + getScopeLabel.
-- [x] `Sidebar.jsx` — menu visibility dùng TAB_VISIBILITY mapping.
-- [x] `ProtectedRoute.jsx` [NEW] — Route Guard wrap `/appointments`, `/admin/users`.
-- [x] `ScopeBadge.jsx` [NEW] — Data Scope badge (Tầng 6-7).
-- [x] RBAC Tầng 3-5 trên 6 page: `Patients.jsx`, `Appointments.jsx`, `Examination.jsx`, `Reports.jsx`, `Prescriptions.jsx`, `Overview.jsx`.
-- [x] `NotifBell.jsx` — fix `setPeekItem` → `setPeek` selector bug.
+**Backend:**
+- [x] `RequireRoleAttribute.cs` — declarative authorization
+- [x] `[RequireRole]` on: `AdminController`, `ReportsController`, `MasterDataController`, `BillingController`
+- [x] `AdminController.cs` — CRUD + Lock/Unlock + Reset Password (5 endpoints)
+- [x] `AdminService.cs` — business logic for admin operations
 
-**Backend (Dev 1) — ⏳ Chờ W4-5:**
-- [ ] `MasterDataController.cs` — Admin mới được CUD.
-- [ ] `PatientsController.cs` — Cho BS quyền GET.
-- [ ] `HistoryController.cs` — Giới hạn cho Y tá HC + BS.
-- [ ] `ReportsController.cs` — Phân quyền theo loại.
-- [ ] Tạo `AdminController.cs`.
+**Frontend:**
+- [x] `permissions.js` — 19 helpers: TAB_VISIBILITY + 15 action perms + canViewStaffAuth/canToggleStaffView/canLockUnlockStaff/canResetStaffPassword
+- [x] `ProtectedRoute.jsx` — route-level guard
+- [x] `ScopeBadge.jsx` — data scope badge UI (Tầng 6-7)
+- [x] `enums.js` — 177 dòng constants centralized
+- [x] RBAC Tầng 3-5 trên 6 page: Patients, Appointments, Examination, Reports, Prescriptions, Overview
 
-### 3.5 Luồng Trạng Thái — ✅ ĐÃ XONG (W1-W3)
-- [x] 3.5.1 `LichHenKham` — Xác nhận + Hủy — ✅ W1
-- [x] 3.5.2 `BenhNhan.TrangThaiHomNay` — BN bỏ về — ✅ W1
-- [x] 3.5.3 `LuotKhamBenh` — Hủy lượt khám — ✅ W1
-- [x] 3.5.4 `PhieuKhamLamSang` — Hủy phiếu LS — ✅ W1
-- [x] 3.5.5 `PhieuKhamCanLamSang` — Hủy CLS — ✅ W3
-- [x] 3.5.6 `DonThuoc` — Hủy đơn + Hoàn kho — ✅ W3
-- [x] 3.5.7 `HoaDonThanhToan` — Thu tiền / Hủy — ✅ W3
+### 3.5 Luồng Trạng Thái — ✅ HOÀN TẤT (W1-W3)
+- [x] 3.5.1 `LichHenKham` — Xác nhận + Hủy — W1
+- [x] 3.5.2 `BenhNhan.TrangThaiHomNay` — BN bỏ về — W1
+- [x] 3.5.3 `LuotKhamBenh` — Hủy lượt khám — W1
+- [x] 3.5.4 `PhieuKhamLamSang` — Hủy phiếu LS — W1
+- [x] 3.5.5 `PhieuKhamCanLamSang` — Hủy CLS — W3
+- [x] 3.5.6 `DonThuoc` — Hủy đơn + Hoàn kho — W3
+- [x] 3.5.7 `HoaDonThanhToan` — Default `chua_thu`, Thu tiền, Hủy — W3-W4
 
-### 3.6 🔴 Chuyển KetQuaDichVu.NoiDungKetQua SQL → MongoDB — CHƯA XONG
+### 3.6 Thanh toán Inline — ✅ W4
+- [x] `PaymentConfirmRequest` DTO
+- [x] `BillingService.XacNhanThanhToanAsync` — chua_thu → da_thu
+- [x] `PUT /api/billing/invoices/{id}/confirm` endpoint
+- [x] FE: `PaymentWizard.jsx` (4-step) + `PaymentStep.jsx` + `confirmInvoice` hook
+- [x] Hủy hóa đơn: `PUT /cancel` + `useCancelInvoice` hook
 
-> **Thiết kế gốc**: `KetQuaDichVu = "Mục lục"` — chỉ giữ metadata, chi tiết → MongoDB (DEFENSE 4.10)
-> **Hiện tại**: Dual-write hoạt động (SQL + MongoDB), nhưng FE/HistoryService vẫn ĐỌC từ SQL.
+### 3.7 Staff Management (Unified) — ✅ W4
+- [x] `ViewToggle.jsx` — Card↔Table toggle (admin only)
+- [x] `StaffTable.jsx` — table view + auth columns + ActionMenu (Lock/Unlock/Reset)
+- [x] `Staff.jsx` rewritten — toggle, admin API integration, mutation hooks
+- [x] `Sidebar.jsx` — QL Nhân viên link removed
+- [x] `main.jsx` — `/admin/users` redirects to Staff page
+- [x] Admin API hooks: `useAdminUsers`, `useUpdateUserStatus`, `useResetPassword`
 
-**Cần làm (3 bước)**:
-
-#### Bước 1: Sửa ClsService — Chuyển nguồn đọc
-- [ ] Khi tạo/cập nhật KQ CLS: chỉ ghi `KetLuanChuyen`, `TepDinhKem`, `ThoiGianChot` vào SQL.
-- [ ] Chi tiết (`chi_so[]`, `mo_ta_hinh_anh`, `noi_dung`) → **chỉ ghi MongoDB** (giữ code dual-write hiện tại).
-- [ ] Khi đọc KQ CLS (GetClsResultAsync, GetClsOrdersAsync): lấy chi tiết từ MongoDB thay vì `kq.NoiDungKetQua`.
-
-#### Bước 2: Sửa HistoryService + ClsResultDto
-- [ ] `HistoryService.cs` line 220: đọc chi tiết KQ từ MongoDB API thay vì `kq.NoiDungKetQua`.
-- [ ] `ClsResultDto`: xóa field `NoiDungKetQua`, thay bằng `ChiTiet` (object từ MongoDB).
-- [ ] `ClsResultCreateRequest`: giữ `NoiDungKetQua` cho input nhưng ClsService chỉ ghi MongoDB.
-
-#### Bước 3: Xóa field + Migration
-- [ ] Xóa `[Obsolete] NoiDungKetQua` khỏi `KetQuaDichVu.cs`.
-- [ ] Sửa `DataSeed.cs`: bỏ seed `NoiDungKetQua`.
-- [ ] Tạo migration `DROP COLUMN NoiDungKetQua`.
-
-### 3.7 🟡 Chuyển 8 cột y tế BenhNhan → MongoDB — CHƯA XONG (Thấp)
-
-> **Ưu tiên thấp** — không ảnh hưởng tính năng Week 4-5. Làm sau cùng.
-
-- [ ] Migration script: chuyển 8 cột SQL → MongoDB `medicalProfile` document.
-- [ ] Sửa `ClinicalService.TaoPhieuKhamAsync`: đọc profile từ MongoDB.
-- [ ] Xóa 8 cột khỏi `BenhNhan.cs` + DROP columns.
-
-### 3.8 ✅ Notification chi tiết 6 vai trò — ĐÃ XONG (W3)
-- [x] `RealtimeService.BroadcastNotificationCreatedAsync`: route theo `y_ta_hanh_chinh`, `y_ta_cls`, `y_ta_phong_kham` thay vì gom `y_ta` chung.
-- [x] `BillingService`: hóa đơn → `y_ta_hanh_chinh`.
-- [x] `PharmacyService`: đơn thuốc → `y_ta_hanh_chinh`.
-- [x] `ClsService`: phiếu CLS → `y_ta_cls`.
-- [x] `NotificationService`: fix inbox query (broadcast notifications visible cho đúng vai trò).
-- [x] FE `notifications.js`: gửi `bac_si`/`y_ta` thay vì `nhan_vien_y_te`.
+### 3.8 Notification chi tiết 6 vai trò — ✅ W3
+- [x] `RealtimeService` route theo y_ta_hanh_chinh, y_ta_cls, y_ta_phong_kham
+- [x] FE `notifications.js` gửi đúng vai trò
 
 ---
 
-## Giai Đoạn 4: Frontend Integration — 🟡 Week 4-5 (FE RBAC xong, còn 1 số tích hợp)
+## Giai Đoạn 4: Frontend Integration — ✅ PHẦN LỚN HOÀN TẤT
 
-### 4.1 Phân Quyền Sidebar + Route Guard + Component RBAC (BẮT BUỘC) — ✅ W4
-- [x] Sửa `Sidebar.jsx`: lọc theo vai trò dùng TAB_VISIBILITY.
-- [x] Dùng `permissions.js` helpers (15 action permissions).
-- [x] `ProtectedRoute.jsx` [NEW] — route-level guard.
-- [x] `ScopeBadge.jsx` [NEW] — data scope badge UI.
-- [x] `enums.js` [NEW] — 177 dòng constants centralized.
-- [x] RBAC Tầng 3-5 — Component/Action gating trên 6 page.
+### 4.1 RBAC + Route Guard + ScopeBadge — ✅ W4
+### 4.2 PaymentWizard — ✅ W4
+### 4.3 Staff Management (Unified) — ✅ W4
+### 4.4 VietQR FE — ✅ W4
 
-### 4.1b PaymentWizard — ✅ W4
-- [x] `PaymentWizard.jsx` [NEW] — 4-step wizard (Review → Method → Confirm → Done).
-- [x] `PaymentStep.jsx` [NEW] — compact inline payment summary card.
-- [x] `billing.js` — `confirmInvoice` + `useConfirmInvoice` hooks.
-- [x] Tích hợp vào `ExamDetail.jsx` flow sau khi xuất chẩn đoán.
-- [x] Thay hardcoded `"tien_mat"` bằng `PHUONG_THUC_THANH_TOAN.TIEN_MAT`.
+### 4.5 Mở rộng (Tùy chọn / W5):
+- [ ] Tab Pha hệ — interactive tree view
+- [ ] Tab Lịch sử khám — MongoDB detail timeline
+- [ ] Dashboard Analytics — Recharts widgets
 
-### 4.2 Trang Quản Trị Admin (UC10) — ⏳ W4-5
-- [ ] Route `/admin/users`.
-- [ ] Component `AdminUsers.jsx` CRUD.
+---
 
-### 4.3 Màn Hình Bệnh Nhân — ⏳ W4-5
-- [ ] Tab Pha hệ.
-- [ ] Tab Lịch sử khám (MongoDB Timeline).
-- [ ] Tab Lịch sử giao dịch.
+## 🔴 Nợ Kỹ Thuật (Deferred to W5)
 
-### 4.4 Màn Hình Bác Sĩ — ⏳ W4-5
-- [ ] Load bệnh án từ MongoDB.
-- [ ] Hiển thị timeline lịch sử.
+### 5.1 `NoiDungKetQua` column — 🔴
+> Entity field still exists. Removed from DTO + seed but column not DROPped.
+> **Action**: Remove from `KetQuaDichVu.cs` + migration DROP column.
 
-### 4.5 Màn Hình Analytics — ⏳ W4-5
-- [ ] Dashboard xu hướng bệnh tật.
-- [ ] Dashboard thuốc hay dùng.
-
-### 4.6 Màn Hình Thanh Toán — 🟢 Tùy chọn
-- [ ] VietQR nếu có time.
+### 5.2 8 cột y tế `BenhNhan` — 🟡
+> 8 medical columns still in `BenhNhan.cs`. Deferred — doesn't affect features.
+> **Action**: Migration script SQL→MongoDB + DROP columns.
 
 ---
 
 ## Giai Đoạn 5: Test & Đóng Gói — ⏳ Week 5
 
 ### 5.1 Test Bắt Buộc
-- [ ] **Race Condition Test**.
-- [ ] **Schema Evolution Test**.
-- [ ] **Recursive CTE Test**.
-- [ ] **Aggregation Test**.
+- [ ] Race Condition Test (SP SERIALIZABLE)
+- [ ] Schema Evolution Test (MongoDB)
+- [ ] Recursive CTE Test
+- [ ] Aggregation Test
+- [ ] Permission Matrix Test (12 tabs × 5 roles)
+- [ ] API Contract Test (FE↔BE field mapping)
+- [ ] E2E Flow Test (đặt lịch → khám → CLS → thuốc → thanh toán)
 
 ### 5.2 Tài Liệu Nộp
-- [ ] Báo cáo PDF.
-- [ ] AI Audit Log.
-- [ ] Video demo 4 chức năng.
+- [ ] Báo cáo PDF
+- [ ] Video demo 4 chức năng bắt buộc
+- [ ] AI Audit Log
 
 ---
 
@@ -221,12 +174,43 @@
 - ✅ Auto-Billing (`ClinicalService` line 352-401)
 - ✅ Priority 4-Tier (`QueueService.TinhDoUuTien`)
 - ✅ Inventory Transaction + Rollback (`PharmacyService` line 310-388)
-- ✅ SignalR Real-time (Queue, Exam, Dashboard, Notification) — **phân loại 6 vai trò**
-- ✅ Notification System (`NotificationService`) — **targeting chi tiết nurse_type**
+- ✅ SignalR Real-time (Queue, Exam, Dashboard, Notification) — phân loại 6 vai trò
+- ✅ Notification System (`NotificationService`) — targeting chi tiết nurse_type
 - ✅ Daily Reset (`DailyResetService`)
-- ✅ Visit History SQL (`HistoryService` 653 dòng + `HistoryController` + `LuotKhamBenh`)
-- ✅ Conflict Detection Logic (`AppointmentService.FindConflictsForConfirmedAsync` — wrapped vào SP)
-- ✅ Cancel workflows (HuyLuotKham, HuyPhieuCls, HuyDonThuoc, HuyHoaDon) — **rollback + notification**
+- ✅ Visit History SQL (`HistoryService` 653 dòng)
+- ✅ Cancel workflows (HuyLuotKham, HuyPhieuCls, HuyDonThuoc, HuyHoaDon) — rollback + notification
 - ✅ Analytics (AnalyticsService — MongoDB Aggregation + SQL stats)
 - ✅ Audit Logs (AuditLogMiddleware + TTL 365 ngày)
 - ✅ LichSuXuatKho (inventory transaction logging)
+- ✅ VietQR (VietQRService + API + FE hook)
+- ✅ Admin Management (AdminController CRUD + Lock/Unlock/Reset)
+- ✅ RBAC 7 tầng (FE+BE)
+- ✅ PaymentWizard (4-step inline)
+- ✅ Staff Unified Page (Card↔Table toggle + admin actions)
+
+---
+
+## Phụ Lục: Yêu Cầu Nâng Cấp Gốc (từ prompt.txt — archived)
+
+> Các yêu cầu ban đầu từ prompt.txt đã được xử lý hoặc hủy bỏ trong W4.
+> Ghi lại đây để tham khảo.
+
+| # | Yêu cầu | Trạng thái | Ghi chú |
+|---|---------|:---:|---------| 
+| I | Tách bảng User riêng khỏi Staff | ❌ HỦY | Auth giữ trong NhanVienYTe. Staff page chung + toggle card/table cho admin |
+| II | Phân quyền 7 tầng | ✅ FE+BE | permissions.js 19 helpers + [RequireRole] attribute |
+| III | Chức năng admin | ✅ DONE | AdminController CRUD + Lock/Unlock/Reset + [RequireRole] |
+| IV | Thanh toán gắn trong luồng tạo phiếu | ✅ FE+BE | PaymentWizard 4-step + XacNhanThanhToanAsync + PUT /confirm |
+| V | Chuẩn hóa FE/BE contract | ✅ DONE | enums.js, billing.js constants, VietQR DTO |
+| VI | Seed data nền | ✅ Verified | DataSeed.cs 1500+ dòng, full outpatient flow |
+| VII | Test kỹ 100% | ⏳ W5 | Chưa bắt đầu |
+
+**File FE tạo mới trong W4:**
+- `src/constants/enums.js`, `src/utils/permissions.js`
+- `src/components/common/ProtectedRoute.jsx`, `ScopeBadge.jsx`
+- `src/components/billing/PaymentWizard.jsx`, `PaymentStep.jsx`
+- `src/components/staff/ViewToggle.jsx`, `StaffTable.jsx`
+
+**File FE sửa trong W4:**
+- `Sidebar.jsx`, `Overview.jsx`, `Reports.jsx`, `Staff.jsx`, `main.jsx`
+- `billing.js`, `admin.js`, `permissions.js`, `NotifBell.jsx`

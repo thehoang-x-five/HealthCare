@@ -1,0 +1,14 @@
+HEALTHCARE+ (Hệ thống Quản lý Phòng Khám Ngoại Trú Đa Khoa) – Solo Developer (3 months)
+• Mô tả: Hệ thống phần mềm số hóa và quản lý vận hành toàn diện quy trình khám chữa bệnh tại các phòng khám tư nhân, từ khâu đặt lịch, tiếp nhận, khám cận lâm sàng đến kho thuốc và thanh toán với khối lượng dữ liệu y tế lớn và luồng thao tác bệnh án phức tạp.
+• Tech Stack: 
+  - Frontend: ReactJS, Vite, Tailwind CSS, Framer Motion. 
+  - Quản lý State & Fetching: Zustand, TanStack Query (React Query), Axios.
+  - Backend: C# ASP.NET Core, Entity Framework Core, RESTful API, SignalR. 
+  - Database: MySQL, MongoDB.
+
+📌 NHỮNG THÀNH TỰU & KINH NGHIỆM ĐÓNG GÓP:
+• Kiến trúc Polyglot Persistence & CQRS: Thiết kế hệ thống đa cơ sở dữ liệu phân tách thao tác đọc/ghi. Dùng MySQL (ACID) phục vụ dữ liệu giao dịch tài chính/kho thuốc và NoSQL (MongoDB) quản lý chuỗi sự kiện y khoa linh hoạt. Khai thác Schema Evolution trên MongoDB giúp dễ dàng bổ sung loại hình phiếu khám, cận lâm sàng mới mà không cần can thiệp dán đoạn hệ thống.
+• Quản trị Tương tranh & Đảm bảo Toàn vẹn Dữ liệu (Defense-in-Depth): Áp dụng phương thức Transaction ở cấp độ kiểm soát chặt chẽ nhất (SERIALIZABLE Isolation) thông qua Stored Procedure nhằm triệt tiêu hoàn toàn dị thường tương tranh (Race Condition) trong đặt lịch khám. Thiết lập tầng Database Triggers nhằm ngăn chặn tuyệt đối tình trạng âm kho vật tư y tế và kết hợp cơ chế Auto-rollback tự động khoan nhượng giao dịch.
+• Quản trị Bảo mật & Quản lý State Frontend: Triển khai luồng kiến trúc bảo mật RBAC 7 lớp chặt chẽ từ Backend tới Frontend (bao gồm Route Guard, Component Visibility, Action Permission, Data Scope). Kết hợp hiệu quả Zustand và React Query giúp xử lý caching, quản trị các form nghiệp vụ khám bệnh phức tạp và thiết kế module Payment Wizard (4 bước nội tuyến bảo mật chuẩn y tế) kết hợp với mã thanh toán động VietQR.
+• Hệ thống Kiểm Toán (Audit) & Cảnh báo thời gian thực: Áp dụng luồng kết nối WebSockets (SignalR) cấu hình Push Notification Targetted chủ động cảnh báo sự kiện hệ thống tới 6 role y tế độc lập. Thiết lập Audit Log Middleware tự động bắt nội dung thao túng (POST/PUT/DELETE) xuống dạng Document và tối ưu không gian ổ cứng bằng chiến lược TTL Index cho phép máy chủ làm sạch dữ liệu cũ định kì 365 ngày.
+• Các Thuật toán Backend nâng cao & Truy xuất Analytics: Tận dụng linh hoạt tập truy vấn đệ quy vòng (Recursive CTE) lướt chéo các bản ghi tự giới chiếu (Self-referencing FK) thiết lập khung kết cấu sơ đồ Bệnh lý di truyền học bệnh nhân đa tầng. Triển khai phương pháp MongoDB Aggregation Pipeline chuyên xử lý và tổng hợp mảng Big Data phục vụ hệ thống báo cáo dịch tễ/phân bổ thuốc.

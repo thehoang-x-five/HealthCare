@@ -4,6 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;artifacts\**\*;bin\**;bin\**\*;obj\**;obj\**\*</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +24,13 @@
     <PackageReference Include="MySqlConnector" Version="2.4.0" />
     <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="artifacts\**" />
+    <Content Remove="artifacts\**" />
+    <EmbeddedResource Remove="artifacts\**" />
+    <None Remove="artifacts\**" />
   </ItemGroup>
 
 </Project>

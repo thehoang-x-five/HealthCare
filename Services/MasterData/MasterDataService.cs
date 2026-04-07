@@ -22,13 +22,7 @@ namespace HealthCare.Services.MasterData
                 .OrderBy(k => k.TenKhoa)
                 .ToListAsync();
 
-            return [.. list
-                .Select(k => new DepartmentDto
-                {
-                    MaKhoa = k.MaKhoa,
-                    TenKhoa = k.TenKhoa,
-                    TrangThai = k.TrangThai
-                })];
+            return [.. list.Select(MapDepartmentToDto)];
         }
 
         public async Task<PagedResult<DepartmentDto>> TimKiemKhoaAsync(DepartmentSearchFilter filter)
@@ -72,12 +66,7 @@ namespace HealthCare.Services.MasterData
                 .Take(pageSize)
                 .ToListAsync();
 
-            var dtos = items.Select(k => new DepartmentDto
-            {
-                MaKhoa = k.MaKhoa,
-                TenKhoa = k.TenKhoa,
-                TrangThai = k.TrangThai
-            }).ToList();
+            var dtos = items.Select(MapDepartmentToDto).ToList();
 
             return new PagedResult<DepartmentDto>
             {
@@ -86,6 +75,56 @@ namespace HealthCare.Services.MasterData
                 Page = page,
                 PageSize = pageSize
             };
+        }
+
+        public async Task<DepartmentDto> TaoKhoaAsync(DepartmentUpsertRequest request)
+        {
+            ValidateDepartmentRequest(request);
+
+            var maKhoa = request.MaKhoa.Trim();
+            var exists = await _db.KhoaChuyenMons.AnyAsync(k => k.MaKhoa == maKhoa);
+            if (exists)
+                throw new InvalidOperationException($"Khoa '{maKhoa}' đã tồn tại.");
+
+            var entity = new KhoaChuyenMon
+            {
+                MaKhoa = maKhoa,
+                TenKhoa = request.TenKhoa.Trim(),
+                TrangThai = string.IsNullOrWhiteSpace(request.TrangThai) ? "hoat_dong" : request.TrangThai.Trim(),
+                MoTa = NormalizeOptional(request.MoTa),
+                DienThoai = NormalizeOptional(request.DienThoai),
+                Email = NormalizeOptional(request.Email),
+                DiaDiem = NormalizeOptional(request.DiaDiem),
+                GhiChu = NormalizeOptional(request.GhiChu),
+            };
+
+            _db.KhoaChuyenMons.Add(entity);
+            await _db.SaveChangesAsync();
+
+            return MapDepartmentToDto(entity);
+        }
+
+        public async Task<DepartmentDto> CapNhatKhoaAsync(string maKhoa, DepartmentUpsertRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(maKhoa))
+                throw new ArgumentException("MaKhoa là bắt buộc.", nameof(maKhoa));
+
+            ValidateDepartmentRequest(request, requireCode: false);
+
+            var entity = await _db.KhoaChuyenMons.FirstOrDefaultAsync(k => k.MaKhoa == maKhoa);
+            if (entity == null)
+                throw new KeyNotFoundException($"Không tìm thấy khoa '{maKhoa}'.");
+
+            entity.TenKhoa = request.TenKhoa.Trim();
+            entity.TrangThai = string.IsNullOrWhiteSpace(request.TrangThai) ? entity.TrangThai : request.TrangThai.Trim();
+            entity.MoTa = NormalizeOptional(request.MoTa);
+            entity.DienThoai = NormalizeOptional(request.DienThoai);
+            entity.Email = NormalizeOptional(request.Email);
+            entity.DiaDiem = NormalizeOptional(request.DiaDiem);
+            entity.GhiChu = NormalizeOptional(request.GhiChu);
+
+            await _db.SaveChangesAsync();
+            return MapDepartmentToDto(entity);
         }
 
         // ========== OVERVIEW ==========
@@ -760,6 +799,73 @@ namespace HealthCare.Services.MasterData
             return detail;
         }
 
+        public async Task<RoomDto> TaoPhongAsync(RoomUpsertRequest request)
+        {
+            ValidateRoomRequest(request);
+
+            var maPhong = request.MaPhong.Trim();
+            var exists = await _db.Phongs.AnyAsync(p => p.MaPhong == maPhong);
+            if (exists)
+                throw new InvalidOperationException($"Phòng '{maPhong}' đã tồn tại.");
+
+            await ValidateDepartmentExistsAsync(request.MaKhoa);
+            await ValidateDoctorAssignmentAsync(request.MaBacSiPhuTrach, maPhong: null);
+
+            var entity = new Phong
+            {
+                MaPhong = maPhong,
+                TenPhong = request.TenPhong.Trim(),
+                MaKhoa = request.MaKhoa.Trim(),
+                LoaiPhong = request.LoaiPhong.Trim(),
+                SucChua = request.SucChua,
+                ViTri = NormalizeOptional(request.ViTri),
+                Email = NormalizeOptional(request.Email),
+                DienThoai = NormalizeOptional(request.DienThoai),
+                GioMoCua = request.GioMoCua,
+                GioDongCua = request.GioDongCua,
+                ThietBi = request.ThietBi?.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToList() ?? new List<string>(),
+                TrangThai = string.IsNullOrWhiteSpace(request.TrangThai) ? "hoat_dong" : request.TrangThai.Trim(),
+                MaBacSiPhuTrach = NormalizeOptional(request.MaBacSiPhuTrach)
+            };
+
+            _db.Phongs.Add(entity);
+            await _db.SaveChangesAsync();
+
+            return MapRoomToDto(entity);
+        }
+
+        public async Task<RoomDto> CapNhatPhongAsync(string maPhong, RoomUpsertRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(maPhong))
+                throw new ArgumentException("MaPhong là bắt buộc.", nameof(maPhong));
+
+            ValidateRoomRequest(request, requireCode: false);
+
+            var entity = await _db.Phongs.FirstOrDefaultAsync(p => p.MaPhong == maPhong);
+            if (entity == null)
+                throw new KeyNotFoundException($"Không tìm thấy phòng '{maPhong}'.");
+
+            await ValidateDepartmentExistsAsync(request.MaKhoa);
+            await ValidateDoctorAssignmentAsync(request.MaBacSiPhuTrach, maPhong);
+
+            entity.TenPhong = request.TenPhong.Trim();
+            entity.MaKhoa = request.MaKhoa.Trim();
+            entity.LoaiPhong = request.LoaiPhong.Trim();
+            entity.SucChua = request.SucChua;
+            entity.ViTri = NormalizeOptional(request.ViTri);
+            entity.Email = NormalizeOptional(request.Email);
+            entity.DienThoai = NormalizeOptional(request.DienThoai);
+            entity.GioMoCua = request.GioMoCua;
+            entity.GioDongCua = request.GioDongCua;
+            entity.ThietBi = request.ThietBi?.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToList() ?? new List<string>();
+            entity.TrangThai = string.IsNullOrWhiteSpace(request.TrangThai) ? entity.TrangThai : request.TrangThai.Trim();
+            entity.MaBacSiPhuTrach = NormalizeOptional(request.MaBacSiPhuTrach);
+
+            await _db.SaveChangesAsync();
+
+            return MapRoomToDto(entity);
+        }
+
 
         private static RoomDto MapRoomToDto(Phong p)
         {
@@ -779,6 +885,126 @@ namespace HealthCare.Services.MasterData
                 TrangThai = p.TrangThai,
                 MaBacSiPhuTrach = p.MaBacSiPhuTrach
             };
+        }
+
+        private static DepartmentDto MapDepartmentToDto(KhoaChuyenMon k)
+        {
+            return new DepartmentDto
+            {
+                MaKhoa = k.MaKhoa,
+                TenKhoa = k.TenKhoa,
+                TrangThai = k.TrangThai,
+                MoTa = k.MoTa,
+                DienThoai = k.DienThoai,
+                Email = k.Email,
+                DiaDiem = k.DiaDiem,
+                GhiChu = k.GhiChu
+            };
+        }
+
+        private static void ValidateDepartmentRequest(DepartmentUpsertRequest request, bool requireCode = true)
+        {
+            if (request == null)
+                throw new ArgumentException("Dữ liệu khoa không hợp lệ.");
+
+            if (requireCode && string.IsNullOrWhiteSpace(request.MaKhoa))
+                throw new ArgumentException("MaKhoa là bắt buộc.");
+
+            if (string.IsNullOrWhiteSpace(request.TenKhoa))
+                throw new ArgumentException("TenKhoa là bắt buộc.");
+        }
+
+        private static void ValidateRoomRequest(RoomUpsertRequest request, bool requireCode = true)
+        {
+            if (request == null)
+                throw new ArgumentException("Dữ liệu phòng không hợp lệ.");
+
+            if (requireCode && string.IsNullOrWhiteSpace(request.MaPhong))
+                throw new ArgumentException("MaPhong là bắt buộc.");
+
+            if (string.IsNullOrWhiteSpace(request.TenPhong))
+                throw new ArgumentException("TenPhong là bắt buộc.");
+
+            if (string.IsNullOrWhiteSpace(request.MaKhoa))
+                throw new ArgumentException("MaKhoa là bắt buộc.");
+
+            if (string.IsNullOrWhiteSpace(request.LoaiPhong))
+                throw new ArgumentException("LoaiPhong là bắt buộc.");
+        }
+
+        private static void ValidateServiceRequest(ServiceUpsertRequest request, bool requireCode = true)
+        {
+            if (request == null)
+                throw new ArgumentException("Dữ liệu dịch vụ không hợp lệ.");
+
+            if (requireCode && string.IsNullOrWhiteSpace(request.MaDichVu))
+                throw new ArgumentException("MaDichVu là bắt buộc.");
+
+            if (string.IsNullOrWhiteSpace(request.TenDichVu))
+                throw new ArgumentException("TenDichVu là bắt buộc.");
+
+            if (string.IsNullOrWhiteSpace(request.LoaiDichVu))
+                throw new ArgumentException("LoaiDichVu là bắt buộc.");
+
+            if (string.IsNullOrWhiteSpace(request.MaPhong))
+                throw new ArgumentException("MaPhong là bắt buộc.");
+
+            if (request.DonGia < 0)
+                throw new ArgumentException("DonGia không được âm.");
+
+            if (request.ThoiGianDuKienPhut < 0)
+                throw new ArgumentException("ThoiGianDuKienPhut không được âm.");
+        }
+
+        private async Task ValidateDepartmentExistsAsync(string? maKhoa)
+        {
+            if (string.IsNullOrWhiteSpace(maKhoa))
+                throw new ArgumentException("MaKhoa là bắt buộc.");
+
+            var normalized = maKhoa.Trim();
+            var exists = await _db.KhoaChuyenMons.AnyAsync(k => k.MaKhoa == normalized);
+            if (!exists)
+                throw new ArgumentException($"Không tìm thấy khoa '{normalized}'.");
+        }
+
+        private async Task ValidateRoomExistsAsync(string? maPhong)
+        {
+            if (string.IsNullOrWhiteSpace(maPhong))
+                throw new ArgumentException("MaPhong là bắt buộc.");
+
+            var normalized = maPhong.Trim();
+            var exists = await _db.Phongs.AnyAsync(p => p.MaPhong == normalized);
+            if (!exists)
+                throw new ArgumentException($"Không tìm thấy phòng '{normalized}'.");
+        }
+
+        private async Task ValidateDoctorAssignmentAsync(string? maBacSiPhuTrach, string? maPhong)
+        {
+            var doctorId = NormalizeOptional(maBacSiPhuTrach);
+            if (doctorId == null)
+                return;
+
+            var doctor = await _db.NhanVienYTes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(nv => nv.MaNhanVien == doctorId);
+
+            if (doctor == null)
+                throw new ArgumentException($"Không tìm thấy bác sĩ '{doctorId}'.");
+
+            if (doctor.VaiTro != "bac_si")
+                throw new ArgumentException("MaBacSiPhuTrach phải là nhân sự có vai trò bác sĩ.");
+
+            var assignedElsewhere = await _db.Phongs
+                .AsNoTracking()
+                .AnyAsync(p => p.MaBacSiPhuTrach == doctorId && p.MaPhong != maPhong);
+
+            if (assignedElsewhere)
+                throw new ArgumentException($"Bác sĩ '{doctorId}' đã được gán cho phòng khác.");
+        }
+
+        private static string? NormalizeOptional(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 
         // ========== PHÒNG — LỊCH ĐIỀU DƯỠNG TUẦN ==========
@@ -839,6 +1065,7 @@ namespace HealthCare.Services.MasterData
                     return new RoomDutyDayDto
                     {
                         Thu = GetThuShortName(l.Ngay),
+                        NghiTruc = l.NghiTruc,
                         MaYTa = l.MaYTaTruc,
                         TenYTa = tenYTa,
                         CaTruc = l.CaTruc,
@@ -858,6 +1085,188 @@ namespace HealthCare.Services.MasterData
                 Today = current,
                 LichDieuDuongTuan = items
             };
+        }
+
+        public async Task<RoomDutyWeekDto> CapNhatLichDieuDuongPhongTuanAsync(
+            string maPhong,
+            RoomDutyWeekUpsertRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(maPhong))
+                throw new ArgumentException("MaPhong là bắt buộc.", nameof(maPhong));
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+
+            var room = await _db.Phongs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.MaPhong == maPhong);
+
+            if (room == null)
+                throw new KeyNotFoundException($"Không tìm thấy phòng '{maPhong}'.");
+
+            var weekStart = GetStartOfWeek(request.WeekStartDate.Date);
+            var weekEndExclusive = weekStart.AddDays(7);
+            var supportedShifts = new[] { "Sáng", "Chiều", "Tối" };
+
+            var requestedItems = (request.Items ?? Array.Empty<RoomDutyWeekUpsertItem>())
+                .Where(item => item != null
+                    && !item.NghiTruc
+                    && !string.IsNullOrWhiteSpace(item.CaTruc)
+                    && !string.IsNullOrWhiteSpace(item.MaNhanVienTruc))
+                .Select(item => new
+                {
+                    Ngay = item.Ngay.Date,
+                    CaTruc = NormalizeDutyShift(item.CaTruc),
+                    MaNhanVienTruc = item.MaNhanVienTruc!.Trim()
+                })
+                .Where(item => supportedShifts.Contains(item.CaTruc))
+                .GroupBy(item => $"{item.Ngay:yyyy-MM-dd}|{item.CaTruc}")
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(item => item.MaNhanVienTruc)
+                        .Where(id => !string.IsNullOrWhiteSpace(id))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList());
+
+            var requestedStaffIds = requestedItems.Values
+                .SelectMany(list => list)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (requestedStaffIds.Count > 0)
+            {
+                var validStaff = await _db.NhanVienYTes
+                    .AsNoTracking()
+                    .Where(nv => requestedStaffIds.Contains(nv.MaNhanVien))
+                    .ToListAsync();
+
+                var validMap = validStaff.ToDictionary(nv => nv.MaNhanVien, nv => nv);
+                var invalidStaffIds = requestedStaffIds
+                    .Where(id => !validMap.ContainsKey(id))
+                    .ToList();
+
+                if (invalidStaffIds.Count > 0)
+                    throw new InvalidOperationException($"Không tìm thấy nhân sự: {string.Join(", ", invalidStaffIds)}.");
+
+                var invalidAssignments = validStaff
+                    .Where(nv =>
+                        (nv.VaiTro != "y_ta" && nv.VaiTro != "ky_thuat_vien") ||
+                        nv.TrangThaiCongTac != "dang_cong_tac" ||
+                        nv.TrangThaiTaiKhoan != "hoat_dong")
+                    .Select(nv => nv.MaNhanVien)
+                    .ToList();
+
+                if (invalidAssignments.Count > 0)
+                    throw new InvalidOperationException(
+                        $"Chỉ có thể phân công y tá/kỹ thuật viên đang hoạt động. Nhân sự không hợp lệ: {string.Join(", ", invalidAssignments)}.");
+            }
+
+            var existingSchedules = await _db.LichTrucs
+                .Where(l => l.MaPhong == maPhong && l.Ngay >= weekStart && l.Ngay < weekEndExclusive)
+                .OrderBy(l => l.Ngay)
+                .ThenBy(l => l.CaTruc)
+                .ToListAsync();
+
+            var existingIds = existingSchedules.Select(item => item.MaLichTruc).ToList();
+            var schedulesWithAppointments = existingIds.Count == 0
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : (await _db.LichHenKhams
+                    .AsNoTracking()
+                    .Where(h => existingIds.Contains(h.MaLichTruc))
+                    .Select(h => h.MaLichTruc)
+                    .Distinct()
+                    .ToListAsync())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var existingBySlot = existingSchedules
+                .GroupBy(l => $"{l.Ngay.Date:yyyy-MM-dd}|{NormalizeDutyShift(l.CaTruc)}")
+                .ToDictionary(group => group.Key, group => group.ToList());
+
+            for (var dayOffset = 0; dayOffset < 7; dayOffset++)
+            {
+                var date = weekStart.AddDays(dayOffset).Date;
+
+                foreach (var shift in supportedShifts)
+                {
+                    var slotKey = $"{date:yyyy-MM-dd}|{shift}";
+                    requestedItems.TryGetValue(slotKey, out var requestedStaffOfSlot);
+                    requestedStaffOfSlot ??= new List<string>();
+
+                    existingBySlot.TryGetValue(slotKey, out var existingRowsOfSlot);
+                    existingRowsOfSlot ??= new List<LichTruc>();
+
+                    var rowsWithAppointments = existingRowsOfSlot
+                        .Where(row => schedulesWithAppointments.Contains(row.MaLichTruc))
+                        .ToList();
+
+                    if (requestedStaffOfSlot.Count == 0)
+                    {
+                        if (rowsWithAppointments.Count > 0)
+                        {
+                            throw new InvalidOperationException(
+                                $"Không thể xóa ca {shift} ngày {date:dd/MM/yyyy} vì đã có lịch hẹn.");
+                        }
+
+                        foreach (var row in existingRowsOfSlot)
+                        {
+                            _db.LichTrucs.Remove(row);
+                        }
+
+                        continue;
+                    }
+
+                    if (rowsWithAppointments.Count > requestedStaffOfSlot.Count)
+                    {
+                        throw new InvalidOperationException(
+                            $"Ca {shift} ngày {date:dd/MM/yyyy} đang có nhiều lịch trực phát sinh lịch hẹn hơn số nhân sự bạn giữ lại.");
+                    }
+
+                    var reusableRows = rowsWithAppointments
+                        .Concat(existingRowsOfSlot.Where(row => !schedulesWithAppointments.Contains(row.MaLichTruc)))
+                        .ToList();
+
+                    while (reusableRows.Count < requestedStaffOfSlot.Count)
+                    {
+                        var createdRow = new LichTruc
+                        {
+                            MaLichTruc = GenerateDutyScheduleId(),
+                            Ngay = date,
+                            CaTruc = shift,
+                            MaPhong = maPhong,
+                            MaYTaTruc = requestedStaffOfSlot[reusableRows.Count],
+                            NghiTruc = false
+                        };
+
+                        _db.LichTrucs.Add(createdRow);
+                        reusableRows.Add(createdRow);
+                    }
+
+                    var (gioBatDau, gioKetThuc) = ResolveDutyShiftHours(shift);
+
+                    for (var index = 0; index < requestedStaffOfSlot.Count; index++)
+                    {
+                        var row = reusableRows[index];
+                        row.Ngay = date;
+                        row.CaTruc = shift;
+                        row.GioBatDau = gioBatDau;
+                        row.GioKetThuc = gioKetThuc;
+                        row.NghiTruc = false;
+                        row.MaPhong = maPhong;
+                        row.MaYTaTruc = requestedStaffOfSlot[index];
+                    }
+
+                    foreach (var extraRow in reusableRows.Skip(requestedStaffOfSlot.Count))
+                    {
+                        if (schedulesWithAppointments.Contains(extraRow.MaLichTruc))
+                            continue;
+
+                        _db.LichTrucs.Remove(extraRow);
+                    }
+                }
+            }
+
+            await _db.SaveChangesAsync();
+            return (await LayLichDieuDuongPhongTuanAsync(maPhong, weekStart))!;
         }
 
 
@@ -1570,6 +1979,156 @@ namespace HealthCare.Services.MasterData
                 PageSize = pageSize
             };
         }
+
+        public async Task<StaffDutyWeekDto> CapNhatLichTrucNhanSuTuanAsync(
+            string maNhanVien,
+            StaffDutyWeekUpsertRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(maNhanVien))
+                throw new ArgumentException("MaNhanVien là bắt buộc.", nameof(maNhanVien));
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+
+            var nhanSu = await _db.NhanVienYTes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(n => n.MaNhanVien == maNhanVien);
+
+            if (nhanSu == null)
+                throw new KeyNotFoundException($"Không tìm thấy nhân sự '{maNhanVien}'.");
+
+            var vaiTro = nhanSu.VaiTro?.Trim().ToLowerInvariant();
+            if (vaiTro != "y_ta" && vaiTro != "ky_thuat_vien")
+                throw new InvalidOperationException("Chỉ hỗ trợ quản lý lịch làm cho y tá và kỹ thuật viên.");
+
+            var weekStart = GetStartOfWeek(request.WeekStartDate.Date);
+            var weekEndExclusive = weekStart.AddDays(7);
+
+            var requestedItems = (request.Items ?? Array.Empty<StaffDutyWeekUpsertItem>())
+                .Where(x => x != null)
+                .GroupBy(x => x.Ngay.Date)
+                .ToDictionary(g => g.Key, g => g.Last());
+
+            var requestedRooms = requestedItems.Values
+                .Where(x => !x.NghiTruc && !string.IsNullOrWhiteSpace(x.MaPhong))
+                .Select(x => x.MaPhong!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (requestedRooms.Count > 0)
+            {
+                var validRooms = await _db.Phongs
+                    .AsNoTracking()
+                    .Where(p => requestedRooms.Contains(p.MaPhong))
+                    .Select(p => p.MaPhong)
+                    .ToListAsync();
+
+                var invalidRooms = requestedRooms
+                    .Except(validRooms, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (invalidRooms.Count > 0)
+                    throw new InvalidOperationException($"Không tìm thấy phòng: {string.Join(", ", invalidRooms)}.");
+            }
+
+            var existingSchedules = await _db.LichTrucs
+                .Where(l => l.MaYTaTruc == maNhanVien && l.Ngay >= weekStart && l.Ngay < weekEndExclusive)
+                .OrderBy(l => l.Ngay)
+                .ThenBy(l => l.CaTruc)
+                .ToListAsync();
+
+            var existingIds = existingSchedules.Select(x => x.MaLichTruc).ToList();
+            var schedulesWithAppointments = existingIds.Count == 0
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : (await _db.LichHenKhams
+                    .AsNoTracking()
+                    .Where(h => existingIds.Contains(h.MaLichTruc))
+                    .Select(h => h.MaLichTruc)
+                    .Distinct()
+                    .ToListAsync())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var existingByDate = existingSchedules
+                .GroupBy(l => l.Ngay.Date)
+                .ToDictionary(g => g.Key, g => g.OrderBy(x => x.CaTruc).ToList());
+
+            for (var i = 0; i < 7; i++)
+            {
+                var date = weekStart.AddDays(i).Date;
+                requestedItems.TryGetValue(date, out var requested);
+                existingByDate.TryGetValue(date, out var rowsOfDay);
+                rowsOfDay ??= new List<LichTruc>();
+
+                var keeper = rowsOfDay.FirstOrDefault();
+                var extraRows = rowsOfDay.Skip(1).ToList();
+
+                foreach (var extra in extraRows)
+                {
+                    if (schedulesWithAppointments.Contains(extra.MaLichTruc))
+                    {
+                        extra.NghiTruc = true;
+                    }
+                    else
+                    {
+                        _db.LichTrucs.Remove(extra);
+                    }
+                }
+
+                var isWorkingDay =
+                    requested != null &&
+                    !requested.NghiTruc &&
+                    !string.IsNullOrWhiteSpace(requested.CaTruc) &&
+                    !string.IsNullOrWhiteSpace(requested.MaPhong);
+
+                if (!isWorkingDay)
+                {
+                    if (keeper != null)
+                    {
+                        if (schedulesWithAppointments.Contains(keeper.MaLichTruc))
+                        {
+                            keeper.NghiTruc = true;
+                        }
+                        else
+                        {
+                            _db.LichTrucs.Remove(keeper);
+                        }
+                    }
+
+                    continue;
+                }
+
+                var shift = NormalizeDutyShift(requested!.CaTruc!);
+                var (gioBatDau, gioKetThuc) = ResolveDutyShiftHours(shift);
+                var maPhong = requested.MaPhong!.Trim();
+
+                if (keeper == null)
+                {
+                    keeper = new LichTruc
+                    {
+                        MaLichTruc = GenerateDutyScheduleId(),
+                        Ngay = date,
+                        CaTruc = shift,
+                        GioBatDau = gioBatDau,
+                        GioKetThuc = gioKetThuc,
+                        NghiTruc = false,
+                        MaYTaTruc = maNhanVien,
+                        MaPhong = maPhong
+                    };
+                    _db.LichTrucs.Add(keeper);
+                }
+                else
+                {
+                    keeper.Ngay = date;
+                    keeper.CaTruc = shift;
+                    keeper.GioBatDau = gioBatDau;
+                    keeper.GioKetThuc = gioKetThuc;
+                    keeper.NghiTruc = false;
+                    keeper.MaPhong = maPhong;
+                }
+            }
+
+            await _db.SaveChangesAsync();
+            return (await LayLichTrucNhanSuTuanAsync(maNhanVien, weekStart))!;
+        }
         // ========== LỊCH TRỰC THEO BÁC SĨ ==========
 
         /// <summary>
@@ -1763,6 +2322,62 @@ namespace HealthCare.Services.MasterData
             };
         }
 
+        public async Task<ServiceDto> TaoDichVuAsync(ServiceUpsertRequest request)
+        {
+            ValidateServiceRequest(request);
+
+            var maDichVu = request.MaDichVu.Trim();
+            var exists = await _db.DichVuYTes.AnyAsync(d => d.MaDichVu == maDichVu);
+            if (exists)
+                throw new InvalidOperationException($"Dịch vụ '{maDichVu}' đã tồn tại.");
+
+            await ValidateRoomExistsAsync(request.MaPhong);
+
+            var entity = new DichVuYTe
+            {
+                MaDichVu = maDichVu,
+                TenDichVu = request.TenDichVu.Trim(),
+                LoaiDichVu = request.LoaiDichVu.Trim(),
+                MaPhongThucHien = request.MaPhong.Trim(),
+                DonGia = request.DonGia,
+                ThoiGianDuKienPhut = request.ThoiGianDuKienPhut
+            };
+
+            _db.DichVuYTes.Add(entity);
+            await _db.SaveChangesAsync();
+
+            await _db.Entry(entity).Reference(d => d.PhongThucHien).LoadAsync();
+            return MapServiceToDto(entity);
+        }
+
+        public async Task<ServiceDto> CapNhatDichVuAsync(string maDichVu, ServiceUpsertRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(maDichVu))
+                throw new ArgumentException("MaDichVu là bắt buộc.", nameof(maDichVu));
+
+            ValidateServiceRequest(request, requireCode: false);
+
+            var entity = await _db.DichVuYTes
+                .Include(d => d.PhongThucHien)
+                .FirstOrDefaultAsync(d => d.MaDichVu == maDichVu);
+
+            if (entity == null)
+                throw new KeyNotFoundException($"Không tìm thấy dịch vụ '{maDichVu}'.");
+
+            await ValidateRoomExistsAsync(request.MaPhong);
+
+            entity.TenDichVu = request.TenDichVu.Trim();
+            entity.LoaiDichVu = request.LoaiDichVu.Trim();
+            entity.MaPhongThucHien = request.MaPhong.Trim();
+            entity.DonGia = request.DonGia;
+            entity.ThoiGianDuKienPhut = request.ThoiGianDuKienPhut;
+
+            await _db.SaveChangesAsync();
+            await _db.Entry(entity).Reference(d => d.PhongThucHien).LoadAsync();
+
+            return MapServiceToDto(entity);
+        }
+
         private static DateTime GetStartOfWeek(DateTime date)
         {
             // Tuần bắt đầu từ Thứ 2
@@ -1786,6 +2401,38 @@ namespace HealthCare.Services.MasterData
             };
         }
 
+        private static string NormalizeDutyShift(string shift)
+        {
+            var raw = shift?.Trim() ?? string.Empty;
+            var lower = raw.ToLowerInvariant();
+
+            return lower switch
+            {
+                "sang" or "sáng" => "Sáng",
+                "chieu" or "chiều" => "Chiều",
+                "toi" or "tối" => "Tối",
+                _ => raw
+            };
+        }
+
+        private static (TimeSpan GioBatDau, TimeSpan GioKetThuc) ResolveDutyShiftHours(string shift)
+        {
+            var normalized = NormalizeDutyShift(shift);
+
+            return normalized switch
+            {
+                "Sáng" => (new TimeSpan(7, 30, 0), new TimeSpan(11, 30, 0)),
+                "Chiều" => (new TimeSpan(13, 0, 0), new TimeSpan(17, 0, 0)),
+                "Tối" => (new TimeSpan(17, 0, 0), new TimeSpan(21, 0, 0)),
+                _ => throw new InvalidOperationException($"Ca trực không hợp lệ: {shift}.")
+            };
+        }
+
+        private static string GenerateDutyScheduleId()
+        {
+            return $"LT{DateTime.UtcNow:yyMMddHHmmss}{Random.Shared.Next(100, 999)}";
+        }
+
         private static ServiceDto MapServiceToDto(DichVuYTe d)
         {
             return new ServiceDto
@@ -1795,7 +2442,8 @@ namespace HealthCare.Services.MasterData
                 LoaiDichVu = d.LoaiDichVu,
                 MaPhong = d.MaPhongThucHien,
                 MaKhoa = d.PhongThucHien?.MaKhoa,
-                DonGia = d.DonGia
+                DonGia = d.DonGia,
+                ThoiGianDuKienPhut = d.ThoiGianDuKienPhut
             };
         }
     }

@@ -12,12 +12,16 @@ namespace HealthCare.Services.Report
     public interface IDashboardService
     {
         // ===== DASHBOARD HÔM NAY =====
-        Task<DashboardTodayDto> LayDashboardHomNayAsync();
+        /// <summary>
+        /// Lấy KPI hôm nay. Nếu <paramref name="maKhoa"/> != null, chỉ trả data thuộc khoa đó.
+        /// Admin / YTHC truyền null → xem toàn bộ. Clinical/CLS truyền MaKhoa của mình.
+        /// </summary>
+        Task<DashboardTodayDto> LayDashboardHomNayAsync(string? maKhoa = null);
     }
 
     public interface IReportService
     {
         // ===== BÁO CÁO TỔNG QUAN =====
-        Task<ReportOverviewDto> LayBaoCaoTongQuanAsync(ReportFilterRequest filter);
+        Task<ReportOverviewDto> LayBaoCaoTongQuanAsync(ReportFilterRequest filter, bool includeRevenue = true);
     }
 }

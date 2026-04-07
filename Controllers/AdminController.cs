@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using HealthCare.Attributes;
 using HealthCare.DTOs;
 using HealthCare.Services.Admin;
 using Microsoft.AspNetCore.Authorization;
@@ -9,23 +10,15 @@ namespace HealthCare.Controllers
     [ApiController]
     [Route("api/admin")]
     [Authorize]
+    [RequireRole("admin", "quan_tri_vien")]
     public class AdminController(IAdminService adminService) : ControllerBase
     {
         private readonly IAdminService _adminService = adminService;
-
-        /// <summary>Kiểm tra caller có phải admin không.</summary>
-        private bool IsAdmin()
-        {
-            var role = User.FindFirstValue("ChucVu")
-                    ?? User.FindFirstValue(ClaimTypes.Role);
-            return string.Equals(role, "admin", StringComparison.OrdinalIgnoreCase);
-        }
 
         /// <summary>GET /api/admin/users — Lấy danh sách nhân viên (paged).</summary>
         [HttpGet("users")]
         public async Task<IActionResult> GetUsers([FromQuery] AdminUserFilter filter)
         {
-            if (!IsAdmin()) return Forbid();
             var result = await _adminService.GetUsersAsync(filter);
             return Ok(result);
         }
@@ -34,7 +27,6 @@ namespace HealthCare.Controllers
         [HttpGet("users/{id}")]
         public async Task<IActionResult> GetUser(string id)
         {
-            if (!IsAdmin()) return Forbid();
             try
             {
                 var user = await _adminService.GetUserByIdAsync(id);
@@ -50,7 +42,6 @@ namespace HealthCare.Controllers
         [HttpPost("users")]
         public async Task<IActionResult> CreateUser([FromBody] AdminUserCreateRequest request)
         {
-            if (!IsAdmin()) return Forbid();
             try
             {
                 var user = await _adminService.CreateUserAsync(request);
@@ -66,7 +57,6 @@ namespace HealthCare.Controllers
         [HttpPut("users/{id}")]
         public async Task<IActionResult> UpdateUser(string id, [FromBody] AdminUserUpdateRequest request)
         {
-            if (!IsAdmin()) return Forbid();
             try
             {
                 var user = await _adminService.UpdateUserAsync(id, request);
@@ -82,7 +72,6 @@ namespace HealthCare.Controllers
         [HttpPut("users/{id}/status")]
         public async Task<IActionResult> UpdateStatus(string id, [FromBody] AdminStatusUpdateRequest request)
         {
-            if (!IsAdmin()) return Forbid();
             try
             {
                 await _adminService.UpdateStatusAsync(id, request);
@@ -102,7 +91,6 @@ namespace HealthCare.Controllers
         [HttpPost("users/{id}/reset-password")]
         public async Task<IActionResult> ResetPassword(string id, [FromBody] AdminResetPasswordRequest request)
         {
-            if (!IsAdmin()) return Forbid();
             try
             {
                 await _adminService.ResetPasswordAsync(id, request);
@@ -111,6 +99,25 @@ namespace HealthCare.Controllers
             catch (KeyNotFoundException ex)
             {
                 return NotFound(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>PUT /api/admin/users/{id}/lock-status — Khóa / Mở khóa tài khoản đăng nhập.</summary>
+        [HttpPut("users/{id}/lock-status")]
+        public async Task<IActionResult> LockUnlock(string id, [FromBody] AdminAccountStatusRequest request)
+        {
+            try
+            {
+                await _adminService.LockUnlockAsync(id, request);
+                return Ok(new { message = $"Cập nhật trạng thái tài khoản thành '{request.TrangThai}' thành công." });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
             }
         }
     }

@@ -477,7 +477,9 @@ namespace HealthCare.Services.OutpatientCare
             DateTime? toDate,
             string? trangThai,
             int page,
-            int pageSize)
+            int pageSize,
+            string? originMaKhoaScope = null,
+            string? serviceMaKhoaScope = null)
         {
             page = page <= 0 ? 1 : page;
             pageSize = pageSize <= 0 ? 50 : pageSize; // ✅ Chuẩn hóa: 50 items mặc định
@@ -495,6 +497,21 @@ namespace HealthCare.Services.OutpatientCare
 
             if (!string.IsNullOrWhiteSpace(maBacSi))
                 query = query.Where(x => x.ls.MaBacSiKham == maBacSi);
+
+            if (!string.IsNullOrWhiteSpace(originMaKhoaScope))
+            {
+                query = query.Where(x =>
+                    x.ls.BacSiKham.MaKhoa == originMaKhoaScope ||
+                    x.ls.NguoiLap.MaKhoa == originMaKhoaScope);
+            }
+
+            if (!string.IsNullOrWhiteSpace(serviceMaKhoaScope))
+            {
+                query = query.Where(x =>
+                    _db.ChiTietDichVus.Any(ct =>
+                        ct.MaPhieuKhamCls == x.cls.MaPhieuKhamCls &&
+                        ct.DichVuYTe.PhongThucHien.MaKhoa == serviceMaKhoaScope));
+            }
 
             if (fromDate.HasValue)
             {
@@ -680,7 +697,6 @@ namespace HealthCare.Services.OutpatientCare
                     MaKetQua = $"KQ-{Guid.NewGuid():N}",
                     MaChiTietDv = chiTiet.MaChiTietDv,
                     TrangThaiChot = request.TrangThaiChot,
-                    NoiDungKetQua = request.NoiDungKetQua ?? "",
                     MaNguoiTao = request.MaNhanSuThucHien,
                     ThoiGianTao = now,
                     TepDinhKem = request.TepDinhKem
@@ -690,7 +706,6 @@ namespace HealthCare.Services.OutpatientCare
             else
             {
                 ketQua.TrangThaiChot = request.TrangThaiChot;
-                ketQua.NoiDungKetQua = request.NoiDungKetQua ?? "";
                 ketQua.KetLuanChuyen = request.KetLuanChuyen;
                 ketQua.GhiChu = request.GhiChu;
                 ketQua.MaNguoiTao = request.MaNhanSuThucHien;
@@ -722,23 +737,23 @@ namespace HealthCare.Services.OutpatientCare
 
                 if (eventType == "xet_nghiem")
                 {
-                    // Parse NoiDungKetQua as chi_so array if possible
-                    if (!string.IsNullOrWhiteSpace(ketQua.NoiDungKetQua))
+                    // Parse NoiDungKetQua from request as chi_so array for MongoDB
+                    if (!string.IsNullOrWhiteSpace(request.NoiDungKetQua))
                     {
                         try
                         {
-                            clsPayload.Add("chi_so", BsonSerializer.Deserialize<BsonArray>(ketQua.NoiDungKetQua));
+                            clsPayload.Add("chi_so", BsonSerializer.Deserialize<BsonArray>(request.NoiDungKetQua));
                         }
                         catch
                         {
-                            clsPayload.Add("noi_dung_ket_qua", ketQua.NoiDungKetQua);
+                            clsPayload.Add("noi_dung_ket_qua", request.NoiDungKetQua);
                         }
                     }
                 }
                 else
                 {
                     // chan_doan_hinh_anh
-                    clsPayload.Add("mo_ta_hinh_anh", ketQua.NoiDungKetQua ?? (BsonValue)BsonNull.Value);
+                    clsPayload.Add("mo_ta_hinh_anh", request.NoiDungKetQua ?? (BsonValue)BsonNull.Value);
                     
                     if (!string.IsNullOrWhiteSpace(ketQua.TepDinhKem))
                     {
@@ -777,7 +792,8 @@ namespace HealthCare.Services.OutpatientCare
                 MaDichVu = chiTiet.MaDichVu,
                 TenDichVu = chiTiet.DichVuYTe?.TenDichVu ?? "",
                 TrangThaiChot = ketQua.TrangThaiChot,
-                NoiDungKetQua = ketQua.NoiDungKetQua,
+                KetLuanChuyen = ketQua.KetLuanChuyen,
+                GhiChu = ketQua.GhiChu,
                 MaNhanSuThucHien = ketQua.MaNguoiTao,
                 TenNhanSuThucHien = ketQua.NhanVienYTes?.HoTen ?? "",
                 ThoiGianTao = ketQua.ThoiGianTao,
@@ -923,7 +939,8 @@ namespace HealthCare.Services.OutpatientCare
                 MaDichVu = k.ChiTietDichVu.MaDichVu,
                 TenDichVu = k.ChiTietDichVu.DichVuYTe?.TenDichVu ?? "",
                 TrangThaiChot = k.TrangThaiChot,
-                NoiDungKetQua = k.NoiDungKetQua,
+                KetLuanChuyen = k.KetLuanChuyen,
+                GhiChu = k.GhiChu,
                 MaNhanSuThucHien = k.MaNguoiTao,
                 TenNhanSuThucHien = k.NhanVienYTes?.HoTen ?? "",
                 ThoiGianTao = k.ThoiGianTao,
@@ -1084,7 +1101,10 @@ namespace HealthCare.Services.OutpatientCare
             return dto;
         }
 
-        public async Task<PagedResult<ClsSummaryDto>> LayTongHopKetQuaChoLapPhieuKhamAsync(ClsSummaryFilter filter)
+        public async Task<PagedResult<ClsSummaryDto>> LayTongHopKetQuaChoLapPhieuKhamAsync(
+            ClsSummaryFilter filter,
+            string? originMaKhoaScope = null,
+            string? serviceMaKhoaScope = null)
         {
             if (string.IsNullOrWhiteSpace(filter.MaBenhNhan))
                 throw new ArgumentException("MaBenhNhan là bắt buộc trong filter");
@@ -1102,6 +1122,21 @@ namespace HealthCare.Services.OutpatientCare
                     on ls.MaBenhNhan equals bn.MaBenhNhan
                 where bn.MaBenhNhan == filter.MaBenhNhan
                 select new { s, cls, ls, bn };
+
+            if (!string.IsNullOrWhiteSpace(originMaKhoaScope))
+            {
+                query = query.Where(x =>
+                    x.ls.BacSiKham.MaKhoa == originMaKhoaScope ||
+                    x.ls.NguoiLap.MaKhoa == originMaKhoaScope);
+            }
+
+            if (!string.IsNullOrWhiteSpace(serviceMaKhoaScope))
+            {
+                query = query.Where(x =>
+                    _db.ChiTietDichVus.Any(ct =>
+                        ct.MaPhieuKhamCls == x.cls.MaPhieuKhamCls &&
+                        ct.DichVuYTe.PhongThucHien.MaKhoa == serviceMaKhoaScope));
+            }
 
             if (filter.FromDate.HasValue)
             {

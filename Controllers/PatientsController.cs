@@ -1,22 +1,26 @@
 ﻿using System;
 using System.Threading.Tasks;
 using HealthCare.Attributes;
+using HealthCare.Datas;
 using HealthCare.DTOs;
+using HealthCare.Infrastructure.Security;
 using HealthCare.Services.PatientManagement;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HealthCare.Controllers
 {
     [ApiController]
     [Route("api/patient")]
     [Authorize]
-    public class PatientsController(IPatientService patients) : ControllerBase
+    public class PatientsController(IPatientService patients, DataContext db) : ControllerBase
     {
         private readonly IPatientService _patients = patients;
+        private readonly DataContext _db = db;
 
         /// <summary>
-        /// Tạo mới hoặc cập nhật bệnh nhân - CHỈ Y tá HC + Admin
+        /// Tạo mới hoặc cập nhật bệnh nhân - CHỈ Y tá hành chính
         /// </summary>
         [HttpPost]
         [RequireRole("y_ta")]
@@ -71,6 +75,8 @@ namespace HealthCare.Controllers
         {
             if (string.IsNullOrWhiteSpace(maBenhNhan))
                 return BadRequest("MaBenhNhan là bắt buộc");
+            if (!await CanAccessPatientAsync(maBenhNhan))
+                return Forbid();
 
             var result = await _patients.LayBenhNhanAsync(maBenhNhan);
             if (result == null) return NotFound();
@@ -88,14 +94,17 @@ namespace HealthCare.Controllers
         {
             // đảm bảo filter không null
             filter ??= new PatientSearchFilter();
+            var scope = User.GetUserScope();
+            if (!scope.IsGlobal && string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return Forbid();
 
-            var result = await _patients.TimKiemBenhNhanAsync(filter);
+            var result = await _patients.TimKiemBenhNhanAsync(filter, scope.DepartmentScope);
             return Ok(result);
         }
 
 
         /// <summary>
-        /// Cập nhật trạng thái trong ngày của bệnh nhân (cho_tiep_nhan, cho_kham, dang_kham, ...) - CHỈ Y tá HC + Admin
+        /// Cập nhật trạng thái trong ngày của bệnh nhân (cho_tiep_nhan, cho_kham, dang_kham, ...) - CHỈ Y tá hành chính
         /// </summary>
         [HttpPut("{maBenhNhan}/status")]
         [RequireRole("y_ta")]
@@ -126,6 +135,8 @@ namespace HealthCare.Controllers
         {
             if (string.IsNullOrWhiteSpace(maBenhNhan))
                 return BadRequest("MaBenhNhan là bắt buộc");
+            if (!await CanAccessPatientAsync(maBenhNhan))
+                return Forbid();
 
             var result = await _patients.LayLichSuKhamBenhNhanAsync(maBenhNhan);
             return Ok(result);
@@ -141,9 +152,23 @@ namespace HealthCare.Controllers
         {
             if (string.IsNullOrWhiteSpace(maBenhNhan))
                 return BadRequest("MaBenhNhan là bắt buộc");
+            if (!await CanAccessPatientAsync(maBenhNhan))
+                return Forbid();
 
             var result = await _patients.LayLichSuGiaoDichBenhNhanAsync(maBenhNhan);
             return Ok(result);
+        }
+
+        private async Task<bool> CanAccessPatientAsync(string maBenhNhan)
+        {
+            var scope = User.GetUserScope();
+            if (scope.IsGlobal)
+                return true;
+            if (string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return false;
+
+            return await _db.ScopedPatientIdsByDepartment(scope.DepartmentScope)
+                .AnyAsync(id => id == maBenhNhan);
         }
     }
 }

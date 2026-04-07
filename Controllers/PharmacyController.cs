@@ -1,26 +1,28 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using HealthCare.Attributes;
+using HealthCare.Datas;
 using HealthCare.DTOs;
+using HealthCare.Infrastructure.Security;
 using HealthCare.Services.MedicationBilling;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HealthCare.Controllers
 {
     [ApiController]
     [Route("api/pharmacy")]
-    public class PharmacyController(IPharmacyService pharmacyService) : ControllerBase
+    public class PharmacyController(IPharmacyService pharmacyService, DataContext db) : ControllerBase
     {
         private readonly IPharmacyService _pharmacyService = pharmacyService;
+        private readonly DataContext _db = db;
 
-        // ===== KHO THUỐC =====
-
-        /// <summary>
-        /// Tạo hoặc cập nhật thuốc trong kho.
-        /// </summary>
         [HttpPost("stock")]
         [Authorize]
+        [RequireRole("y_ta", "admin", "quan_tri_vien")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<DrugDto>> UpsertDrug([FromBody] DrugDto dto)
         {
             if (dto == null) return BadRequest("Body is required");
@@ -29,9 +31,6 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
-        /// <summary>
-        /// Lấy toàn bộ danh sách thuốc (dropdown/autocomplete).
-        /// </summary>
         [HttpGet("stock")]
         [Authorize]
         public async Task<ActionResult<IReadOnlyList<DrugDto>>> GetAllDrugs()
@@ -40,9 +39,6 @@ namespace HealthCare.Controllers
             return Ok(items);
         }
 
-        /// <summary>
-        /// Tìm kiếm kho thuốc (màn hình stock).
-        /// </summary>
         [HttpPost("stock/search")]
         [Authorize]
         public async Task<ActionResult<PagedResult<DrugDto>>> SearchStock(
@@ -54,11 +50,6 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
-        // ===== ĐƠN THUỐC =====
-
-        /// <summary>
-        /// Tạo đơn thuốc mới từ khám LS / nơi khác.
-        /// </summary>
         [HttpPost("prescriptions")]
         [Authorize]
         [RequireRole("bac_si")]
@@ -67,29 +58,35 @@ namespace HealthCare.Controllers
         {
             if (request == null) return BadRequest("Body is required");
 
+            var scope = User.GetUserScope();
+            if (scope.IsDoctor &&
+                !string.IsNullOrWhiteSpace(scope.MaNhanSu) &&
+                !string.Equals(request.MaBacSiKeDon, scope.MaNhanSu, StringComparison.OrdinalIgnoreCase))
+            {
+                return Forbid();
+            }
+
             var dto = await _pharmacyService.TaoDonThuocAsync(request);
             return CreatedAtAction(nameof(GetPrescriptionById),
                 new { maDonThuoc = dto.MaDonThuoc }, dto);
         }
 
-        /// <summary>
-        /// Lấy chi tiết đơn thuốc.
-        /// </summary>
         [HttpGet("prescriptions/{maDonThuoc}")]
         [Authorize]
         public async Task<ActionResult<PrescriptionDto>> GetPrescriptionById(string maDonThuoc)
         {
+            if (!await CanAccessPrescriptionAsync(maDonThuoc))
+                return Forbid();
+
             var dto = await _pharmacyService.LayDonThuocAsync(maDonThuoc);
             if (dto == null) return NotFound();
             return Ok(dto);
         }
 
-        /// <summary>
-        /// Cập nhật trạng thái đơn thuốc (da_ke, cho_phat, da_phat...).
-        /// </summary>
         [HttpPut("prescriptions/{maDonThuoc}/status")]
         [Authorize]
-        [RequireRole("y_ta_hanh_chinh")]
+        [RequireRole("y_ta", "admin", "quan_tri_vien")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<PrescriptionDto>> UpdatePrescriptionStatus(
             string maDonThuoc,
             [FromBody] PrescriptionStatusUpdateRequest request)
@@ -102,9 +99,6 @@ namespace HealthCare.Controllers
             return Ok(dto);
         }
 
-        /// <summary>
-        /// Tìm kiếm đơn thuốc (theo BN, thời gian, trạng thái).
-        /// </summary>
         [HttpGet("prescriptions")]
         [Authorize]
         public async Task<ActionResult<PagedResult<PrescriptionDto>>> SearchPrescriptions(
@@ -116,21 +110,33 @@ namespace HealthCare.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 50)
         {
+            var scope = User.GetUserScope();
+            if (!scope.IsGlobal && string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return Forbid();
+
             var result = await _pharmacyService.TimKiemDonThuocAsync(
-                maBenhNhan, fromDate, toDate, trangThai, keyword, page, pageSize);
+                maBenhNhan,
+                fromDate,
+                toDate,
+                trangThai,
+                keyword,
+                page,
+                pageSize,
+                scope.DepartmentScope);
 
             return Ok(result);
         }
 
-        /// <summary>
-        /// Hủy đơn thuốc + hoàn kho (chỉ khi da_ke | cho_phat).
-        /// </summary>
         [HttpPut("prescriptions/{maDonThuoc}/cancel")]
         [Authorize]
+        [RequireRole("y_ta", "bac_si", "admin", "quan_tri_vien")]
         public async Task<IActionResult> HuyDonThuoc(string maDonThuoc)
         {
             try
             {
+                if (!await CanAccessPrescriptionAsync(maDonThuoc))
+                    return Forbid();
+
                 await _pharmacyService.HuyDonThuocAsync(maDonThuoc);
                 return Ok(new { message = "Đã hủy đơn thuốc và hoàn kho thành công." });
             }
@@ -142,6 +148,20 @@ namespace HealthCare.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+        }
+
+        private async Task<bool> CanAccessPrescriptionAsync(string maDonThuoc)
+        {
+            var scope = User.GetUserScope();
+            if (scope.IsGlobal)
+                return true;
+            if (string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return false;
+
+            return await _db.DonThuocs
+                .AsNoTracking()
+                .ApplyPrescriptionDepartmentScope(scope.DepartmentScope)
+                .AnyAsync(d => d.MaDonThuoc == maDonThuoc);
         }
     }
 }

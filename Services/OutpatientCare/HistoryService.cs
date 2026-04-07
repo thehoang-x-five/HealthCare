@@ -217,7 +217,7 @@ namespace HealthCare.Services.OutpatientCare
                     {
                         MaDichVu = dv.MaDichVu,
                         TenDichVu = dv.TenDichVu,
-                        KetQua = kq?.NoiDungKetQua,
+                        KetQua = kq?.KetLuanChuyen,
                         DonGia = dv.DonGia
                     });
                 }

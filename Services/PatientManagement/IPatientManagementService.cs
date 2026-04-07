@@ -15,7 +15,7 @@ namespace HealthCare.Services.PatientManagement
         // ===== BỆNH NHÂN =====
         Task<PatientUpsertResultDto> TaoHoacCapNhatBenhNhanAsync(PatientCreateUpdateRequest request);
         Task<PatientDetailDto?> LayBenhNhanAsync(string maBenhNhan);
-        Task<PagedResult<PatientDto>> TimKiemBenhNhanAsync(PatientSearchFilter filter);
+        Task<PagedResult<PatientDto>> TimKiemBenhNhanAsync(PatientSearchFilter filter, string? maKhoaScope = null);
         Task<PatientDetailDto?> CapNhatTrangThaiBenhNhanAsync(
             string maBenhNhan,
             PatientStatusUpdateRequest request);

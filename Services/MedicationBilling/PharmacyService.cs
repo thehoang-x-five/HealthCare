@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using HealthCare.Services.UserInteraction;
 using HealthCare.Services.Report;
 using HealthCare.Infrastructure.Repositories;
+using HealthCare.Infrastructure.Security;
 using MongoDB.Bson;
 
 namespace HealthCare.Services.MedicationBilling
@@ -260,6 +261,22 @@ namespace HealthCare.Services.MedicationBilling
 
             _db.DonThuocs.Add(don);
 
+            // ===== 1. TẠO HÓA ĐƠN THUỐC (chua_thu) =====
+            var invoice = new HoaDonThanhToan
+            {
+                MaHoaDon = HealthCare.RenderID.GeneratorID.NewHoaDonId(),
+                MaBenhNhan = request.MaBenhNhan,
+                MaNhanSuThu = bs.MaNhanVien,
+                MaDonThuoc = maDonThuoc,
+                LoaiDotthu = "thuoc",
+                SoTien = tongTien,
+                ThoiGian = now,
+                TrangThai = "chua_thu",
+                PhuongThucThanhToan = "tien_mat",
+                NoiDung = $"Thu tiền đơn thuốc - Đơn {maDonThuoc}"
+            };
+            _db.HoaDonThanhToans.Add(invoice);
+
             foreach (var item in request.Items)
             {
                 var detail = new ChiTietDonThuoc
@@ -329,6 +346,13 @@ namespace HealthCare.Services.MedicationBilling
                 if (!string.Equals(oldStatus, "da_phat", StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(newStatus, "da_phat", StringComparison.OrdinalIgnoreCase))
                 {
+                    // ✅ Task 3: LUỒNG THANH TOÁN INLINE (KIỂM TRA HÓA ĐƠN)
+                    var hoaDon = await _db.HoaDonThanhToans
+                        .FirstOrDefaultAsync(h => h.MaDonThuoc == maDonThuoc);
+
+                    if (hoaDon != null && !string.Equals(hoaDon.TrangThai, "da_thu", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException($"Không thể phát thuốc. Hóa đơn của đơn thuốc này vẫn chưa được thanh toán (Trạng thái: {hoaDon.TrangThai}).");
+
                     var details = await _db.ChiTietDonThuocs
                         .Where(c => c.MaDonThuoc == maDonThuoc)
                         .ToListAsync();
@@ -449,9 +473,13 @@ namespace HealthCare.Services.MedicationBilling
             string? trangThai,
             string? keyword,
             int page,
-            int pageSize)
+            int pageSize,
+            string? maKhoaScope = null)
         {
             var query = QueryDonThuoc().AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(maKhoaScope))
+                query = query.ApplyPrescriptionDepartmentScope(maKhoaScope);
 
             if (!string.IsNullOrWhiteSpace(maBenhNhan))
             {

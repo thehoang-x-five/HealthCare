@@ -30,7 +30,8 @@ namespace HealthCare.Services.MedicationBilling
             string? trangThai,
             string? keyword,
             int page,
-            int pageSize);
+            int pageSize,
+            string? maKhoaScope = null);
 
         // ===== HỦY ĐƠN THUỐC (+ HOÀN KHO) =====
         Task HuyDonThuocAsync(string maDonThuoc);
@@ -48,5 +49,8 @@ namespace HealthCare.Services.MedicationBilling
 
         // ===== HỦY HÓA ĐƠN =====
         Task<InvoiceDto?> HuyHoaDonAsync(string maHoaDon, string? lyDo = null);
+        
+        // ===== XÁC NHẬN THANH TOÁN (INLINE) =====
+        Task<InvoiceDto?> XacNhanThanhToanAsync(string maHoaDon, PaymentConfirmRequest request);
     }
 }

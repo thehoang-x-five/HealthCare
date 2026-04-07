@@ -1,7 +1,13 @@
 # Hướng dẫn hoàn thành Tuần 5 — Dev 1: Chốt Backend, Integration Test, Migration Verify, E2E Flow & Tài Liệu
 
 > **File:** `UPGRADE_IMPLEMENTATION_PLAN.md` (Mục 5.1, 5.2)
-> **Bối cảnh:** Tuần 1-3 hoàn thành MongoDB, SP, Genealogy, Analytics, Audit, luồng hủy. Tuần 4 hoàn thành tách User/Staff, RBAC backend, thanh toán inline, VietQR, DataSeed, chuẩn hóa contract. Tuần 5 là tuần **chốt** — không thêm feature mới, chỉ test, fix, verify, document.
+> **Bối cảnh:** Tuần 1-3 hoàn thành MongoDB, SP, Genealogy, Analytics, Audit, luồng hủy. Tuần 4 hoàn thành ~~tách User/Staff~~, RBAC backend, thanh toán inline, VietQR, DataSeed, chuẩn hóa contract. Tuần 5 là tuần **chốt** — không thêm feature mới, chỉ test, fix, verify, document.
+
+> [!IMPORTANT]
+> **THAY ĐỔI QUAN TRỌNG (2026-04-05)**:
+> - **NV1 (Tách UserAccount)**: ❌ ĐÃ HỦY — không tách bảng. Auth fields giữ trong NhanVienYTe. Mọi phần verify migration bên dưới không cần nữa.
+> - **Thay vào đó**: Verify RBAC `[RequireRole]` + Staff data scoping (admin full / non-admin HR-only).
+> - **Bảng `user_accounts` KHÔNG tồn tại** — bỏ qua mọi checklist liên quan.
 
 ---
 
@@ -16,10 +22,10 @@
 
 ---
 
-## Nhiệm vụ 1: Verify Migration & Data Integrity
+## Nhiệm vụ 1: Verify ~~Migration &~~ Data Integrity — RBAC & Staff Scoping
 
-### 1.1 Mục tiêu
-Đảm bảo migration từ mô hình cũ (NhanVienYTe = User) sang mới (UserAccount + NhanVienYTe) hoàn chỉnh, không mất data.
+> [!WARNING]
+> **Phần verify migration user_accounts bên dưới đã HỦY**. Thay vào đó verify: `[RequireRole]` hoạt động, staff profile endpoint trả đúng DTO theo role, admin actions (lock/unlock/reset) OK.
 
 ### 1.2 Checklist kiểm tra
 

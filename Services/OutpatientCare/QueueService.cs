@@ -462,17 +462,22 @@ namespace HealthCare.Services.OutpatientCare
                     };
                 }
 
-                var role = filter.Vaitro.ToLowerInvariant();
-                var isYta = role == "y_ta";
+                var roleRaw = filter.Vaitro.Trim();
+                var role = roleRaw.Replace("_", string.Empty).Trim().ToLowerInvariant();
+                var isYta = role == "yta";
+                var isTechnician =
+                    role == "kythuatvien" ||
+                    role == "ktv" ||
+                    role == "technician";
                 var isHanhChinh = isYta && string.Equals(nhanSu.LoaiYTa, "hanhchinh", StringComparison.OrdinalIgnoreCase);
 
                 if (isHanhChinh)
                 {
                     // Y tá hành chính: xem tất cả phòng, không filter
                 }
-                else if (isYta)
+                else if (isYta || isTechnician)
                 {
-                    // Y tá LS/CLS: lấy phòng theo lịch trực hiện tại, fallback phòng phụ trách
+                    // Y tá LS/CLS và KTV: lấy phòng theo lịch trực hiện tại, fallback phòng phụ trách
                     var targetTime = filter.FromTime ?? DateTime.Now;
                     var lich = await _db.LichTrucs
                         .AsNoTracking()

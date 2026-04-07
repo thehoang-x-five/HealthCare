@@ -20,6 +20,7 @@ namespace HealthCare.Entities
         public string? Email { get; set; }
         public string? DienThoai { get; set; }
         public string TrangThaiCongTac { get; set; } = "dang_cong_tac"; // dang_cong_tac,tam_nghi,nghi_viec
+        public string TrangThaiTaiKhoan { get; set; } = "hoat_dong"; // hoat_dong, khoa
         public string? MoTa { get; set; }
         public string MaKhoa { get; set; } = default!;
 

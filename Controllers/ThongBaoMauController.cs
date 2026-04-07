@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using HealthCare.Attributes;
 using HealthCare.Datas;
 using HealthCare.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ namespace HealthCare.Controllers
     [ApiController]
     [Route("api/notification-templates")]
     [Authorize]
+    [RequireRole("admin", "quan_tri_vien")]
     public class ThongBaoMauController : ControllerBase
     {
         private readonly DataContext _db;

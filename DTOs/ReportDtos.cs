@@ -54,6 +54,17 @@ namespace HealthCare.DTOs
             = Array.Empty<ReportDateValueItemDto>();
     }
 
+    /// <summary>Ô KPI thay doanh thu cho y tá hành chính: Bệnh nhân đã check-in.</summary>
+    public record class ReportCheckInKpiDto
+    {
+        public int TongBenhNhanDaCheckIn { get; set; }
+        public decimal CheckInChangePercent { get; set; }
+
+        /// <summary>Series: Ngày – Số bệnh nhân đã check-in.</summary>
+        public IReadOnlyList<ReportDateValueItemDto> PhanBoTheoNgay { get; set; }
+            = Array.Empty<ReportDateValueItemDto>();
+    }
+
     /// <summary>Ô KPI 3: Tái khám.</summary>
     public record class ReportRevisitKpiDto
     {
@@ -97,7 +108,9 @@ namespace HealthCare.DTOs
     /// </summary>
     public record class ReportOverviewDto
     {
+        public bool CoTheXemDoanhThu { get; set; } = true;
         public ReportRevenueKpiDto DoanhThu { get; set; } = default!;
+        public ReportCheckInKpiDto BenhNhanDaCheckIn { get; set; } = default!;
         public ReportNewPatientsKpiDto BenhNhanMoi { get; set; } = default!;
         public ReportRevisitKpiDto TaiKham { get; set; } = default!;
         public ReportCancelRateKpiDto TyLeHuy { get; set; } = default!;

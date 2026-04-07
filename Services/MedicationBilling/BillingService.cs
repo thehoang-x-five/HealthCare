@@ -108,7 +108,7 @@ namespace HealthCare.Services.MedicationBilling
                 PhuongThucThanhToan = request.PhuongThucThanhToan,
 
                 ThoiGian = now,
-                TrangThai = "da_thu",
+                TrangThai = "chua_thu",
                 NoiDung = request.NoiDung
             };
 
@@ -493,7 +493,79 @@ namespace HealthCare.Services.MedicationBilling
                    $"với số tiền {invoice.SoTien:n0}đ. đã được thanh toán.";
         }
 
+        // ============================================================
+        // =        6. XÁC NHẬN THANH TOÁN (INLINE PAYMENT WIZARD)    =
+        // ============================================================
 
+        public async Task<InvoiceDto?> XacNhanThanhToanAsync(string maHoaDon, PaymentConfirmRequest request)
+        {
+            var entity = await QueryHoaDon()
+                .FirstOrDefaultAsync(h => h.MaHoaDon == maHoaDon);
+
+            if (entity == null)
+                return null;
+
+            // Chỉ cho phép confirm khi trạng thái = chua_thu
+            if (!string.Equals(entity.TrangThai, "chua_thu", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    $"Hóa đơn đang ở trạng thái '{entity.TrangThai}' — chỉ xác nhận thanh toán được khi 'chua_thu'.");
+
+            // Cập nhật thông tin thanh toán
+            entity.TrangThai = "da_thu";
+            entity.PhuongThucThanhToan = request.PhuongThucThanhToan ?? "tien_mat";
+            entity.MaGiaoDich = request.MaGiaoDich;
+            entity.SoTienPhaiTra = entity.SoTien;
+            entity.ThoiGian = DateTime.Now;
+
+            if (!string.IsNullOrWhiteSpace(request.MaNhanSuThu))
+                entity.MaNhanSuThu = request.MaNhanSuThu;
+
+            await _db.SaveChangesAsync();
+
+            // ===== LOG TO MONGODB =====
+            var chiTietArr = new BsonArray
+            {
+                new BsonDocument
+                {
+                    { "ten", entity.NoiDung ?? "Thanh toán dịch vụ y tế" },
+                    { "so_tien", entity.SoTien }
+                }
+            };
+
+            var payload = new BsonDocument
+            {
+                { "ma_hoa_don", entity.MaHoaDon },
+                { "loai_dot_thu", entity.LoaiDotthu ?? (BsonValue)BsonNull.Value },
+                { "chi_tiet", chiTietArr },
+                { "tong_tien", entity.SoTien },
+                { "so_tien_tra", entity.SoTienPhaiTra },
+                { "phuong_thuc", entity.PhuongThucThanhToan ?? (BsonValue)BsonNull.Value },
+                { "ma_giao_dich", entity.MaGiaoDich ?? (BsonValue)BsonNull.Value },
+                { "nhan_su_thu", entity.MaNhanSuThu ?? (BsonValue)BsonNull.Value },
+                { "thoi_gian", entity.ThoiGian }
+            };
+
+            try
+            {
+                await _mongoHistory.LogEventAsync(entity.MaBenhNhan, "thanh_toan", payload, entity.MaNhanSuThu);
+            }
+            catch (Exception)
+            {
+                // MongoDB dual-write fail → MySQL data vẫn OK
+            }
+
+            var updated = await QueryHoaDon()
+                .AsNoTracking()
+                .FirstAsync(h => h.MaHoaDon == maHoaDon);
+
+            var dto = MapInvoice(updated);
+
+            await _realtime.BroadcastInvoiceChangedAsync(dto);
+            var dashboard = await _dashboard.LayDashboardHomNayAsync();
+            await _realtime.BroadcastDashboardTodayAsync(dashboard);
+
+            return dto;
+        }
 
     }
 }

@@ -9,6 +9,7 @@ namespace HealthCare.Services.Admin
         Task<AdminUserDto> CreateUserAsync(AdminUserCreateRequest request);
         Task<AdminUserDto> UpdateUserAsync(string maNhanVien, AdminUserUpdateRequest request);
         Task UpdateStatusAsync(string maNhanVien, AdminStatusUpdateRequest request);
+        Task LockUnlockAsync(string maNhanVien, AdminAccountStatusRequest request);
         Task ResetPasswordAsync(string maNhanVien, AdminResetPasswordRequest request);
     }
 }

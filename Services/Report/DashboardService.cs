@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using HealthCare.Datas;
 using HealthCare.DTOs;
@@ -17,19 +19,51 @@ namespace HealthCare.Services.Report
             _db = db;
         }
 
-        public async Task<DashboardTodayDto> LayDashboardHomNayAsync()
+        public async Task<DashboardTodayDto> LayDashboardHomNayAsync(string? maKhoa = null)
         {
             var today = DateTime.Today;
             var tomorrow = today.AddDays(1);
             var yesterday = today.AddDays(-1);
             // ===== 1. KPI: BỆNH NHÂN TRONG NGÀY (THEO PHIẾU LS) =====
-            // Chỉ tính các phiếu khám lâm sàng trong ngày, chưa có phiếu CLS đi kèm
-            var todayPatients = await _db.PhieuKhamLamSangs
-                        .Where(p => p.NgayLap >= today
-                                    && p.NgayLap < tomorrow
-                                   )
-                        .Select(p => new { p.MaBenhNhan, p.TrangThai, p.NgayLap, p.GioLap })
+            // Nếu maKhoa != null, lấy danh sách MaPhong thuộc khoa đó
+            List<string>? scopeRooms = null;
+            if (!string.IsNullOrWhiteSpace(maKhoa))
+            {
+                scopeRooms = await _db.Phongs
+                    .Where(p => p.MaKhoa == maKhoa)
+                    .Select(p => p.MaPhong)
+                    .ToListAsync();
+            }
+
+            IQueryable<string>? scopedLsExamIdsQuery = null;
+            if (scopeRooms != null)
+            {
+                scopedLsExamIdsQuery = _db.HangDois
+                    .Where(h => h.MaPhieuKham != null && scopeRooms.Contains(h.MaPhong))
+                    .Select(h => h.MaPhieuKham!);
+            }
+
+            // Chỉ tính các phiếu khám lâm sàng trong ngày
+            var lsQuery = _db.PhieuKhamLamSangs
+                        .Where(p => p.NgayLap >= today && p.NgayLap < tomorrow);
+            // ✅ RBAC: scope theo khoa qua MaPhong trong hàng đợi
+            if (scopedLsExamIdsQuery != null)
+            {
+                lsQuery = lsQuery.Where(p => scopedLsExamIdsQuery.Contains(p.MaPhieuKham));
+            }
+            var todayPatients = await lsQuery
+                        .Select(p => new { p.MaBenhNhan, p.TrangThai, p.NgayLap, p.GioLap, p.MaPhieuKham })
                        .ToListAsync();
+
+            var todayLsPatients = todayPatients
+                .GroupBy(p => p.MaBenhNhan)
+                .Select(g => new
+                {
+                    MaBenhNhan = g.Key,
+                    Gio = g.Min(x => x.GioLap.Hours),
+                    TrangThaiTongHop = ResolvePatientDailyStatus(g.Select(x => x.TrangThai))
+                })
+                .ToList();
 
             var tongBenhNhan = todayPatients.Count;
 
@@ -66,7 +100,41 @@ namespace HealthCare.Services.Report
             .ToList();
 
             patientByHour = EnsureFullDaySeries(patientByHour);
-           
+
+            var yesterdayLsPatientsQuery = _db.PhieuKhamLamSangs
+                .Where(p => p.NgayLap >= yesterday && p.NgayLap < today);
+            if (scopedLsExamIdsQuery != null)
+            {
+                yesterdayLsPatientsQuery = yesterdayLsPatientsQuery
+                    .Where(p => scopedLsExamIdsQuery.Contains(p.MaPhieuKham));
+            }
+            var yesterdayLsPatientsCount = await yesterdayLsPatientsQuery
+                .Select(p => p.MaBenhNhan)
+                .Distinct()
+                .CountAsync();
+
+            int tongBenhNhanLs = todayLsPatients.Count;
+            int daXuLyLs = todayLsPatients.Count(p => p.TrangThaiTongHop == "da_xu_ly");
+            int daHuyLs = todayLsPatients.Count(p => p.TrangThaiTongHop == "da_huy");
+            int choXuLyLs = Math.Max(0, tongBenhNhanLs - daXuLyLs - daHuyLs);
+            decimal patientLsGrowth = 0;
+            if (yesterdayLsPatientsCount > 0)
+            {
+                patientLsGrowth = ((decimal)tongBenhNhanLs - yesterdayLsPatientsCount) /
+                    yesterdayLsPatientsCount * 100m;
+            }
+
+            var patientLsByHour = todayLsPatients
+                .GroupBy(p => p.Gio)
+                .Select(g => new TodayHourValueItemDto
+                {
+                    Gio = g.Key,
+                    GiaTri = g.Count()
+                })
+                .OrderBy(x => x.Gio)
+                .ToList();
+            patientLsByHour = EnsureFullDaySeries(patientLsByHour);
+
 
 
             var benhNhanKpi = new TodayPatientsKpiDto
@@ -79,9 +147,25 @@ namespace HealthCare.Services.Report
                 PhanBoTheoGio = patientByHour
             };
 
+            var benhNhanLsKpi = new TodayPatientsKpiDto
+            {
+                TongSoBenhNhan = tongBenhNhanLs,
+                DaXuLy = daXuLyLs,
+                ChoXuLy = choXuLyLs,
+                DaHuy = daHuyLs,
+                TangTruongPhanTram = patientLsGrowth,
+                PhanBoTheoGio = patientLsByHour
+            };
+
             // ===== 2. KPI: LỊCH HẸN HÔM NAY =====
-            var todayAppointments = await _db.LichHenKhams
-                .Where(l => l.NgayHen >= today && l.NgayHen < tomorrow && l.CoHieuLuc)
+            var apptQuery = _db.LichHenKhams
+                .Where(l => l.NgayHen >= today && l.NgayHen < tomorrow && l.CoHieuLuc);
+            // ✅ RBAC: scope lịch hẹn theo lịch trực phòng thuộc khoa
+            if (scopeRooms != null)
+            {
+                apptQuery = apptQuery.Where(l => l.LichTruc != null && scopeRooms.Contains(l.LichTruc.MaPhong));
+            }
+            var todayAppointments = await apptQuery
                 .Select(l => new { l.TrangThai, l.GioHen })
                 .ToListAsync();
 
@@ -123,8 +207,28 @@ namespace HealthCare.Services.Report
             };
 
             // ===== 3. KPI: DOANH THU HÔM NAY =====
-            var todayInvoices = await _db.HoaDonThanhToans
-                .Where(h => h.ThoiGian >= today && h.ThoiGian < tomorrow && h.TrangThai == "da_thu")
+            var invoiceQuery = _db.HoaDonThanhToans
+                .Where(h => h.ThoiGian >= today && h.ThoiGian < tomorrow && h.TrangThai == "da_thu");
+            // ✅ RBAC: scope doanh thu qua PhieuKham → HangDoi → MaPhong
+            if (scopeRooms != null)
+            {
+                // Lấy MaPhieuKham từ HangDoi thuộc phòng trong khoa
+                invoiceQuery = invoiceQuery.Where(h =>
+                    (h.MaPhieuKham != null && scopedLsExamIdsQuery!.Contains(h.MaPhieuKham)) ||
+                    (h.MaPhieuKhamCls != null && _db.PhieuKhamCanLamSangs
+                        .Where(cls => scopedLsExamIdsQuery!.Contains(cls.MaPhieuKhamLs))
+                        .Select(cls => cls.MaPhieuKhamCls)
+                        .Contains(h.MaPhieuKhamCls)) ||
+                    (h.MaDonThuoc != null && _db.DonThuocs
+                        .Where(d => _db.NhanVienYTes
+                            .Where(nv => nv.MaKhoa == maKhoa)
+                            .Select(nv => nv.MaNhanVien)
+                            .Contains(d.MaBacSiKeDon))
+                        .Select(d => d.MaDonThuoc)
+                        .Contains(h.MaDonThuoc))
+                );
+            }
+            var todayInvoices = await invoiceQuery
                 .Select(h => new { h.ThoiGian, h.LoaiDotthu, h.SoTien })
                 .ToListAsync();
 
@@ -171,21 +275,67 @@ namespace HealthCare.Services.Report
                         //  - Cận lâm sàng (CLS): tính theo CHI TIẾT DỊCH VỤ (ChiTietDichVu).
             
                         // LS: mỗi PhieuKhamLamSang = 1 lượt
-            var todayLs = await _db.PhieuKhamLamSangs
-                            .Where(p => p.NgayLap >= today && p.NgayLap < tomorrow)
+            // ✅ RBAC: scope LS + CLS theo khoa
+            var lsExamQuery = _db.PhieuKhamLamSangs
+                            .Where(p => p.NgayLap >= today && p.NgayLap < tomorrow);
+            if (scopeRooms != null)
+            {
+                lsExamQuery = lsExamQuery.Where(p => scopedLsExamIdsQuery!.Contains(p.MaPhieuKham));
+            }
+            var todayLs = await lsExamQuery
                             .Select(p => new { p.TrangThai, p.GioLap })
                             .ToListAsync();
             
                         // CLS: mỗi ChiTietDichVu = 1 lượt khám
-                      // join ChiTietDichVu với PhieuKhamCanLamSang để lọc theo NgayGioLap trong hôm nay
-            var todayCls = await (
+            var clsExamQueryBase = 
             from ct in _db.ChiTietDichVus
                                 join cls in _db.PhieuKhamCanLamSangs
                                     on ct.MaPhieuKhamCls equals cls.MaPhieuKhamCls
+                                join dv in _db.DichVuYTes
+                                    on ct.MaDichVu equals dv.MaDichVu
                                 where cls.NgayGioLap >= today && cls.NgayGioLap < tomorrow
-                                select new { ct.TrangThai, cls.NgayGioLap }
-                            )
+                                select new { ct, cls, dv };
+            // ✅ RBAC: scope CLS theo phòng CLS thuộc khoa
+            if (scopeRooms != null)
+            {
+                clsExamQueryBase = clsExamQueryBase.Where(x => scopeRooms.Contains(x.dv.MaPhongThucHien));
+            }
+            var todayCls = await clsExamQueryBase
+                            .Select(x => new { x.ct.TrangThai, x.cls.NgayGioLap })
                             .ToListAsync();
+
+            var clsOrderQueryBase =
+                from cls in _db.PhieuKhamCanLamSangs
+                join ls in _db.PhieuKhamLamSangs on cls.MaPhieuKhamLs equals ls.MaPhieuKham
+                join ct in _db.ChiTietDichVus on cls.MaPhieuKhamCls equals ct.MaPhieuKhamCls
+                join dv in _db.DichVuYTes on ct.MaDichVu equals dv.MaDichVu
+                where cls.NgayGioLap >= today && cls.NgayGioLap < tomorrow
+                select new
+                {
+                    cls.MaPhieuKhamCls,
+                    cls.TrangThai,
+                    cls.NgayGioLap,
+                    ls.MaBenhNhan,
+                    dv.MaPhongThucHien
+                };
+            if (scopeRooms != null)
+            {
+                clsOrderQueryBase = clsOrderQueryBase.Where(x => scopeRooms.Contains(x.MaPhongThucHien));
+            }
+            var todayClsOrders = await clsOrderQueryBase
+                .Select(x => new { x.MaPhieuKhamCls, x.TrangThai, x.NgayGioLap, x.MaBenhNhan })
+                .Distinct()
+                .ToListAsync();
+
+            var todayClsPatients = todayClsOrders
+                .GroupBy(x => x.MaBenhNhan)
+                .Select(g => new
+                {
+                    MaBenhNhan = g.Key,
+                    Gio = g.Min(x => x.NgayGioLap.Hour),
+                    TrangThaiTongHop = ResolvePatientDailyStatus(g.Select(x => x.TrangThai))
+                })
+                .ToList();
             
             int tongLuot = todayLs.Count + todayCls.Count;
             
@@ -212,17 +362,55 @@ namespace HealthCare.Services.Report
             todayCls.Count(p => p.TrangThai == "da_huy");
             
                         // So sánh với hôm qua: cũng tính CLS theo số ChiTietDichVu
-            var yesterdayLsCount = await _db.PhieuKhamLamSangs
-                            .CountAsync(p => p.NgayLap >= yesterday && p.NgayLap < today);
+            var yesterdayLsQuery = _db.PhieuKhamLamSangs
+                            .Where(p => p.NgayLap >= yesterday && p.NgayLap < today);
+            if (scopedLsExamIdsQuery != null)
+            {
+                yesterdayLsQuery = yesterdayLsQuery.Where(p => scopedLsExamIdsQuery.Contains(p.MaPhieuKham));
+            }
+            var yesterdayLsCount = await yesterdayLsQuery.CountAsync();
             
-            var yesterdayClsCount = await (
+            var yesterdayClsCountQuery =
             from ct in _db.ChiTietDichVus
                                 join cls in _db.PhieuKhamCanLamSangs
                                     on ct.MaPhieuKhamCls equals cls.MaPhieuKhamCls
+                                join dv in _db.DichVuYTes
+                                    on ct.MaDichVu equals dv.MaDichVu
                                 where cls.NgayGioLap >= yesterday && cls.NgayGioLap < today
-                                select ct
-                            )
-                            .CountAsync();
+                                select new { ct.MaChiTietDv, dv.MaPhongThucHien };
+            if (scopeRooms != null)
+            {
+                yesterdayClsCountQuery = yesterdayClsCountQuery.Where(x => scopeRooms.Contains(x.MaPhongThucHien));
+            }
+            var yesterdayClsCount = await yesterdayClsCountQuery.CountAsync();
+
+            var yesterdayClsOrderQueryBase =
+                from cls in _db.PhieuKhamCanLamSangs
+                join ls in _db.PhieuKhamLamSangs on cls.MaPhieuKhamLs equals ls.MaPhieuKham
+                join ct in _db.ChiTietDichVus on cls.MaPhieuKhamCls equals ct.MaPhieuKhamCls
+                join dv in _db.DichVuYTes on ct.MaDichVu equals dv.MaDichVu
+                where cls.NgayGioLap >= yesterday && cls.NgayGioLap < today
+                select new
+                {
+                    cls.MaPhieuKhamCls,
+                    cls.TrangThai,
+                    cls.NgayGioLap,
+                    ls.MaBenhNhan,
+                    dv.MaPhongThucHien
+                };
+            if (scopeRooms != null)
+            {
+                yesterdayClsOrderQueryBase = yesterdayClsOrderQueryBase.Where(x => scopeRooms.Contains(x.MaPhongThucHien));
+            }
+            var yesterdayClsOrderCount = await yesterdayClsOrderQueryBase
+                .Select(x => x.MaPhieuKhamCls)
+                .Distinct()
+                .CountAsync();
+
+            var yesterdayClsPatientsCount = await yesterdayClsOrderQueryBase
+                .Select(x => x.MaBenhNhan)
+                .Distinct()
+                .CountAsync();
             
             int yesterdayTotalExam = yesterdayLsCount + yesterdayClsCount;
             decimal examGrowth = 0;
@@ -262,6 +450,104 @@ namespace HealthCare.Services.Report
                 DaHuy = examDaHuy,
                 TangTruongPhanTram = examGrowth,
                 PhanBoTheoGio = examByHourList
+            };
+
+            int tongLuotLs = todayLs.Count;
+            int choKhamLs = todayLs.Count(p => p.TrangThai == "da_lap");
+            int dangKhamLs = todayLs.Count(p => p.TrangThai == "dang_thuc_hien");
+            int daHoanTatLs = todayLs.Count(p => p.TrangThai == "da_hoan_tat");
+            int daHuyLsExam = todayLs.Count(p => p.TrangThai == "da_huy");
+            decimal examLsGrowth = 0;
+            if (yesterdayLsCount > 0)
+            {
+                examLsGrowth = (decimal)(tongLuotLs - yesterdayLsCount) / yesterdayLsCount * 100m;
+            }
+
+            var examLsByHour = todayLs
+                .GroupBy(x => x.GioLap.Hours)
+                .Select(g => new TodayHourValueItemDto
+                {
+                    Gio = g.Key,
+                    GiaTri = g.Count()
+                })
+                .OrderBy(x => x.Gio)
+                .ToList();
+            examLsByHour = EnsureFullDaySeries(examLsByHour);
+
+            var luotKhamLsKpi = new TodayExamOverviewDto
+            {
+                TongLuotKham = tongLuotLs,
+                ChoKham = choKhamLs,
+                DangKham = dangKhamLs,
+                DaHoanTat = daHoanTatLs,
+                DaHuy = daHuyLsExam,
+                TangTruongPhanTram = examLsGrowth,
+                PhanBoTheoGio = examLsByHour
+            };
+
+            int tongLuotCls = todayClsOrders.Count;
+            int choKhamCls = todayClsOrders.Count(p => p.TrangThai == "da_lap");
+            int dangKhamCls = todayClsOrders.Count(p => p.TrangThai == "dang_thuc_hien");
+            int daHoanTatCls = todayClsOrders.Count(p => p.TrangThai == "da_hoan_tat");
+            int daHuyClsExam = todayClsOrders.Count(p => p.TrangThai == "da_huy");
+            decimal examClsGrowth = 0;
+            if (yesterdayClsOrderCount > 0)
+            {
+                examClsGrowth = (decimal)(tongLuotCls - yesterdayClsOrderCount) / yesterdayClsOrderCount * 100m;
+            }
+
+            var examClsByHour = todayClsOrders
+                .GroupBy(x => x.NgayGioLap.Hour)
+                .Select(g => new TodayHourValueItemDto
+                {
+                    Gio = g.Key,
+                    GiaTri = g.Count()
+                })
+                .OrderBy(x => x.Gio)
+                .ToList();
+            examClsByHour = EnsureFullDaySeries(examClsByHour);
+
+            var luotKhamClsKpi = new TodayExamOverviewDto
+            {
+                TongLuotKham = tongLuotCls,
+                ChoKham = choKhamCls,
+                DangKham = dangKhamCls,
+                DaHoanTat = daHoanTatCls,
+                DaHuy = daHuyClsExam,
+                TangTruongPhanTram = examClsGrowth,
+                PhanBoTheoGio = examClsByHour
+            };
+
+            int tongBenhNhanCls = todayClsPatients.Count;
+            int daXuLyClsPatient = todayClsPatients.Count(p => p.TrangThaiTongHop == "da_xu_ly");
+            int daHuyClsPatient = todayClsPatients.Count(p => p.TrangThaiTongHop == "da_huy");
+            int choXuLyClsPatient = Math.Max(0, tongBenhNhanCls - daXuLyClsPatient - daHuyClsPatient);
+            decimal patientClsGrowth = 0;
+            if (yesterdayClsPatientsCount > 0)
+            {
+                patientClsGrowth = (decimal)(tongBenhNhanCls - yesterdayClsPatientsCount) /
+                    yesterdayClsPatientsCount * 100m;
+            }
+
+            var patientClsByHour = todayClsPatients
+                .GroupBy(p => p.Gio)
+                .Select(g => new TodayHourValueItemDto
+                {
+                    Gio = g.Key,
+                    GiaTri = g.Count()
+                })
+                .OrderBy(x => x.Gio)
+                .ToList();
+            patientClsByHour = EnsureFullDaySeries(patientClsByHour);
+
+            var benhNhanClsKpi = new TodayPatientsKpiDto
+            {
+                TongSoBenhNhan = tongBenhNhanCls,
+                DaXuLy = daXuLyClsPatient,
+                ChoXuLy = choXuLyClsPatient,
+                DaHuy = daHuyClsPatient,
+                TangTruongPhanTram = patientClsGrowth,
+                PhanBoTheoGio = patientClsByHour
             };
 
             // ===== 5. LỊCH HẸN SẮP TỚI (HÔM NAY) =====
@@ -333,6 +619,128 @@ namespace HealthCare.Services.Report
             };
 
             // ===== 8. DỊCH VỤ SẮP LÀM (cho CLS/KTV) =====
+            // KPI cho khối lâm sàng: tổng số chẩn đoán và các hướng xử trí chính trong ngày.
+            var diagnosisBaseQuery = _db.PhieuChanDoanCuois.AsQueryable();
+            if (scopedLsExamIdsQuery != null)
+            {
+                diagnosisBaseQuery = diagnosisBaseQuery.Where(pc => scopedLsExamIdsQuery.Contains(pc.MaPhieuKham));
+            }
+
+            var todayDiagnoses = await diagnosisBaseQuery
+                .Where(pc => pc.ThoiGianTao >= today && pc.ThoiGianTao < tomorrow)
+                .Select(pc => new
+                {
+                    pc.ThoiGianTao,
+                    pc.HuongXuTri,
+                    pc.MaDonThuoc,
+                    pc.NgayTaiKham
+                })
+                .ToListAsync();
+
+            var yesterdayDiagnosisCount = await diagnosisBaseQuery
+                .Where(pc => pc.ThoiGianTao >= yesterday && pc.ThoiGianTao < today)
+                .CountAsync();
+
+            int tongChanDoan = todayDiagnoses.Count;
+            int chanDoanChoVe = todayDiagnoses.Count(x => ContainsNormalizedKeyword(x.HuongXuTri, "cho ve"));
+            int chanDoanTaiKham = todayDiagnoses.Count(x =>
+                x.NgayTaiKham != null || ContainsNormalizedKeyword(x.HuongXuTri, "tai kham"));
+            int chanDoanChoThuoc = todayDiagnoses.Count(x =>
+                !string.IsNullOrWhiteSpace(x.MaDonThuoc) || ContainsNormalizedKeyword(x.HuongXuTri, "cho thuoc"));
+
+            decimal diagnosisGrowth = 0;
+            if (yesterdayDiagnosisCount > 0)
+            {
+                diagnosisGrowth = (decimal)(tongChanDoan - yesterdayDiagnosisCount) / yesterdayDiagnosisCount * 100m;
+            }
+
+            var diagnosisByHour = todayDiagnoses
+                .GroupBy(x => x.ThoiGianTao.Hour)
+                .Select(g => new TodayHourValueItemDto { Gio = g.Key, GiaTri = g.Count() })
+                .OrderBy(x => x.Gio)
+                .ToList();
+            diagnosisByHour = EnsureFullDaySeries(diagnosisByHour);
+
+            var chanDoanKpi = new TodayDiagnosisKpiDto
+            {
+                TongChanDoan = tongChanDoan,
+                ChoVe = chanDoanChoVe,
+                TaiKham = chanDoanTaiKham,
+                ChoThuoc = chanDoanChoThuoc,
+                TangTruongPhanTram = diagnosisGrowth,
+                PhanBoTheoGio = diagnosisByHour
+            };
+
+            // KPI cho khối CLS: tổng số kết quả và phân loại theo tiến độ so với thời gian dự kiến.
+            var resultBaseQuery =
+                from kq in _db.KetQuaDichVus
+                join ct in _db.ChiTietDichVus on kq.MaChiTietDv equals ct.MaChiTietDv
+                join cls in _db.PhieuKhamCanLamSangs on ct.MaPhieuKhamCls equals cls.MaPhieuKhamCls
+                join dv in _db.DichVuYTes on ct.MaDichVu equals dv.MaDichVu
+                select new
+                {
+                    CompletedAt = kq.ThoiGianChot ?? kq.ThoiGianTao,
+                    cls.NgayGioLap,
+                    dv.ThoiGianDuKienPhut,
+                    dv.MaPhongThucHien
+                };
+            if (scopeRooms != null)
+            {
+                resultBaseQuery = resultBaseQuery.Where(x => scopeRooms.Contains(x.MaPhongThucHien));
+            }
+
+            var todayResults = await resultBaseQuery
+                .Where(x => x.CompletedAt >= today && x.CompletedAt < tomorrow)
+                .ToListAsync();
+
+            var yesterdayResultsCount = await resultBaseQuery
+                .Where(x => x.CompletedAt >= yesterday && x.CompletedAt < today)
+                .CountAsync();
+
+            int tongKetQua = todayResults.Count;
+            int ketQuaSom = 0;
+            int ketQuaDungGio = 0;
+            int ketQuaTre = 0;
+            foreach (var item in todayResults)
+            {
+                var expectedAt = item.NgayGioLap.AddMinutes(item.ThoiGianDuKienPhut);
+                switch (GetResultTimeliness(item.CompletedAt, expectedAt))
+                {
+                    case "som":
+                        ketQuaSom++;
+                        break;
+                    case "tre":
+                        ketQuaTre++;
+                        break;
+                    default:
+                        ketQuaDungGio++;
+                        break;
+                }
+            }
+
+            decimal resultGrowth = 0;
+            if (yesterdayResultsCount > 0)
+            {
+                resultGrowth = (decimal)(tongKetQua - yesterdayResultsCount) / yesterdayResultsCount * 100m;
+            }
+
+            var resultByHour = todayResults
+                .GroupBy(x => x.CompletedAt.Hour)
+                .Select(g => new TodayHourValueItemDto { Gio = g.Key, GiaTri = g.Count() })
+                .OrderBy(x => x.Gio)
+                .ToList();
+            resultByHour = EnsureFullDaySeries(resultByHour);
+
+            var ketQuaKpi = new TodayResultKpiDto
+            {
+                TongKetQua = tongKetQua,
+                Som = ketQuaSom,
+                DungGio = ketQuaDungGio,
+                Tre = ketQuaTre,
+                TangTruongPhanTram = resultGrowth,
+                PhanBoTheoGio = resultByHour
+            };
+
             var dichVuSapLam = await (
                 from ct in _db.ChiTietDichVus
                 join cls in _db.PhieuKhamCanLamSangs
@@ -345,6 +753,7 @@ namespace HealthCare.Services.Report
                     on ct.MaDichVu equals dv.MaDichVu
                 where cls.NgayGioLap >= today && cls.NgayGioLap < tomorrow
                       && (ct.TrangThai == "da_lap" || ct.TrangThai == "dang_thuc_hien")
+                      && (scopeRooms == null || scopeRooms.Contains(dv.MaPhongThucHien))
                 orderby cls.NgayGioLap
                 select new UpcomingServiceItemDto
                 {
@@ -375,6 +784,7 @@ namespace HealthCare.Services.Report
                 join dv in _db.DichVuYTes
                     on ct.MaDichVu equals dv.MaDichVu
                 where cls.NgayGioLap >= today && cls.NgayGioLap < tomorrow
+                      && (scopeRooms == null || scopeRooms.Contains(dv.MaPhongThucHien))
                 group ct by new { dv.TenDichVu } into g
                 select new TrendingServiceItemDto
                 {
@@ -397,7 +807,13 @@ namespace HealthCare.Services.Report
                 LichHenHomNay = lichHenKpi,
                 DoanhThuHomNay = doanhThuKpi,
                 LuotKhamHomNay = examKpi,
+                BenhNhanLsHomNay = benhNhanLsKpi,
+                BenhNhanClsHomNay = benhNhanClsKpi,
+                LuotKhamLsHomNay = luotKhamLsKpi,
+                LuotKhamClsHomNay = luotKhamClsKpi,
                 DichVuHomNay = dichVuKpi,
+                ChanDoanHomNay = chanDoanKpi,
+                KetQuaHomNay = ketQuaKpi,
                 DichVuSapLam = dichVuSapLam,
                 DichVuTangManh = dichVuTangManh,
                 LichHenSapToi = upcomingDtos,
@@ -417,6 +833,83 @@ namespace HealthCare.Services.Report
                 result.Add(new TodayHourValueItemDto { Gio = i, GiaTri = val });
             }
             return result;
+        }
+
+        // Chuẩn hóa text để so khớp các nhãn tiếng Việt như "Cho về", "Tái khám".
+        private static string NormalizeSearchText(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var normalized = value
+                .Replace('đ', 'd')
+                .Replace('Đ', 'D')
+                .Normalize(NormalizationForm.FormD);
+
+            var builder = new StringBuilder(normalized.Length);
+            foreach (var ch in normalized)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                {
+                    builder.Append(char.ToLowerInvariant(ch));
+                }
+            }
+
+            return builder.ToString().Normalize(NormalizationForm.FormC);
+        }
+
+        private static bool ContainsNormalizedKeyword(string? source, string keyword)
+        {
+            var normalizedSource = NormalizeSearchText(source);
+            var normalizedKeyword = NormalizeSearchText(keyword);
+            return !string.IsNullOrWhiteSpace(normalizedSource)
+                && !string.IsNullOrWhiteSpace(normalizedKeyword)
+                && normalizedSource.Contains(normalizedKeyword, StringComparison.Ordinal);
+        }
+
+        private static string ResolvePatientDailyStatus(IEnumerable<string?> statuses)
+        {
+            var normalized = statuses
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (normalized.Contains("da_lap") || normalized.Contains("dang_thuc_hien"))
+            {
+                return "cho_xu_ly";
+            }
+
+            if (normalized.Contains("da_hoan_tat"))
+            {
+                return "da_xu_ly";
+            }
+
+            if (normalized.Contains("da_huy"))
+            {
+                return "da_huy";
+            }
+
+            return "cho_xu_ly";
+        }
+
+        private static string GetResultTimeliness(DateTime actualAt, DateTime expectedAt)
+        {
+            const int toleranceMinutes = 5;
+            var deltaMinutes = (actualAt - expectedAt).TotalMinutes;
+
+            if (deltaMinutes < -toleranceMinutes)
+            {
+                return "som";
+            }
+
+            if (deltaMinutes > toleranceMinutes)
+            {
+                return "tre";
+            }
+
+            return "dung_gio";
         }
 
         private async Task<IReadOnlyList<DashboardActivityDto>> BuildRecentActivitiesAsync(

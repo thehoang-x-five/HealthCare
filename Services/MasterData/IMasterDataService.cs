@@ -30,6 +30,8 @@ namespace HealthCare.Services.MasterData
         // ===== KHOA =====
         Task<IReadOnlyList<DepartmentDto>> LayDanhSachKhoaAsync();
         Task<PagedResult<DepartmentDto>> TimKiemKhoaAsync(DepartmentSearchFilter filter);
+        Task<DepartmentDto> TaoKhoaAsync(DepartmentUpsertRequest request);
+        Task<DepartmentDto> CapNhatKhoaAsync(string maKhoa, DepartmentUpsertRequest request);
 
         // ===== PHÒNG =====
         Task<IReadOnlyList<RoomDto>> LayDanhSachPhongAsync(string? maKhoa = null, string? loaiPhong = null);
@@ -37,6 +39,9 @@ namespace HealthCare.Services.MasterData
         Task<PagedResult<RoomCardDto>> TimKiemPhongCardAsync(RoomSearchFilter filter);
         Task<RoomDetailDto?> LayChiTietPhongAsync(string maPhong);
         Task<RoomDutyWeekDto?> LayLichDieuDuongPhongTuanAsync(string maPhong, DateTime? today = null);
+        Task<RoomDutyWeekDto> CapNhatLichDieuDuongPhongTuanAsync(string maPhong, RoomDutyWeekUpsertRequest request);
+        Task<RoomDto> TaoPhongAsync(RoomUpsertRequest request);
+        Task<RoomDto> CapNhatPhongAsync(string maPhong, RoomUpsertRequest request);
 
         // ===== NHÂN SỰ =====
         Task<IReadOnlyList<StaffDto>> LayDanhSachNhanSuAsync(string? maKhoa = null, string? vaiTro = null);
@@ -57,6 +62,7 @@ namespace HealthCare.Services.MasterData
             string maBacSi,
             DateTime? fromDate = null,
             DateTime? toDate = null);
+        Task<StaffDutyWeekDto> CapNhatLichTrucNhanSuTuanAsync(string maNhanVien, StaffDutyWeekUpsertRequest request);
 
         // ===== DỊCH VỤ Y TẾ =====
         Task<IReadOnlyList<ServiceDto>> LayDanhSachDichVuAsync(
@@ -67,5 +73,7 @@ namespace HealthCare.Services.MasterData
 
         Task<PagedResult<ServiceDto>> TimKiemDichVuAsync(ServiceSearchFilter filter);
         Task<ServiceDetailInfoDto?> LayThongTinDichVuAsync(string maDichVu);
+        Task<ServiceDto> TaoDichVuAsync(ServiceUpsertRequest request);
+        Task<ServiceDto> CapNhatDichVuAsync(string maDichVu, ServiceUpsertRequest request);
     }
 }

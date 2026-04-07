@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
@@ -42,6 +42,10 @@ namespace HealthCare.Services.UserInteraction
             // MatKhauHash lưu hash BCrypt
             if (!BCrypt.Net.BCrypt.Verify(request.MatKhau, staff.MatKhauHash))
                 throw new UnauthorizedAccessException("Sai tài khoản hoặc mật khẩu");
+
+            // ✅ Chặn đăng nhập khi tài khoản bị khóa
+            if (string.Equals(staff.TrangThaiTaiKhoan, "khoa", StringComparison.OrdinalIgnoreCase))
+                throw new UnauthorizedAccessException("Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên.");
 
             var (accessToken, accessExp) = GenerateJwt(staff);
             var (refreshToken, refreshExp) = await IssueRefreshTokenAsync(staff, ipAddress);

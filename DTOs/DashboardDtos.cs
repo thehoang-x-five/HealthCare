@@ -101,6 +101,34 @@ namespace HealthCare.DTOs
     }
 
     /// <summary>
+    /// KPI: Chẩn đoán hôm nay (cho bác sĩ / y tá lâm sàng).
+    /// </summary>
+    public record class TodayDiagnosisKpiDto
+    {
+        public int TongChanDoan { get; set;}
+        public int ChoVe { get; set;}
+        public int TaiKham { get; set;}
+        public int ChoThuoc { get; set;}
+        public decimal TangTruongPhanTram { get; set;}
+        public IReadOnlyList<TodayHourValueItemDto> PhanBoTheoGio { get; set;}
+            = Array.Empty<TodayHourValueItemDto>();
+    }
+
+    /// <summary>
+    /// KPI: Kết quả CLS hôm nay (cho KTV / y tá CLS).
+    /// </summary>
+    public record class TodayResultKpiDto
+    {
+        public int TongKetQua { get; set;}
+        public int Som { get; set;}
+        public int DungGio { get; set;}
+        public int Tre { get; set;}
+        public decimal TangTruongPhanTram { get; set;}
+        public IReadOnlyList<TodayHourValueItemDto> PhanBoTheoGio { get; set;}
+            = Array.Empty<TodayHourValueItemDto>();
+    }
+
+    /// <summary>
     /// Dòng dịch vụ CLS sắp thực hiện (cho Dashboard CLS/KTV).
     /// </summary>
     public record class UpcomingServiceItemDto
@@ -163,7 +191,13 @@ namespace HealthCare.DTOs
         public TodayExamOverviewDto LuotKhamHomNay { get; set;} = default!;
 
         // === Role-specific data ===
+        public TodayPatientsKpiDto? BenhNhanLsHomNay { get; set;}
+        public TodayPatientsKpiDto? BenhNhanClsHomNay { get; set;}
+        public TodayExamOverviewDto? LuotKhamLsHomNay { get; set;}
+        public TodayExamOverviewDto? LuotKhamClsHomNay { get; set;}
         public TodayServicesKpiDto? DichVuHomNay { get; set;}
+        public TodayDiagnosisKpiDto? ChanDoanHomNay { get; set;}
+        public TodayResultKpiDto? KetQuaHomNay { get; set;}
         public IReadOnlyList<UpcomingServiceItemDto> DichVuSapLam { get; set;}
             = Array.Empty<UpcomingServiceItemDto>();
         public IReadOnlyList<TrendingServiceItemDto> DichVuTangManh { get; set;}

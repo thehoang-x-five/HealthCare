@@ -1,7 +1,14 @@
 # Hướng dẫn hoàn thành Tuần 5 — Dev 2: Chốt Frontend, UAT, Permission Matrix Test, E2E UI & Tài Liệu Demo
 
 > **File:** `UPGRADE_IMPLEMENTATION_PLAN.md` (Mục 5.1, 5.2)
-> **Bối cảnh:** Tuần 1-3 hoàn thành Sidebar filter, luồng hủy UI, AdminUsers, Timeline/Pha hệ, Analytics dashboard. Tuần 4 hoàn thành RBAC UI 7 tầng, Payment Wizard, QL Nhân Viên, FE adapter chuẩn hóa. Tuần 5 là tuần **chốt** — không thêm feature mới, chỉ test, fix, verify, demo.
+> **Bối cảnh:** Tuần 1-3 hoàn thành Sidebar filter, luồng hủy UI, AdminUsers, Timeline/Pha hệ, Analytics dashboard. Tuần 4 hoàn thành RBAC UI 7 tầng, Payment Wizard, ~~QL Nhân Viên~~, FE adapter chuẩn hóa. Tuần 5 là tuần **chốt** — không thêm feature mới, chỉ test, fix, verify, demo.
+
+> [!IMPORTANT]
+> **THAY ĐỔI QUAN TRỌNG (2026-04-05)**:
+> - **Trang `/user-management`**: ❌ ĐÃ HỦY — không tạo trang riêng.
+> - **Hướng thay thế**: Trang `/staff` dùng chung. Admin thấy toggle Card↔Table + auth columns + action buttons (Khóa/Mở/Reset). Non-admin chỉ thấy Cards HR read-only.
+> - Mọi test liên quan `/user-management` bên dưới → thay bằng test Staff page toggle + data scoping.
+> - `chucVu` vẫn dùng được (không tách bảng) → không cần grep/đổi hết.
 
 ---
 

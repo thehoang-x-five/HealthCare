@@ -10,6 +10,23 @@ namespace HealthCare.DTOs
         public string MaKhoa { get; set;} = default!;
         public string TenKhoa { get; set;} = default!;
         public string TrangThai { get; set;} = "hoat_dong";
+        public string? MoTa { get; set; }
+        public string? DienThoai { get; set; }
+        public string? Email { get; set; }
+        public string? DiaDiem { get; set; }
+        public string? GhiChu { get; set; }
+    }
+
+    public record class DepartmentUpsertRequest
+    {
+        public string MaKhoa { get; set; } = default!;
+        public string TenKhoa { get; set; } = default!;
+        public string TrangThai { get; set; } = "hoat_dong";
+        public string? MoTa { get; set; }
+        public string? DienThoai { get; set; }
+        public string? Email { get; set; }
+        public string? DiaDiem { get; set; }
+        public string? GhiChu { get; set; }
     }
 
     public record class DepartmentSearchFilter
@@ -45,6 +62,23 @@ namespace HealthCare.DTOs
         public string TrangThai { get; set;} = "hoat_dong"; // hoat_dong, tam_dung
 
         public string? MaBacSiPhuTrach { get; set;}
+    }
+
+    public record class RoomUpsertRequest
+    {
+        public string MaPhong { get; set; } = default!;
+        public string TenPhong { get; set; } = default!;
+        public string MaKhoa { get; set; } = default!;
+        public string LoaiPhong { get; set; } = default!;
+        public int? SucChua { get; set; }
+        public string? ViTri { get; set; }
+        public string? Email { get; set; }
+        public string? DienThoai { get; set; }
+        public TimeSpan? GioMoCua { get; set; }
+        public TimeSpan? GioDongCua { get; set; }
+        public List<string> ThietBi { get; set; } = new();
+        public string TrangThai { get; set; } = "hoat_dong";
+        public string? MaBacSiPhuTrach { get; set; }
     }
 
     public record class RoomSearchFilter
@@ -152,6 +186,20 @@ namespace HealthCare.DTOs
         public string? CaTruc { get; set;}                  // "Sáng", "Chiều", ...
         public TimeSpan? GioBatDau { get; set;}
         public TimeSpan? GioKetThuc { get; set;}
+    }
+
+    public record class RoomDutyWeekUpsertRequest
+    {
+        public DateTime WeekStartDate { get; set; }
+        public IReadOnlyList<RoomDutyWeekUpsertItem> Items { get; set; } = Array.Empty<RoomDutyWeekUpsertItem>();
+    }
+
+    public record class RoomDutyWeekUpsertItem
+    {
+        public DateTime Ngay { get; set; }
+        public string CaTruc { get; set; } = default!;
+        public string? MaNhanVienTruc { get; set; }
+        public bool NghiTruc { get; set; }
     }
 
     // ===================== NHÂN SỰ (BS + YT) =====================
@@ -337,6 +385,20 @@ namespace HealthCare.DTOs
         public int PageSize { get; set;} = 50;
     }
 
+    public record class StaffDutyWeekUpsertRequest
+    {
+        public DateTime WeekStartDate { get; set; }
+        public IReadOnlyList<StaffDutyWeekUpsertItem> Items { get; set; } = Array.Empty<StaffDutyWeekUpsertItem>();
+    }
+
+    public record class StaffDutyWeekUpsertItem
+    {
+        public DateTime Ngay { get; set; }
+        public string? CaTruc { get; set; }
+        public string? MaPhong { get; set; }
+        public bool NghiTruc { get; set; }
+    }
+
     // ===================== DỊCH VỤ Y TẾ =====================
 
     public record class ServiceDto
@@ -347,6 +409,17 @@ namespace HealthCare.DTOs
         public string? MaKhoa { get; set;}
         public string? MaPhong { get; set;}
         public decimal DonGia { get; set;}
+        public int ThoiGianDuKienPhut { get; set;}
+    }
+
+    public record class ServiceUpsertRequest
+    {
+        public string MaDichVu { get; set; } = default!;
+        public string TenDichVu { get; set; } = default!;
+        public string LoaiDichVu { get; set; } = default!;
+        public string MaPhong { get; set; } = default!;
+        public decimal DonGia { get; set; }
+        public int ThoiGianDuKienPhut { get; set; }
     }
 
     public record class ServiceSearchFilter

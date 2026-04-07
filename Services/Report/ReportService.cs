@@ -8,11 +8,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace HealthCare.Services.Report
 {
+    internal sealed class ReportInvoicePoint
+    {
+        public DateTime ThoiGian { get; init; }
+        public decimal SoTien { get; init; }
+    }
+
     public class ReportService(DataContext db) : IReportService
     {
         private readonly DataContext _db = db;
 
-        public async Task<ReportOverviewDto> LayBaoCaoTongQuanAsync(ReportFilterRequest filter)
+        public async Task<ReportOverviewDto> LayBaoCaoTongQuanAsync(ReportFilterRequest filter, bool includeRevenue = true)
         {
             var from = filter.FromDate.Date;
             var toInclusive = filter.ToDate.Date;
@@ -24,10 +30,16 @@ namespace HealthCare.Services.Report
 
             // ===== DỮ LIỆU THÔ TRONG KHOẢNG =====
 
-            var invoices = await _db.HoaDonThanhToans
-                .Where(h => h.ThoiGian >= from && h.ThoiGian < toExclusive && h.TrangThai == "da_thu")
-                .Select(h => new { h.ThoiGian, h.SoTien })
-                .ToListAsync();
+            var invoices = includeRevenue
+                ? await _db.HoaDonThanhToans
+                    .Where(h => h.ThoiGian >= from && h.ThoiGian < toExclusive && h.TrangThai == "da_thu")
+                    .Select(h => new ReportInvoicePoint
+                    {
+                        ThoiGian = h.ThoiGian,
+                        SoTien = h.SoTien
+                    })
+                    .ToListAsync()
+                : new List<ReportInvoicePoint>();
 
             var firstExams = await _db.PhieuKhamLamSangs
                 .GroupBy(p => p.MaBenhNhan)
@@ -46,6 +58,11 @@ namespace HealthCare.Services.Report
                 .Where(l => l.NgayHen >= from && l.NgayHen < toExclusive && l.CoHieuLuc)
                 .Select(l => new { l.NgayHen, l.TrangThai })
                 .ToListAsync();
+
+            var checkedInTimes = appts
+                .Where(a => string.Equals(a.TrangThai, "da_checkin", StringComparison.OrdinalIgnoreCase))
+                .Select(a => a.NgayHen)
+                .ToList();
 
             // ===== BUCKET hoá =====
             var buckets = new SortedDictionary<DateTime, ReportOverviewItemDto>();
@@ -103,6 +120,15 @@ namespace HealthCare.Services.Report
                 buckets[key] = item with { TaiKham = item.TaiKham + 1 };
             }
 
+            var checkedInBuckets = new SortedDictionary<DateTime, int>();
+            foreach (var ci in checkedInTimes)
+            {
+                var key = BucketKey(ci);
+                checkedInBuckets[key] = checkedInBuckets.TryGetValue(key, out var current)
+                    ? current + 1
+                    : 1;
+            }
+
             // Tỷ lệ huỷ
             var apptGroups = appts.GroupBy(a => BucketKey(a.NgayHen));
             foreach (var g in apptGroups)
@@ -124,6 +150,7 @@ namespace HealthCare.Services.Report
 
             // ===== KPI tổng + % thay đổi =====
             var totalRevenue = items.Sum(i => i.DoanhThu);
+            var totalCheckedIn = checkedInBuckets.Values.Sum();
             var totalNewPatients = items.Sum(i => i.BenhNhanMoi);
             var totalRevisits = items.Sum(i => i.TaiKham);
             var avgCancelRate = items.Count > 0 ? items.Average(i => i.TyLeHuy) : 0;
@@ -132,9 +159,11 @@ namespace HealthCare.Services.Report
             var prevFrom = from.AddDays(-periodDays);
             var prevTo = from;
 
-            var prevRevenue = await _db.HoaDonThanhToans
-                .Where(h => h.ThoiGian >= prevFrom && h.ThoiGian < prevTo && h.TrangThai == "da_thu")
-                .SumAsync(h => (decimal?)h.SoTien) ?? 0m;
+            var prevRevenue = includeRevenue
+                ? await _db.HoaDonThanhToans
+                    .Where(h => h.ThoiGian >= prevFrom && h.ThoiGian < prevTo && h.TrangThai == "da_thu")
+                    .SumAsync(h => (decimal?)h.SoTien) ?? 0m
+                : 0m;
 
             var prevFirstExamsCount = await _db.PhieuKhamLamSangs
                 .GroupBy(p => p.MaBenhNhan)
@@ -152,6 +181,9 @@ namespace HealthCare.Services.Report
                 .Where(l => l.NgayHen >= prevFrom && l.NgayHen < prevTo && l.CoHieuLuc)
                 .Select(l => new { l.NgayHen, l.TrangThai })
                 .ToListAsync();
+
+            var prevCheckedInCount = prevAppts.Count(a =>
+                string.Equals(a.TrangThai, "da_checkin", StringComparison.OrdinalIgnoreCase));
 
             decimal prevCancelRate = 0;
             if (prevAppts.Count > 0)
@@ -185,6 +217,19 @@ namespace HealthCare.Services.Report
                     .ToList()
             };
 
+            var checkInKpi = new ReportCheckInKpiDto
+            {
+                TongBenhNhanDaCheckIn = totalCheckedIn,
+                CheckInChangePercent = ChangePercent(totalCheckedIn, prevCheckedInCount),
+                PhanBoTheoNgay = buckets.Keys
+                    .Select(key => new ReportDateValueItemDto
+                    {
+                        Ngay = key,
+                        GiaTri = checkedInBuckets.TryGetValue(key, out var count) ? count : 0
+                    })
+                    .ToList()
+            };
+
             var revisitKpi = new ReportRevisitKpiDto
             {
                 TongTaiKham = totalRevisits,
@@ -205,7 +250,9 @@ namespace HealthCare.Services.Report
 
             return new ReportOverviewDto
             {
+                CoTheXemDoanhThu = includeRevenue,
                 DoanhThu = revenueKpi,
+                BenhNhanDaCheckIn = checkInKpi,
                 BenhNhanMoi = newPatientsKpi,
                 TaiKham = revisitKpi,
                 TyLeHuy = cancelKpi,

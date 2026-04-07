@@ -9,6 +9,7 @@ using HealthCare.Realtime;
 using HealthCare.RenderID;
 using Microsoft.EntityFrameworkCore;
 using HealthCare.Services.UserInteraction;
+using HealthCare.Infrastructure.Security;
 
 namespace HealthCare.Services.PatientManagement
 {
@@ -300,9 +301,15 @@ namespace HealthCare.Services.PatientManagement
         // =   3. TÌM KIẾM / DANH SÁCH BỆNH NHÂN (PAGING)            =
         // ============================================================
 
-        public async Task<PagedResult<PatientDto>> TimKiemBenhNhanAsync(PatientSearchFilter filter)
+        public async Task<PagedResult<PatientDto>> TimKiemBenhNhanAsync(PatientSearchFilter filter, string? maKhoaScope = null)
         {
             var query = _db.BenhNhans.AsNoTracking().AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(maKhoaScope))
+            {
+                var scopedIds = _db.ScopedPatientIdsByDepartment(maKhoaScope);
+                query = query.Where(b => scopedIds.Contains(b.MaBenhNhan));
+            }
 
 
             if (!string.IsNullOrWhiteSpace(filter.MaBenhNhan))

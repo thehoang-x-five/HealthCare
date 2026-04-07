@@ -4,9 +4,8 @@ using Microsoft.AspNetCore.Mvc.Filters;
 namespace HealthCare.Attributes
 {
     /// <summary>
-    /// Attribute để kiểm tra loại Y tá (LoaiYTa) từ JWT claims
-    /// Chỉ áp dụng cho user có VaiTro = "y_ta"
-    /// Admin và các vai trò khác luôn được phép
+    /// Attribute để kiểm tra loại Y tá (LoaiYTa) từ JWT claims.
+    /// Chỉ áp dụng cho user có VaiTro = "y_ta"; các vai trò khác sẽ được bỏ qua kiểm tra loại.
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
     public class RequireNurseTypeAttribute : Attribute, IAuthorizationFilter
@@ -29,15 +28,8 @@ namespace HealthCare.Attributes
         public void OnAuthorization(AuthorizationFilterContext context)
         {
             // Lấy VaiTro và LoaiYTa từ JWT claims
-            var chucVu = context.HttpContext.User.FindFirst("ChucVu")?.Value;
             var vaiTro = context.HttpContext.User.FindFirst("VaiTro")?.Value;
             var loaiYTa = context.HttpContext.User.FindFirst("loai_y_ta")?.Value;
-
-            // ✅ Admin luôn có quyền
-            if (chucVu == "admin")
-            {
-                return; // Bypass kiểm tra
-            }
 
             // ✅ Nếu không phải Y tá, bỏ qua kiểm tra (cho phép)
             if (vaiTro != "y_ta")

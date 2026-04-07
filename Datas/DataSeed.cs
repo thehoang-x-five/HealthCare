@@ -671,6 +671,8 @@ namespace HealthCare.Datas
                 new NhanVienYTe { MaNhanVien = "NV_YT_LS_02", TenDangNhap = "yt_ls02", MatKhauHash = hash, HoTen = "ĐD. Trương Văn K", VaiTro = "y_ta", ChucVu = "y_ta_lam_sang", LoaiYTa = "ls", SoNamKinhNghiem = 2, Email = "yt_ls02@hospital.local", DienThoai = "0903000014", MaKhoa = "KHOA_CDHA", TrangThaiCongTac = "dang_cong_tac" },
                 new NhanVienYTe { MaNhanVien = "NV_YT_HC_02", TenDangNhap = "yt_hc02", MatKhauHash = hash, HoTen = "ĐD. Mai Thị L", VaiTro = "y_ta", ChucVu = "y_ta_hanh_chinh", LoaiYTa = "hanhchinh", SoNamKinhNghiem = 6, Email = "yt_hc02@hospital.local", DienThoai = "0903000015", MaKhoa = "KHOA_TQ", TrangThaiCongTac = "dang_cong_tac" },
                 new NhanVienYTe { MaNhanVien = "NV_YT_CLS_02", TenDangNhap = "yt_cls02", MatKhauHash = hash, HoTen = "ĐD. Phan Văn M", VaiTro = "y_ta", ChucVu = "y_ta_can_lam_sang", LoaiYTa = "cls", SoNamKinhNghiem = 4, Email = "yt_cls02@hospital.local", DienThoai = "0903000016", MaKhoa = "KHOA_CDHA", TrangThaiCongTac = "dang_cong_tac" },
+                new NhanVienYTe { MaNhanVien = "NV_KTV_XN_01", TenDangNhap = "ktv_xn_01", MatKhauHash = BCrypt.Net.BCrypt.HashPassword("KTV@123"), HoTen = "KTV. Nguyễn Minh X", VaiTro = "ky_thuat_vien", ChucVu = "ky_thuat_vien", ChuyenMon = "Xét nghiệm", SoNamKinhNghiem = 5, Email = "ktv_xn_01@hospital.local", DienThoai = "0903000019", MaKhoa = "KHOA_XN", TrangThaiCongTac = "dang_cong_tac" },
+                new NhanVienYTe { MaNhanVien = "NV_KTV_CDHA_01", TenDangNhap = "ktv_cdha_01", MatKhauHash = BCrypt.Net.BCrypt.HashPassword("KTV@123"), HoTen = "KTV. Trần Gia Y", VaiTro = "ky_thuat_vien", ChucVu = "ky_thuat_vien", ChuyenMon = "Chẩn đoán hình ảnh", SoNamKinhNghiem = 4, Email = "ktv_cdha_01@hospital.local", DienThoai = "0903000020", MaKhoa = "KHOA_CDHA", TrangThaiCongTac = "dang_cong_tac" },
                 new NhanVienYTe { MaNhanVien = "NV_BS_CDHA_01", TenDangNhap = "bs_cdha01", MatKhauHash = hash, HoTen = "BS. Vũ Thị N", VaiTro = "bac_si", ChucVu = "bac_si", HocVi = "BS CKI", ChuyenMon = "Chẩn đoán hình ảnh", SoNamKinhNghiem = 8, Email = "bs_cdha01@hospital.local", DienThoai = "0903000017", MaKhoa = "KHOA_CDHA", TrangThaiCongTac = "dang_cong_tac" },
                 new NhanVienYTe { MaNhanVien = "NV_BS_XN_01", TenDangNhap = "bs_xn01", MatKhauHash = hash, HoTen = "BS. Đặng Văn O", VaiTro = "bac_si", ChucVu = "bac_si", HocVi = "BS CKI", ChuyenMon = "Xét nghiệm", SoNamKinhNghiem = 7, Email = "bs_xn01@hospital.local", DienThoai = "0903000018", MaKhoa = "KHOA_XN", TrangThaiCongTac = "dang_cong_tac" }
             };
@@ -725,15 +727,18 @@ namespace HealthCare.Datas
             var yTaLs = yTaAll.Where(n => string.Equals(n.LoaiYTa, "ls", StringComparison.OrdinalIgnoreCase)).ToArray();
             var yTaCls = yTaAll.Where(n => string.Equals(n.LoaiYTa, "cls", StringComparison.OrdinalIgnoreCase)).ToArray();
             var yTaHc = yTaAll.Where(n => string.Equals(n.LoaiYTa, "hanhchinh", StringComparison.OrdinalIgnoreCase)).ToArray();
+            var ktvAll = nhanSuList.Where(n => string.Equals(n.VaiTro, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase)).ToArray();
+            var clsSupport = yTaCls.Concat(ktvAll).GroupBy(n => n.MaNhanVien).Select(g => g.First()).ToArray();
             if (yTaLs.Length == 0) yTaLs = yTaAll;
             if (yTaCls.Length == 0) yTaCls = yTaAll;
+            if (clsSupport.Length == 0) clsSupport = yTaCls;
             if (yTaHc.Length == 0) yTaHc = yTaAll;
 
             var roomGroups = phongList
                 .Select(p => new
                 {
                     Phong = p,
-                    Pool = p.LoaiPhong == "phong_dich_vu" ? yTaCls : yTaLs.Concat(yTaHc).ToArray()
+                    Pool = p.LoaiPhong == "phong_dich_vu" ? clsSupport : yTaLs.Concat(yTaHc).ToArray()
                 })
                 .ToArray();
 
@@ -858,6 +863,32 @@ namespace HealthCare.Datas
                             NghiTruc = false
                         });
                         assignedNurses.Add(yta.MaNhanVien);
+                    }
+
+                    foreach (var ktv in ktvAll.Where(k => !assignedNurses.Contains(k.MaNhanVien)))
+                    {
+                        var targetRooms = roomDichVu.Length > 0 ? roomDichVu : roomGroups;
+                        if (targetRooms.Length == 0) break;
+
+                        var pickIndex = spreadCls++ % targetRooms.Length;
+                        var phong = targetRooms[pickIndex].Phong;
+                        var key = $"{phong.MaPhong}_{ngay:yyyyMMdd}_{ca.Code}";
+                        suffixCounter.TryGetValue(key, out var count);
+                        count++;
+                        suffixCounter[key] = count;
+
+                        list.Add(new LichTruc
+                        {
+                            MaLichTruc = $"LT_{phong.MaPhong}_{ngay:yyyyMMdd}_{ca.Code.ToUpper()}_{count:00}",
+                            Ngay = ngay,
+                            CaTruc = ca.Code,
+                            GioBatDau = ca.Start,
+                            GioKetThuc = ca.End,
+                            MaYTaTruc = ktv.MaNhanVien,
+                            MaPhong = phong.MaPhong,
+                            NghiTruc = false
+                        });
+                        assignedNurses.Add(ktv.MaNhanVien);
                     }
                 }
             }
@@ -1209,8 +1240,8 @@ namespace HealthCare.Datas
                     MaChiTietDv = ct.MaChiTietDv,
                     LoaiKetQua = loaiKetQua,
                     TrangThaiChot = "hoan_tat",
-                    NoiDungKetQua = ketQuaText,
                     KetLuanChuyen = ketLuanChuyen,
+                    GhiChu = ketQuaText,
                     MaNguoiTao = nhanSuNhapKq.MaNhanVien,
                     ThoiGianTao = thoiGianTao,
                     ThoiGianChot = thoiGianTao.AddMinutes(5),
