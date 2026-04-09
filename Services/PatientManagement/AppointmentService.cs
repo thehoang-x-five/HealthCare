@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using HealthCare.RenderID;
 using HealthCare.Services.UserInteraction;
 using HealthCare.Services.Report;
+using MySqlConnector;
 
 namespace HealthCare.Services.PatientManagement
 {
@@ -212,20 +213,40 @@ namespace HealthCare.Services.PatientManagement
             // 7. Lưu DB (luôn tạo) - Use stored procedure for SERIALIZABLE isolation
             try
             {
+                var parameters = new MySqlParameter[]
+                {
+                    new("@p_MaLichHen", MySqlDbType.VarChar) { Value = entity.MaLichHen },
+                    new("@p_CoHieuLuc", MySqlDbType.Bool) { Value = entity.CoHieuLuc },
+                    new("@p_NgayHen", MySqlDbType.Date) { Value = entity.NgayHen },
+                    new("@p_GioHen", MySqlDbType.Time) { Value = entity.GioHen },
+                    new("@p_ThoiLuongPhut", MySqlDbType.Int32) { Value = entity.ThoiLuongPhut },
+                    new("@p_MaBenhNhan", MySqlDbType.VarChar) { Value = (object?)entity.MaBenhNhan ?? DBNull.Value },
+                    new("@p_LoaiHen", MySqlDbType.VarChar) { Value = (object?)entity.LoaiHen ?? DBNull.Value },
+                    new("@p_TenBenhNhan", MySqlDbType.VarChar) { Value = entity.TenBenhNhan },
+                    new("@p_SoDienThoai", MySqlDbType.VarChar) { Value = entity.SoDienThoai },
+                    new("@p_MaLichTruc", MySqlDbType.VarChar) { Value = entity.MaLichTruc },
+                    new("@p_GhiChu", MySqlDbType.Text) { Value = (object?)entity.GhiChu ?? DBNull.Value },
+                    new("@p_TrangThai", MySqlDbType.VarChar) { Value = entity.TrangThai }
+                };
+
                 await _db.Database.ExecuteSqlRawAsync(
-                    "CALL sp_BookAppointment({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11})",
-                    entity.MaLichHen,
-                    entity.CoHieuLuc,
-                    entity.NgayHen,
-                    entity.GioHen,
-                    entity.ThoiLuongPhut,
-                    entity.MaBenhNhan ?? (object)DBNull.Value,
-                    entity.LoaiHen ?? (object)DBNull.Value,
-                    entity.TenBenhNhan,
-                    entity.SoDienThoai,
-                    entity.MaLichTruc,
-                    entity.GhiChu ?? (object)DBNull.Value,
-                    entity.TrangThai
+                    """
+                    CALL sp_BookAppointment(
+                        @p_MaLichHen,
+                        @p_CoHieuLuc,
+                        @p_NgayHen,
+                        @p_GioHen,
+                        @p_ThoiLuongPhut,
+                        @p_MaBenhNhan,
+                        @p_LoaiHen,
+                        @p_TenBenhNhan,
+                        @p_SoDienThoai,
+                        @p_MaLichTruc,
+                        @p_GhiChu,
+                        @p_TrangThai
+                    )
+                    """,
+                    parameters
                 );
             }
             catch (DbUpdateException ex) when (ex.InnerException?.Message?.Contains("Trùng lịch") == true)
@@ -695,13 +716,19 @@ namespace HealthCare.Services.PatientManagement
                 NguonLienQuan = "lich_hen",
                 MaDoiTuongLienQuan = lichHen.MaLichHen,
 
-                // 1 người nhận: bác sĩ (nhân viên y tế)
+                // 2 nhóm người nhận:
+                // - bác sĩ phụ trách để biết lịch hẹn thay đổi
+                // - y tá hành chính để chuông/inbox của khối tiếp nhận cũng thấy thao tác vừa phát sinh
                 NguoiNhan = new List<NotificationRecipientCreateRequest>
         {
             new NotificationRecipientCreateRequest
             {
                 LoaiNguoiNhan = "bac_si",
                 MaNguoiNhan = lichHen.MaBacSiKham
+            },
+            new NotificationRecipientCreateRequest
+            {
+                LoaiNguoiNhan = "y_ta_hanh_chinh"
             }
         }
             };

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
@@ -15,6 +16,7 @@ namespace HealthCare.Infrastructure.Repositories
         private readonly IMongoDbContext _mongoContext;
         private readonly ILogger<AuditLogRepository> _logger;
         private const string CollectionName = "audit_logs";
+        private static readonly TimeSpan MongoOperationTimeout = TimeSpan.FromSeconds(2);
         private bool _indexCreated = false;
 
         public AuditLogRepository(IMongoDbContext mongoContext, ILogger<AuditLogRepository> logger)
@@ -40,10 +42,11 @@ namespace HealthCare.Infrastructure.Repositories
 
             try
             {
+                using var cts = new CancellationTokenSource(MongoOperationTimeout);
                 var collection = _mongoContext.GetCollection<BsonDocument>(CollectionName);
 
                 // Ensure TTL index exists (365 days retention)
-                await EnsureTTLIndexAsync(collection);
+                await EnsureTTLIndexAsync(collection, cts.Token);
 
                 var document = new BsonDocument
                 {
@@ -58,7 +61,7 @@ namespace HealthCare.Infrastructure.Repositories
                     { "created_at", DateTime.UtcNow } // For TTL index
                 };
 
-                await collection.InsertOneAsync(document);
+                await collection.InsertOneAsync(document, cancellationToken: cts.Token);
 
                 _logger.LogInformation(
                     "Audit log recorded: User={UserId}, Action={Action}, Resource={Resource}, ResourceId={ResourceId}",
@@ -66,7 +69,7 @@ namespace HealthCare.Infrastructure.Repositories
 
                 return true;
             }
-            catch (MongoException ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to record audit log");
                 return false;
@@ -88,6 +91,7 @@ namespace HealthCare.Infrastructure.Repositories
 
             try
             {
+                using var cts = new CancellationTokenSource(MongoOperationTimeout);
                 var collection = _mongoContext.GetCollection<BsonDocument>(CollectionName);
 
                 var filterBuilder = Builders<BsonDocument>.Filter;
@@ -109,13 +113,13 @@ namespace HealthCare.Infrastructure.Repositories
                     .Find(filter)
                     .Sort(Builders<BsonDocument>.Sort.Descending("timestamp"))
                     .Limit(limit)
-                    .ToListAsync();
+                    .ToListAsync(cts.Token);
 
                 _logger.LogInformation("Retrieved {Count} audit logs", results.Count);
 
                 return results;
             }
-            catch (MongoException ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to retrieve audit logs");
                 return new List<BsonDocument>();
@@ -125,7 +129,7 @@ namespace HealthCare.Infrastructure.Repositories
         /// <summary>
         /// Ensure TTL index exists for automatic deletion after 365 days.
         /// </summary>
-        private async Task EnsureTTLIndexAsync(IMongoCollection<BsonDocument> collection)
+        private async Task EnsureTTLIndexAsync(IMongoCollection<BsonDocument> collection, CancellationToken cancellationToken)
         {
             if (_indexCreated) return;
 
@@ -139,12 +143,12 @@ namespace HealthCare.Infrastructure.Repositories
                 };
 
                 var indexModel = new CreateIndexModel<BsonDocument>(indexKeys, indexOptions);
-                await collection.Indexes.CreateOneAsync(indexModel);
+                await collection.Indexes.CreateOneAsync(indexModel, cancellationToken: cancellationToken);
 
                 _indexCreated = true;
                 _logger.LogInformation("TTL index created for audit_logs collection (365 days retention)");
             }
-            catch (MongoException ex)
+            catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to create TTL index (may already exist)");
                 _indexCreated = true; // Don't retry

@@ -100,14 +100,25 @@ namespace HealthCare.Services.UserInteraction
 
             await _db.SaveChangesAsync();
 
-            // Nếu chỉ có 1 người nhận thì trả về DTO gắn theo người nhận đó
-            ThongBaoNguoiNhan? firstRec = recipients.Count == 1 ? recipients[0] : null;
+            // Realtime: bắn theo từng recipient để bell/inbox nhận đúng phạm vi,
+            // tránh trường hợp nhiều recipient nhưng bị fallback broadcast quá rộng.
+            if (recipients.Count > 0)
+            {
+                var realtimeTasks = recipients
+                    .Select(rec => _realtime.BroadcastNotificationCreatedAsync(
+                        BuildNotificationDto(entity, rec, now)))
+                    .ToList();
 
-            var dto = BuildNotificationDto(entity, firstRec, now);
+                await Task.WhenAll(realtimeTasks);
+            }
+            else
+            {
+                await _realtime.BroadcastNotificationCreatedAsync(
+                    BuildNotificationDto(entity, null, now));
+            }
 
-            // Realtime: bắn thông báo mới cho đúng group (benh_nhan / nhan_vien_y_te / role…)
-            await _realtime.BroadcastNotificationCreatedAsync(dto);
-
+            // DTO trả về không quan trọng bằng inbox/realtime; ưu tiên recipient đầu tiên nếu có.
+            var dto = BuildNotificationDto(entity, recipients.FirstOrDefault(), now);
             return dto;
         }
 

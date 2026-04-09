@@ -14,7 +14,7 @@ CREATE PROCEDURE sp_BookAppointment(
     IN p_LoaiHen VARCHAR(50),
     IN p_TenBenhNhan VARCHAR(100),
     IN p_SoDienThoai VARCHAR(15),
-    IN p_MaLichTruc VARCHAR(20),
+    IN p_MaLichTruc VARCHAR(255),
     IN p_GhiChu TEXT,
     IN p_TrangThai VARCHAR(20)
 )

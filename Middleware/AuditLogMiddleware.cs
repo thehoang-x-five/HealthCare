@@ -86,15 +86,25 @@ namespace HealthCare.Middleware
                     }
                 }
 
-                await auditLogRepo.LogAsync(
-                    userId: userId,
-                    action: action,
-                    resource: resource,
-                    resourceId: resourceId,
-                    changes: changes,
-                    ipAddress: ipAddress,
-                    userAgent: userAgent
-                );
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await auditLogRepo.LogAsync(
+                            userId: userId,
+                            action: action,
+                            resource: resource,
+                            resourceId: resourceId,
+                            changes: changes,
+                            ipAddress: ipAddress,
+                            userAgent: userAgent
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Audit logging skipped for {Method} {Path}", method, path);
+                    }
+                });
             }
         }
 

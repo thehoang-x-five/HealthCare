@@ -916,11 +916,12 @@ namespace HealthCare.Services.Report
     DateTime from, DateTime toExclusive)
         {
             var activities = new List<DashboardActivityDto>();
+            var effectiveTo = DateTime.Now < toExclusive ? DateTime.Now : toExclusive;
 
             // 1. Hoá đơn: các khoản thu trong ngày
             var invoiceList = await _db.HoaDonThanhToans
                 .Include(h => h.BenhNhan)
-                .Where(h => h.ThoiGian >= from && h.ThoiGian < toExclusive)
+                .Where(h => h.ThoiGian >= from && h.ThoiGian < effectiveTo)
                 .OrderByDescending(h => h.ThoiGian)
                 .Take(5)
                 .ToListAsync();
@@ -933,31 +934,56 @@ namespace HealthCare.Services.Report
                 })
             );
 
-            // 2. Lịch hẹn: chỉ lấy các trạng thái quan trọng
-            var apptList = await _db.LichHenKhams
-                .Where(l =>
-                    l.NgayHen >= from && l.NgayHen < toExclusive &&
-                    (l.TrangThai == "dang_cho" ||
-                     l.TrangThai == "da_xac_nhan" ||
-                     l.TrangThai == "da_checkin" ||
-                     l.TrangThai == "da_huy"))
-                .OrderByDescending(l => l.NgayHen)
-                .ThenByDescending(l => l.GioHen)
+            // 2. Lịch hẹn: lấy theo thông báo nghiệp vụ để phản ánh đúng create/update/status change,
+            // thay vì chỉ nhìn ngày hẹn/giờ hẹn của bản ghi lịch.
+            var apptNotifications = await _db.ThongBaoHeThongs
+                .Where(tb =>
+                    tb.ThoiGianGui >= from &&
+                    tb.ThoiGianGui < effectiveTo &&
+                    tb.LoaiThongBao == "lich_hen")
+                .OrderByDescending(tb => tb.ThoiGianGui)
                 .Take(5)
                 .ToListAsync();
 
-            activities.AddRange(
-                apptList.Select(l => new DashboardActivityDto
-                {
-                    MoTa = $"Lịch hẹn {l.TenBenhNhan} lúc {l.GioHen:hh\\:mm} ({MapTrangThaiLichHen(l.TrangThai)})",
-                    ThoiGian = l.NgayHen.Add(l.GioHen)
-                })
-            );
+            if (apptNotifications.Count > 0)
+            {
+                activities.AddRange(
+                    apptNotifications.Select(tb => new DashboardActivityDto
+                    {
+                        MoTa = string.IsNullOrWhiteSpace(tb.NoiDung)
+                            ? tb.TieuDe
+                            : $"{tb.TieuDe}: {tb.NoiDung}",
+                        ThoiGian = tb.ThoiGianGui
+                    })
+                );
+            }
+            else
+            {
+                var apptList = await _db.LichHenKhams
+                    .Where(l =>
+                        l.NgayHen >= from && l.NgayHen < effectiveTo &&
+                        (l.TrangThai == "dang_cho" ||
+                         l.TrangThai == "da_xac_nhan" ||
+                         l.TrangThai == "da_checkin" ||
+                         l.TrangThai == "da_huy"))
+                    .OrderByDescending(l => l.NgayHen)
+                    .ThenByDescending(l => l.GioHen)
+                    .Take(5)
+                    .ToListAsync();
+
+                activities.AddRange(
+                    apptList.Select(l => new DashboardActivityDto
+                    {
+                        MoTa = $"Lịch hẹn {l.TenBenhNhan} lúc {l.GioHen:hh\\:mm} ({MapTrangThaiLichHen(l.TrangThai)})",
+                        ThoiGian = l.NgayHen.Add(l.GioHen)
+                    })
+                );
+            }
 
             // 3. Phiếu khám LS: tạo phiếu khám trong ngày
             var examList = await _db.PhieuKhamLamSangs
                 .Include(p => p.BenhNhan)
-                .Where(p => p.NgayLap >= from && p.NgayLap < toExclusive)
+                .Where(p => p.NgayLap >= from && p.NgayLap < effectiveTo)
                 .OrderByDescending(p => p.NgayLap)
                 .ThenByDescending(p => p.GioLap)
                 .Take(5)
@@ -975,7 +1001,7 @@ namespace HealthCare.Services.Report
             var clsOrderList = await _db.PhieuKhamCanLamSangs
                 .Include(cls => cls.PhieuKhamLamSang)
                     .ThenInclude(ls => ls.BenhNhan)
-                .Where(cls => cls.NgayGioLap >= from && cls.NgayGioLap < toExclusive)
+                .Where(cls => cls.NgayGioLap >= from && cls.NgayGioLap < effectiveTo)
                 .OrderByDescending(cls => cls.NgayGioLap)
                 .Take(5)
                 .ToListAsync();
@@ -991,7 +1017,7 @@ namespace HealthCare.Services.Report
             // 5. Đơn thuốc: kê đơn trong ngày
             var prescriptionList = await _db.DonThuocs
                 .Include(d => d.BenhNhan)
-                .Where(d => d.ThoiGianKeDon >= from && d.ThoiGianKeDon < toExclusive)
+                .Where(d => d.ThoiGianKeDon >= from && d.ThoiGianKeDon < effectiveTo)
                 .OrderByDescending(d => d.ThoiGianKeDon)
                 .Take(5)
                 .ToListAsync();
@@ -1011,7 +1037,7 @@ namespace HealthCare.Services.Report
                 .Include(l => l.HangDoi)
                     .ThenInclude(h => h.Phong)
                         .ThenInclude(p => p.KhoaChuyenMon)
-                .Where(l => l.ThoiGianBatDau >= from && l.ThoiGianBatDau < toExclusive)
+                .Where(l => l.ThoiGianBatDau >= from && l.ThoiGianBatDau < effectiveTo)
                 .OrderByDescending(l => l.ThoiGianBatDau)
                 .Take(10)
                 .Select(l => new DashboardActivityDto

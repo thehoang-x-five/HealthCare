@@ -79,14 +79,7 @@ namespace HealthCare.Infrastructure
             string scriptFile,
             CancellationToken cancellationToken)
         {
-            foreach (var routineName in routineNames)
-            {
-                if (!await RoutineExistsAsync(routineName, cancellationToken))
-                {
-                    await ExecuteScriptFileAsync(scriptFile, cancellationToken);
-                    return;
-                }
-            }
+            await ExecuteScriptFileAsync(scriptFile, cancellationToken);
         }
 
         private async Task EnsureTriggerScriptAsync(
@@ -94,14 +87,7 @@ namespace HealthCare.Infrastructure
             string scriptFile,
             CancellationToken cancellationToken)
         {
-            foreach (var triggerName in triggerNames)
-            {
-                if (!await TriggerExistsAsync(triggerName, cancellationToken))
-                {
-                    await ExecuteScriptFileAsync(scriptFile, cancellationToken);
-                    return;
-                }
-            }
+            await ExecuteScriptFileAsync(scriptFile, cancellationToken);
         }
 
         private async Task EnsureCheckConstraintAsync(
