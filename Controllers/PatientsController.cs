@@ -119,10 +119,21 @@ namespace HealthCare.Controllers
             if (request == null)
                 return BadRequest("Request không hợp lệ");
 
-            var result = await _patients.CapNhatTrangThaiBenhNhanAsync(maBenhNhan, request);
-            if (result == null) return NotFound();
+            try
+            {
+                var result = await _patients.CapNhatTrangThaiBenhNhanAsync(maBenhNhan, request);
+                if (result == null) return NotFound();
 
-            return Ok(result);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
 

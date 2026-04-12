@@ -288,6 +288,8 @@ namespace HealthCare.Services.OutpatientCare
 
             if (!string.IsNullOrWhiteSpace(trangThai))
                 query = query.Where(h => h.TrangThai == trangThai);
+            else
+                query = query.Where(h => h.TrangThai != "da_huy" && h.TrangThai != "huy");
 
             var list = await query.ToListAsync();
 
@@ -541,6 +543,8 @@ namespace HealthCare.Services.OutpatientCare
 
             if (!string.IsNullOrWhiteSpace(filter.TrangThai))
                 query = query.Where(h => h.TrangThai == filter.TrangThai);
+            else
+                query = query.Where(h => h.TrangThai != "da_huy" && h.TrangThai != "huy");
 
             // ✅ Filter theo Nguon
             if (!string.IsNullOrWhiteSpace(filter.Nguon))
@@ -638,6 +642,21 @@ namespace HealthCare.Services.OutpatientCare
                 MaPhieuKham = h.MaPhieuKham,
                 MaChiTietDv = h.MaChiTietDv
             };
+
+            var luotKham = await _db.LuotKhamBenhs
+                .AsNoTracking()
+                .Where(l => l.MaHangDoi == h.MaHangDoi)
+                .OrderByDescending(l => l.NgayCapNhat)
+                .ThenByDescending(l => l.NgayTao)
+                .Select(l => new
+                {
+                    l.MaLuotKham,
+                    l.TrangThai
+                })
+                .FirstOrDefaultAsync();
+
+            dto.MaLuotKham = luotKham?.MaLuotKham;
+            dto.TrangThaiLuot = luotKham?.TrangThai;
 
             // ===================== 1. PHIẾU KHÁM LS =====================
             if (!string.IsNullOrWhiteSpace(h.MaPhieuKham))

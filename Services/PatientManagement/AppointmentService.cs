@@ -343,7 +343,7 @@ namespace HealthCare.Services.PatientManagement
             if (!allowed.Contains(targetStatus, StringComparer.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
-                    $"Không thể chuyển trạng thái lịch hẹn từ '{entity.TrangThai}' sang '{targetStatus}'.");
+                    $"Không thể chuyển trạng thái lịch hẹn từ '{GetAppointmentStatusLabel(entity.TrangThai)}' sang '{GetAppointmentStatusLabel(targetStatus)}'.");
             }
 
             // ✳️ Chỉ check trùng khi TRẠNG THÁI INPUT là "da_xac_nhan"
@@ -671,12 +671,7 @@ namespace HealthCare.Services.PatientManagement
             // Build tiêu đề + nội dung theo loại hành động
             string title;
             string body;
-            var trangThaiText = lichHen.TrangThai.ToString() switch
-            {
-                "dang_cho" => "Đang chờ",
-                "da_xac_nhan" => "Đã xác nhận",
-                _ => ""
-            };
+            var trangThaiText = GetAppointmentStatusLabel(lichHen.TrangThai);
 
             switch (action)
             {
@@ -735,6 +730,18 @@ namespace HealthCare.Services.PatientManagement
 
             // Ghi vào DB qua NotificationService
             await _notifications.TaoThongBaoAsync(request);
+        }
+
+        private static string GetAppointmentStatusLabel(string? status)
+        {
+            return (status ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "dang_cho" => "Đang chờ",
+                "da_xac_nhan" => "Đã xác nhận",
+                "da_checkin" => "Đã check-in",
+                "da_huy" => "Đã hủy",
+                _ => status ?? string.Empty
+            };
         }
 
     }

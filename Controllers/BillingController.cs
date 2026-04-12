@@ -12,7 +12,7 @@ namespace HealthCare.Controllers
     [ApiController]
     [Route("api/billing")]
     [Authorize]
-    [RequireRole("y_ta")]
+    [RequireRole("y_ta", "admin", "quan_tri_vien")]
     [RequireNurseType("hanhchinh")]
     public class BillingController : ControllerBase
     {
@@ -89,6 +89,7 @@ namespace HealthCare.Controllers
         /// Hủy hoá đơn (chỉ khi chua_thu).
         /// </summary>
         [HttpPut("invoices/{maHoaDon}/cancel")]
+        [RequireRole("admin", "quan_tri_vien")]
         public async Task<IActionResult> CancelInvoice(string maHoaDon, [FromBody] CancelInvoiceRequest? request = null)
         {
             try

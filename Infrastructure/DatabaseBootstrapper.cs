@@ -28,87 +28,78 @@ namespace HealthCare.Infrastructure
 
         public async Task BootstrapAsync(CancellationToken cancellationToken = default)
         {
-            await EnsureRoutineScriptAsync(
+            await EnsureScriptArtifactsAsync(
+                artifactKind: "routine",
                 new[] { "sp_BookAppointment" },
                 "sp_BookAppointment.sql",
+                RoutineExistsAsync,
                 cancellationToken);
 
-            await EnsureRoutineScriptAsync(
+            await EnsureScriptArtifactsAsync(
+                artifactKind: "routine",
                 new[] { "sp_GetAncestors", "sp_GetDescendants", "sp_IsDescendantOf" },
                 "sp_Genealogy.sql",
+                RoutineExistsAsync,
                 cancellationToken);
 
-            await EnsureTriggerScriptAsync(
+            await EnsureScriptArtifactsAsync(
+                artifactKind: "trigger",
                 new[]
                 {
                     "tr_LichHen_ValidateTransition",
                     "tr_KhoThuoc_PreventNegative",
                     "tr_DonThuoc_RollbackKho",
+                    "tr_BenhNhan_ValidateParents_Insert",
+                    "tr_BenhNhan_ValidateParents_Update",
                 },
                 "triggers.sql",
+                TriggerExistsAsync,
                 cancellationToken);
 
-            await EnsureCheckConstraintAsync(
-                "chk_kho_thuoc_so_luong_non_negative",
-                "ALTER TABLE kho_thuoc ADD CONSTRAINT chk_kho_thuoc_so_luong_non_negative CHECK (SoLuongTon >= 0);",
-                cancellationToken);
-
-            await EnsureCheckConstraintAsync(
-                "chk_lich_hen_trang_thai",
-                "ALTER TABLE lich_hen_kham ADD CONSTRAINT chk_lich_hen_trang_thai CHECK (TrangThai IN ('dang_cho', 'da_xac_nhan', 'da_checkin', 'da_huy'));",
-                cancellationToken);
-
-            await EnsureCheckConstraintAsync(
-                "chk_luot_kham_trang_thai",
-                "ALTER TABLE luot_kham_benh ADD CONSTRAINT chk_luot_kham_trang_thai CHECK (TrangThai IN ('dang_thuc_hien', 'hoan_tat', 'da_huy'));",
-                cancellationToken);
-
-            await EnsureCheckConstraintAsync(
-                "chk_don_thuoc_trang_thai",
-                "ALTER TABLE don_thuoc ADD CONSTRAINT chk_don_thuoc_trang_thai CHECK (TrangThai IN ('da_ke', 'cho_phat', 'da_phat', 'da_huy'));",
-                cancellationToken);
-
-            await EnsureCheckConstraintAsync(
-                "chk_hoa_don_trang_thai",
-                "ALTER TABLE hoa_don_thanh_toan ADD CONSTRAINT chk_hoa_don_trang_thai CHECK (TrangThai IN ('chua_thu', 'da_thu', 'da_huy'));",
+            await EnsureScriptArtifactsAsync(
+                artifactKind: "constraint",
+                new[]
+                {
+                    "chk_kho_thuoc_so_luong_non_negative",
+                    "chk_lich_hen_trang_thai",
+                    "chk_luot_kham_trang_thai",
+                    "chk_don_thuoc_trang_thai",
+                    "chk_hoa_don_trang_thai",
+                },
+                "constraints.sql",
+                ConstraintExistsAsync,
                 cancellationToken);
         }
 
-        private async Task EnsureRoutineScriptAsync(
-            IEnumerable<string> routineNames,
+        private async Task EnsureScriptArtifactsAsync(
+            string artifactKind,
+            IEnumerable<string> artifactNames,
             string scriptFile,
+            Func<string, CancellationToken, Task<bool>> existsAsync,
             CancellationToken cancellationToken)
         {
             await ExecuteScriptFileAsync(scriptFile, cancellationToken);
-        }
 
-        private async Task EnsureTriggerScriptAsync(
-            IEnumerable<string> triggerNames,
-            string scriptFile,
-            CancellationToken cancellationToken)
-        {
-            await ExecuteScriptFileAsync(scriptFile, cancellationToken);
-        }
-
-        private async Task EnsureCheckConstraintAsync(
-            string constraintName,
-            string sql,
-            CancellationToken cancellationToken)
-        {
-            if (await ConstraintExistsAsync(constraintName, cancellationToken))
+            var missingArtifacts = new List<string>();
+            foreach (var artifactName in artifactNames.Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                return;
+                if (!await existsAsync(artifactName, cancellationToken))
+                {
+                    missingArtifacts.Add(artifactName);
+                }
             }
 
-            try
+            if (missingArtifacts.Count > 0)
             {
-                await ExecuteNonQueryAsync(sql, cancellationToken);
-                _logger.LogInformation("Applied database constraint {ConstraintName}", constraintName);
+                throw new InvalidOperationException(
+                    $"Bootstrap script '{scriptFile}' did not produce expected {artifactKind}(s): {string.Join(", ", missingArtifacts)}");
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not apply database constraint {ConstraintName}", constraintName);
-            }
+
+            _logger.LogInformation(
+                "Applied bootstrap SQL script {ScriptFile} and verified {ArtifactKind}(s): {ArtifactNames}",
+                scriptFile,
+                artifactKind,
+                string.Join(", ", artifactNames));
         }
 
         private async Task<bool> RoutineExistsAsync(string routineName, CancellationToken cancellationToken)
@@ -183,8 +174,6 @@ namespace HealthCare.Infrastructure
             {
                 await ExecuteNonQueryAsync(commandText, cancellationToken);
             }
-
-            _logger.LogInformation("Applied bootstrap SQL script {ScriptFile}", fileName);
         }
 
         private async Task ExecuteNonQueryAsync(string sql, CancellationToken cancellationToken)

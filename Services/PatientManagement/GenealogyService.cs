@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using HealthCare.Datas;
 using HealthCare.DTOs;
 using HealthCare.Entities;
@@ -15,10 +17,6 @@ namespace HealthCare.Services.PatientManagement
             _context = context;
         }
 
-        /// <summary>
-        /// Lấy cây pha hệ đa đời bằng SQL Recursive CTE.
-        /// Truy ngược lên tổ tiên (qua MaCha/MaMe) và xuống con cháu.
-        /// </summary>
         public async Task<GenealogyTreeDto> GetGenealogyTreeAsync(string maBenhNhan)
         {
             var patient = await _context.BenhNhans
@@ -28,69 +26,76 @@ namespace HealthCare.Services.PatientManagement
 
             var result = new GenealogyTreeDto { MaBenhNhanGoc = maBenhNhan };
 
-            // ===== 1. Truy ngược LÊN tổ tiên (Ancestors) qua Stored Procedure =====
             var ancestors = await CallSpGetFamilyAsync("sp_GetAncestors", maBenhNhan);
-
-            // ===== 2. Truy xuống CON CHÁU (Descendants) qua Stored Procedure =====
             var descendants = await CallSpGetFamilyAsync("sp_GetDescendants", maBenhNhan);
 
-            // ===== 3. Merge + xác định quan hệ =====
             var allIds = new HashSet<string>();
 
-            // Thêm tổ tiên
-            foreach (var a in ancestors)
+            foreach (var ancestor in ancestors)
             {
-                if (!allIds.Add(a.MaBenhNhan)) continue;
-
-                string quanHe = "self";
-                if (a.MaBenhNhan == patient.MaCha) quanHe = "cha";
-                else if (a.MaBenhNhan == patient.MaMe) quanHe = "me";
-                else if (a.MaBenhNhan != maBenhNhan) quanHe = "to_tien";
-
-                result.Nodes.Add(new GenealogyNodeDto
+                if (!allIds.Add(ancestor.MaBenhNhan))
                 {
-                    MaBenhNhan = a.MaBenhNhan,
-                    HoTen = a.HoTen ?? "—",
-                    NgaySinh = a.NgaySinh ?? DateTime.MinValue,
-                    GioiTinh = a.GioiTinh ?? "",
-                    NhomMau = a.NhomMau,
-                    BenhManTinh = a.BenhManTinh,
-                    MaCha = a.MaCha,
-                    MaMe = a.MaMe,
-                    QuanHe = quanHe,
-                    DoiThu = quanHe == "self" ? 0 : -1
-                });
-            }
+                    continue;
+                }
 
-            // Thêm con cháu (bỏ trùng self)
-            foreach (var d in descendants)
-            {
-                if (!allIds.Add(d.MaBenhNhan)) continue;
-
-                string quanHe = "con";
-                // Kiểm tra anh chị em (cùng cha hoặc mẹ)
-                if ((d.MaCha == patient.MaCha && patient.MaCha != null) ||
-                    (d.MaMe == patient.MaMe && patient.MaMe != null))
+                var relation = "self";
+                if (ancestor.MaBenhNhan == patient.MaCha)
                 {
-                    quanHe = "anh_chi_em";
+                    relation = "cha";
+                }
+                else if (ancestor.MaBenhNhan == patient.MaMe)
+                {
+                    relation = "me";
+                }
+                else if (ancestor.MaBenhNhan != maBenhNhan)
+                {
+                    relation = "to_tien";
                 }
 
                 result.Nodes.Add(new GenealogyNodeDto
                 {
-                    MaBenhNhan = d.MaBenhNhan,
-                    HoTen = d.HoTen ?? "—",
-                    NgaySinh = d.NgaySinh ?? DateTime.MinValue,
-                    GioiTinh = d.GioiTinh ?? "",
-                    NhomMau = d.NhomMau,
-                    BenhManTinh = d.BenhManTinh,
-                    MaCha = d.MaCha,
-                    MaMe = d.MaMe,
-                    QuanHe = quanHe,
+                    MaBenhNhan = ancestor.MaBenhNhan,
+                    HoTen = ancestor.HoTen ?? "-",
+                    NgaySinh = ancestor.NgaySinh ?? DateTime.MinValue,
+                    GioiTinh = ancestor.GioiTinh ?? string.Empty,
+                    NhomMau = ancestor.NhomMau,
+                    BenhManTinh = ancestor.BenhManTinh,
+                    MaCha = ancestor.MaCha,
+                    MaMe = ancestor.MaMe,
+                    QuanHe = relation,
+                    DoiThu = relation == "self" ? 0 : -1
+                });
+            }
+
+            foreach (var descendant in descendants)
+            {
+                if (!allIds.Add(descendant.MaBenhNhan))
+                {
+                    continue;
+                }
+
+                var relation = "con";
+                if ((descendant.MaCha == patient.MaCha && patient.MaCha != null) ||
+                    (descendant.MaMe == patient.MaMe && patient.MaMe != null))
+                {
+                    relation = "anh_chi_em";
+                }
+
+                result.Nodes.Add(new GenealogyNodeDto
+                {
+                    MaBenhNhan = descendant.MaBenhNhan,
+                    HoTen = descendant.HoTen ?? "-",
+                    NgaySinh = descendant.NgaySinh ?? DateTime.MinValue,
+                    GioiTinh = descendant.GioiTinh ?? string.Empty,
+                    NhomMau = descendant.NhomMau,
+                    BenhManTinh = descendant.BenhManTinh,
+                    MaCha = descendant.MaCha,
+                    MaMe = descendant.MaMe,
+                    QuanHe = relation,
                     DoiThu = 1
                 });
             }
 
-            // ===== 4. Tìm anh chị em (cùng cha hoặc mẹ với BN gốc) =====
             if (patient.MaCha != null || patient.MaMe != null)
             {
                 var siblings = await _context.BenhNhans
@@ -100,20 +105,23 @@ namespace HealthCare.Services.PatientManagement
                          (patient.MaMe != null && bn.MaMe == patient.MaMe)))
                     .ToListAsync();
 
-                foreach (var s in siblings)
+                foreach (var sibling in siblings)
                 {
-                    if (!allIds.Add(s.MaBenhNhan)) continue;
+                    if (!allIds.Add(sibling.MaBenhNhan))
+                    {
+                        continue;
+                    }
 
                     result.Nodes.Add(new GenealogyNodeDto
                     {
-                        MaBenhNhan = s.MaBenhNhan,
-                        HoTen = s.HoTen,
-                        NgaySinh = s.NgaySinh,
-                        GioiTinh = s.GioiTinh,
-                        NhomMau = s.NhomMau,
-                        BenhManTinh = s.BenhManTinh,
-                        MaCha = s.MaCha,
-                        MaMe = s.MaMe,
+                        MaBenhNhan = sibling.MaBenhNhan,
+                        HoTen = sibling.HoTen,
+                        NgaySinh = sibling.NgaySinh,
+                        GioiTinh = sibling.GioiTinh,
+                        NhomMau = sibling.NhomMau,
+                        BenhManTinh = sibling.BenhManTinh,
+                        MaCha = sibling.MaCha,
+                        MaMe = sibling.MaMe,
                         QuanHe = "anh_chi_em",
                         DoiThu = 0
                     });
@@ -123,46 +131,63 @@ namespace HealthCare.Services.PatientManagement
             return result;
         }
 
-        /// <summary>
-        /// Liên kết cha/mẹ cho bệnh nhân.
-        /// Validate: không tạo vòng lặp (con không thể là cha/mẹ chính mình hoặc tổ tiên).
-        /// </summary>
         public async Task<GenealogyNodeDto> LinkParentsAsync(string maBenhNhan, LinkParentsRequest request)
         {
             var patient = await _context.BenhNhans
                 .FirstOrDefaultAsync(bn => bn.MaBenhNhan == maBenhNhan)
                 ?? throw new KeyNotFoundException($"Không tìm thấy bệnh nhân {maBenhNhan}");
 
-            // Validate: không link chính mình
-            if (request.MaCha == maBenhNhan || request.MaMe == maBenhNhan)
-                throw new ArgumentException("Bệnh nhân không thể là cha/mẹ của chính mình.");
+            var maCha = NormalizeId(request.MaCha);
+            var maMe = NormalizeId(request.MaMe);
 
-            // Validate: cha/mẹ phải tồn tại
-            if (request.MaCha != null)
+            if (maCha == maBenhNhan || maMe == maBenhNhan)
             {
-                var cha = await _context.BenhNhans.FindAsync(request.MaCha)
-                    ?? throw new KeyNotFoundException($"Không tìm thấy cha (MaBN: {request.MaCha})");
-
-                // Validate circular: cha không được là con cháu của BN
-                if (await IsDescendantOfAsync(request.MaCha, maBenhNhan))
-                    throw new ArgumentException($"Không thể gán {request.MaCha} làm cha vì tạo vòng lặp gia phả.");
+                throw new ArgumentException("Bệnh nhân không thể là cha hoặc mẹ của chính mình.");
             }
 
-            if (request.MaMe != null)
+            if (maCha != null && maMe != null && maCha == maMe)
             {
-                var me = await _context.BenhNhans.FindAsync(request.MaMe)
-                    ?? throw new KeyNotFoundException($"Không tìm thấy mẹ (MaBN: {request.MaMe})");
-
-                if (await IsDescendantOfAsync(request.MaMe, maBenhNhan))
-                    throw new ArgumentException($"Không thể gán {request.MaMe} làm mẹ vì tạo vòng lặp gia phả.");
+                throw new ArgumentException("Không thể gán cùng một bệnh nhân làm cả cha và mẹ.");
             }
 
-            // Cập nhật
-            patient.MaCha = request.MaCha;
-            patient.MaMe = request.MaMe;
+            if (maCha != null)
+            {
+                var cha = await _context.BenhNhans.FindAsync(maCha)
+                    ?? throw new KeyNotFoundException($"Không tìm thấy cha (MaBN: {maCha})");
+
+                ValidateParentCandidate(patient, cha, ParentRole.Father);
+
+                if (await IsDescendantOfAsync(maCha, maBenhNhan))
+                {
+                    throw new ArgumentException($"Không thể gán {maCha} làm cha vì tạo vòng lặp gia phả.");
+                }
+            }
+
+            if (maMe != null)
+            {
+                var me = await _context.BenhNhans.FindAsync(maMe)
+                    ?? throw new KeyNotFoundException($"Không tìm thấy mẹ (MaBN: {maMe})");
+
+                ValidateParentCandidate(patient, me, ParentRole.Mother);
+
+                if (await IsDescendantOfAsync(maMe, maBenhNhan))
+                {
+                    throw new ArgumentException($"Không thể gán {maMe} làm mẹ vì tạo vòng lặp gia phả.");
+                }
+            }
+
+            patient.MaCha = maCha;
+            patient.MaMe = maMe;
             patient.NgayCapNhat = DateTime.Now;
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                throw new ArgumentException(ExtractPersistMessage(ex), ex);
+            }
 
             return new GenealogyNodeDto
             {
@@ -179,17 +204,11 @@ namespace HealthCare.Services.PatientManagement
             };
         }
 
-        /// <summary>
-        /// Lấy tiền sử bệnh của toàn bộ gia phả — tổng hợp BenhManTinh, TieuSuBenh, DiUng
-        /// </summary>
         public async Task<FamilyDiseaseSummaryDto> GetFamilyDiseasesAsync(string maBenhNhan)
         {
-            // Lấy cây pha hệ trước
             var tree = await GetGenealogyTreeAsync(maBenhNhan);
-
             var familyIds = tree.Nodes.Select(n => n.MaBenhNhan).ToList();
 
-            // Query y tế của tất cả thành viên
             var members = await _context.BenhNhans
                 .AsNoTracking()
                 .Where(bn => familyIds.Contains(bn.MaBenhNhan))
@@ -208,33 +227,37 @@ namespace HealthCare.Services.PatientManagement
                 MaBenhNhanGoc = maBenhNhan
             };
 
-            // Map quan hệ từ tree
             var nodeMap = tree.Nodes.ToDictionary(n => n.MaBenhNhan);
 
-            foreach (var m in members)
+            foreach (var member in members)
             {
-                nodeMap.TryGetValue(m.MaBenhNhan, out var node);
+                nodeMap.TryGetValue(member.MaBenhNhan, out var node);
 
                 result.ThanhVien.Add(new FamilyDiseaseDto
                 {
-                    MaBenhNhan = m.MaBenhNhan,
-                    HoTen = m.HoTen,
+                    MaBenhNhan = member.MaBenhNhan,
+                    HoTen = member.HoTen,
                     QuanHe = node?.QuanHe ?? "unknown",
-                    BenhManTinh = m.BenhManTinh,
-                    TieuSuBenh = m.TieuSuBenh,
-                    DiUng = m.DiUng
+                    BenhManTinh = member.BenhManTinh,
+                    TieuSuBenh = member.TieuSuBenh,
+                    DiUng = member.DiUng
                 });
 
-                // Thống kê bệnh mạn tính
-                if (!string.IsNullOrWhiteSpace(m.BenhManTinh))
+                if (string.IsNullOrWhiteSpace(member.BenhManTinh))
                 {
-                    var diseases = m.BenhManTinh.Split(',', StringSplitOptions.TrimEntries);
-                    foreach (var d in diseases)
+                    continue;
+                }
+
+                var diseases = member.BenhManTinh.Split(',', StringSplitOptions.TrimEntries);
+                foreach (var disease in diseases)
+                {
+                    if (result.ThongKeBenhGiaDinh.ContainsKey(disease))
                     {
-                        if (result.ThongKeBenhGiaDinh.ContainsKey(d))
-                            result.ThongKeBenhGiaDinh[d]++;
-                        else
-                            result.ThongKeBenhGiaDinh[d] = 1;
+                        result.ThongKeBenhGiaDinh[disease]++;
+                    }
+                    else
+                    {
+                        result.ThongKeBenhGiaDinh[disease] = 1;
                     }
                 }
             }
@@ -242,13 +265,6 @@ namespace HealthCare.Services.PatientManagement
             return result;
         }
 
-        // =================== PRIVATE HELPERS ===================
-
-        /// <summary>
-        /// Gọi Stored Procedure (sp_GetAncestors / sp_GetDescendants) bằng ADO.NET thuần.
-        /// EF Core FromSqlRaw("CALL ...") không hoạt động vì Pomelo MySQL
-        /// wrap nó trong subquery → lỗi MySQL syntax.
-        /// </summary>
         private async Task<List<FamilyRowDto>> CallSpGetFamilyAsync(string spName, string maBenhNhan)
         {
             var results = new List<FamilyRowDto>();
@@ -257,7 +273,9 @@ namespace HealthCare.Services.PatientManagement
             try
             {
                 if (conn.State != System.Data.ConnectionState.Open)
+                {
                     await conn.OpenAsync();
+                }
 
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = $"CALL {spName}(@p0)";
@@ -280,23 +298,18 @@ namespace HealthCare.Services.PatientManagement
                         NhomMau = reader.IsDBNull(reader.GetOrdinal("NhomMau")) ? null : reader.GetString(reader.GetOrdinal("NhomMau")),
                         BenhManTinh = reader.IsDBNull(reader.GetOrdinal("BenhManTinh")) ? null : reader.GetString(reader.GetOrdinal("BenhManTinh")),
                         MaCha = reader.IsDBNull(reader.GetOrdinal("MaCha")) ? null : reader.GetString(reader.GetOrdinal("MaCha")),
-                        MaMe = reader.IsDBNull(reader.GetOrdinal("MaMe")) ? null : reader.GetString(reader.GetOrdinal("MaMe")),
+                        MaMe = reader.IsDBNull(reader.GetOrdinal("MaMe")) ? null : reader.GetString(reader.GetOrdinal("MaMe"))
                     });
                 }
             }
-            catch (Exception)
+            catch
             {
-                // Nếu SP chưa tồn tại hoặc lỗi → trả list rỗng thay vì crash
-                // (GetGenealogyTreeAsync sẽ still work via siblings query)
+                // If stored procedures are missing or fail, return empty data instead of crashing.
             }
 
             return results;
         }
 
-        /// <summary>
-        /// Kiểm tra BN candidateId có phải con cháu (descendant) của ancestorId không.
-        /// Dùng để chống vòng lặp khi link cha/mẹ.
-        /// </summary>
         private async Task<bool> IsDescendantOfAsync(string candidateId, string ancestorId)
         {
             var conn = _context.Database.GetDbConnection();
@@ -304,7 +317,9 @@ namespace HealthCare.Services.PatientManagement
             try
             {
                 if (conn.State != System.Data.ConnectionState.Open)
+                {
                     await conn.OpenAsync();
+                }
 
                 using var cmd = conn.CreateCommand();
                 cmd.CommandText = "CALL sp_IsDescendantOf(@p0, @p1)";
@@ -321,7 +336,7 @@ namespace HealthCare.Services.PatientManagement
                 cmd.Parameters.Add(param1);
 
                 using var reader = await cmd.ExecuteReaderAsync();
-                return await reader.ReadAsync(); // Nếu có dòng trả về → là descendant
+                return await reader.ReadAsync();
             }
             catch
             {
@@ -329,12 +344,107 @@ namespace HealthCare.Services.PatientManagement
             }
         }
 
-        /// <summary>
-        /// DTO nội bộ cho kết quả SP trả về (không dùng entity BenhNhan để tránh tracking)
-        /// </summary>
+        private static void ValidateParentCandidate(BenhNhan child, BenhNhan parent, ParentRole role)
+        {
+            if (role == ParentRole.Father && !IsMaleGender(parent.GioiTinh))
+            {
+                throw new ArgumentException(
+                    $"Không thể gán {parent.MaBenhNhan} làm cha vì giới tính hiện tại là '{FormatGender(parent.GioiTinh)}'.");
+            }
+
+            if (role == ParentRole.Mother && !IsFemaleGender(parent.GioiTinh))
+            {
+                throw new ArgumentException(
+                    $"Không thể gán {parent.MaBenhNhan} làm mẹ vì giới tính hiện tại là '{FormatGender(parent.GioiTinh)}'.");
+            }
+
+            var relationLabel = role == ParentRole.Father ? "cha" : "mẹ";
+            var childBirthDate = child.NgaySinh.Date;
+            var parentBirthDate = parent.NgaySinh.Date;
+
+            if (parentBirthDate >= childBirthDate)
+            {
+                throw new ArgumentException(
+                    $"Không thể gán {parent.MaBenhNhan} làm {relationLabel} vì ngày sinh của {relationLabel} phải sớm hơn ngày sinh của con.");
+            }
+
+            if (parentBirthDate.AddYears(12) > childBirthDate)
+            {
+                throw new ArgumentException(
+                    $"Không thể gán {parent.MaBenhNhan} làm {relationLabel} vì khoảng cách tuổi {relationLabel}/con không hợp lệ.");
+            }
+        }
+
+        private static string? NormalizeId(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static bool IsMaleGender(string? value)
+        {
+            var normalized = NormalizeGender(value);
+            return normalized is "nam" or "male" or "m";
+        }
+
+        private static bool IsFemaleGender(string? value)
+        {
+            var normalized = NormalizeGender(value);
+            return normalized is "nu" or "female" or "f";
+        }
+
+        private static string FormatGender(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? "chưa xác định" : value.Trim();
+        }
+
+        private static string NormalizeGender(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return string.Empty;
+            }
+
+            var normalized = value.Trim().Normalize(NormalizationForm.FormD);
+            var builder = new StringBuilder(normalized.Length);
+
+            foreach (var character in normalized)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+                {
+                    builder.Append(char.ToLowerInvariant(character));
+                }
+            }
+
+            return builder.ToString()
+                .Normalize(NormalizationForm.FormC)
+                .Replace('đ', 'd');
+        }
+
+        private static string ExtractPersistMessage(DbUpdateException exception)
+        {
+            if (exception.InnerException is MySqlException mySqlException &&
+                !string.IsNullOrWhiteSpace(mySqlException.Message))
+            {
+                return mySqlException.Message;
+            }
+
+            if (!string.IsNullOrWhiteSpace(exception.InnerException?.Message))
+            {
+                return exception.InnerException.Message;
+            }
+
+            return "Không thể lưu liên kết cha/mẹ do dữ liệu không hợp lệ.";
+        }
+
+        private enum ParentRole
+        {
+            Father,
+            Mother
+        }
+
         private class FamilyRowDto
         {
-            public string MaBenhNhan { get; set; } = "";
+            public string MaBenhNhan { get; set; } = string.Empty;
             public string? HoTen { get; set; }
             public DateTime? NgaySinh { get; set; }
             public string? GioiTinh { get; set; }

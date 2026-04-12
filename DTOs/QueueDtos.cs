@@ -16,6 +16,8 @@
         public string TrangThai { get; set; } = default!;
         public string? MaPhieuKham { get; set; }
         public string? MaChiTietDv { get; set; }
+        public string? MaLuotKham { get; set; }
+        public string? TrangThaiLuot { get; set; }
 
         // 🔥 Info phòng/khoa/BN
         public string? TenBenhNhan { get; set; }

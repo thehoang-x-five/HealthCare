@@ -182,6 +182,12 @@ namespace HealthCare.Services.MedicationBilling
             if (!string.IsNullOrWhiteSpace(filter.PhuongThucThanhToan))
                 q = q.Where(h => h.PhuongThucThanhToan == filter.PhuongThucThanhToan);
 
+            if (filter.MinAmount.HasValue)
+                q = q.Where(h => h.SoTien >= filter.MinAmount.Value);
+
+            if (filter.MaxAmount.HasValue)
+                q = q.Where(h => h.SoTien <= filter.MaxAmount.Value);
+
             if (!string.IsNullOrWhiteSpace(filter.Keyword))
             {
                 var kw = filter.Keyword.Trim();
@@ -198,9 +204,23 @@ namespace HealthCare.Services.MedicationBilling
 
             var totalItems = await q.CountAsync();
 
+            var sortBy = filter.SortBy?.Trim().ToLowerInvariant();
+            var sortDirection = filter.SortDirection?.Trim().ToLowerInvariant() == "asc"
+                ? "asc"
+                : "desc";
+
+            q = sortBy switch
+            {
+                "sotien" => sortDirection == "asc"
+                    ? q.OrderBy(h => h.SoTien).ThenBy(h => h.MaHoaDon)
+                    : q.OrderByDescending(h => h.SoTien).ThenByDescending(h => h.MaHoaDon),
+                "thoigian" => sortDirection == "asc"
+                    ? q.OrderBy(h => h.ThoiGian).ThenBy(h => h.MaHoaDon)
+                    : q.OrderByDescending(h => h.ThoiGian).ThenByDescending(h => h.MaHoaDon),
+                _ => q.OrderByDescending(h => h.ThoiGian).ThenByDescending(h => h.MaHoaDon)
+            };
+
             var list = await q
-                .OrderByDescending(h => h.ThoiGian)
-                .ThenByDescending(h => h.MaHoaDon)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
@@ -234,8 +254,8 @@ namespace HealthCare.Services.MedicationBilling
             var oldStatus = entity.TrangThai;
             var newStatus = request.TrangThai;
 
-            // Terminal states: da_thu, da_huy — không chuyển sang trạng thái khác
-            var terminalStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "da_thu", "da_huy" };
+            // Terminal states: da_thu, da_huy, bao_luu — không chuyển sang trạng thái khác
+            var terminalStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "da_thu", "da_huy", "bao_luu" };
             if (terminalStates.Contains(oldStatus))
                 throw new InvalidOperationException(
                     $"Hóa đơn đang ở trạng thái '{oldStatus}' — không thể chuyển sang '{newStatus}'.");
@@ -342,6 +362,7 @@ namespace HealthCare.Services.MedicationBilling
                 ThoiGian = h.ThoiGian,
 
                 TrangThai = h.TrangThai,
+                ThoiGianXuLy = h.ThoiGianHuy,
                 NoiDung = h.NoiDung,
                 PhuongThucThanhToan = h.PhuongThucThanhToan
             };
@@ -370,6 +391,7 @@ namespace HealthCare.Services.MedicationBilling
                 TienThuoc = tienThuoc,
 
                 TrangThai = h.TrangThai,
+                ThoiGianXuLy = h.ThoiGianHuy,
                 PhuongThucThanhToan = h.PhuongThucThanhToan,
 
                 NoiDung = content,
@@ -490,7 +512,7 @@ namespace HealthCare.Services.MedicationBilling
                 : $"{invoice.TenBenhNhan} ({invoice.MaBenhNhan})";
 
             return $"Có hóa đơn mới {invoice.MaHoaDon} cho bệnh nhân {tenBn} " +
-                   $"với số tiền {invoice.SoTien:n0}đ. đã được thanh toán.";
+                   $"với số tiền {invoice.SoTien:n0}đ ở trạng thái chưa thu.";
         }
 
         // ============================================================

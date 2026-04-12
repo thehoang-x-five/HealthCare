@@ -92,11 +92,21 @@ namespace HealthCare.Controllers
             [FromBody] PrescriptionStatusUpdateRequest request)
         {
             if (request == null) return BadRequest("Body is required");
+            try
+            {
+                var dto = await _pharmacyService.CapNhatTrangThaiDonThuocAsync(maDonThuoc, request);
+                if (dto == null) return NotFound();
 
-            var dto = await _pharmacyService.CapNhatTrangThaiDonThuocAsync(maDonThuoc, request);
-            if (dto == null) return NotFound();
-
-            return Ok(dto);
+                return Ok(dto);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpGet("prescriptions")]

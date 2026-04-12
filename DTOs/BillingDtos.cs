@@ -31,8 +31,11 @@ namespace HealthCare.DTOs
         /// <summary>Tiền thuốc (nếu hoá đơn có gắn đơn thuốc).</summary>
         public decimal? TienThuoc { get; set;}
 
-        /// <summary>da_thu, da_huy...</summary>
+        /// <summary>chua_thu, da_thu, da_huy, bao_luu...</summary>
         public string TrangThai { get; set;} = "da_thu";
+
+        /// <summary>Thời điểm hóa đơn được xử lý cuối cùng (hủy / bảo lưu).</summary>
+        public DateTime? ThoiGianXuLy { get; set;}
 
         /// <summary>tien_mat, chuyen_khoan, pos...</summary>
         public string PhuongThucThanhToan { get; set;} = "tien_mat";
@@ -76,8 +79,11 @@ namespace HealthCare.DTOs
         /// <summary>Thời điểm thu tiền.</summary>
         public DateTime ThoiGian { get; set;}
 
-        /// <summary>da_thu, da_huy...</summary>
+        /// <summary>chua_thu, da_thu, da_huy, bao_luu...</summary>
         public string TrangThai { get; set;} = "da_thu";
+
+        /// <summary>Thời điểm hóa đơn được xử lý cuối cùng (hủy / bảo lưu).</summary>
+        public DateTime? ThoiGianXuLy { get; set;}
 
         /// <summary>Nội dung chi tiết hoá đơn.</summary>
         public string NoiDung { get; set;} = default!;
@@ -108,7 +114,7 @@ namespace HealthCare.DTOs
         public string NoiDung { get; set;} = default!;
     }
 
-    /// <summary>Cập nhật trạng thái hoá đơn (da_thu, da_huy...).</summary>
+    /// <summary>Cập nhật trạng thái hoá đơn (da_thu, da_huy, bao_luu...).</summary>
     public record class InvoiceStatusUpdateRequest
     {
         public string TrangThai { get; set;} = default!;
@@ -130,16 +136,24 @@ namespace HealthCare.DTOs
         /// <summary>kham_lam_sang, can_lam_sang, thuoc... hoặc null = tất cả.</summary>
         public string? LoaiDotThu { get; set;}
 
-        /// <summary>da_thu, da_huy... hoặc null = tất cả.</summary>
+        /// <summary>chua_thu, da_thu, da_huy, bao_luu... hoặc null = tất cả.</summary>
         public string? TrangThai { get; set;}
 
         /// <summary>tien_mat, chuyen_khoan, pos... hoặc null = tất cả.</summary>
         public string? PhuongThucThanhToan { get; set;}
 
+        /// <summary>Lọc theo khoảng số tiền.</summary>
+        public decimal? MinAmount { get; set;}
+        public decimal? MaxAmount { get; set;}
+
         /// <summary>
         /// Từ khoá toàn văn (mã HĐ, mã BN, tên BN, nội dung…).
         /// </summary>
         public string? Keyword { get; set;}
+
+        /// <summary>Cột sort tùy chọn. Hiện hỗ trợ: ThoiGian, SoTien.</summary>
+        public string? SortBy { get; set;}
+        public string? SortDirection { get; set;}
 
         public int Page { get; set;} = 1;
         public int PageSize { get; set;} = 50;

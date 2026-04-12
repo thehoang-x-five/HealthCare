@@ -33,4 +33,11 @@
     <None Remove="artifacts\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Scripts\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

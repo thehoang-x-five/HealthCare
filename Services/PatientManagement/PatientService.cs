@@ -367,6 +367,29 @@ namespace HealthCare.Services.PatientManagement
                 ("ngaysinh", "desc") => query.OrderByDescending(b => b.NgaySinh),
                 ("ngaysinh", _) => query.OrderBy(b => b.NgaySinh),
 
+                ("priority", "desc") => query
+                    .OrderByDescending(b =>
+                        b.TrangThaiHomNay == "dang_kham" || b.TrangThaiHomNay == "dang_kham_dv" ? 6 :
+                        b.TrangThaiHomNay == "cho_xu_ly" || b.TrangThaiHomNay == "cho_xu_ly_dv" ? 5 :
+                        b.TrangThaiHomNay == "cho_kham" || b.TrangThaiHomNay == "cho_kham_dv" ? 4 :
+                        b.TrangThaiHomNay == "cho_tiep_nhan" || b.TrangThaiHomNay == "cho_tiep_nhan_dv" ? 3 :
+                        b.TrangThaiHomNay == "hoan_tat" || b.TrangThaiHomNay == "hoan_thanh" || b.TrangThaiHomNay == "da_hoan_tat" ? 2 :
+                        b.TrangThaiHomNay == "da_huy" || b.TrangThaiHomNay == "huy" ? 1 :
+                        0)
+                    .ThenByDescending(b => b.NgayTrangThai)
+                    .ThenBy(b => b.HoTen),
+                ("priority", _) => query
+                    .OrderBy(b =>
+                        b.TrangThaiHomNay == "dang_kham" || b.TrangThaiHomNay == "dang_kham_dv" ? 0 :
+                        b.TrangThaiHomNay == "cho_xu_ly" || b.TrangThaiHomNay == "cho_xu_ly_dv" ? 1 :
+                        b.TrangThaiHomNay == "cho_kham" || b.TrangThaiHomNay == "cho_kham_dv" ? 2 :
+                        b.TrangThaiHomNay == "cho_tiep_nhan" || b.TrangThaiHomNay == "cho_tiep_nhan_dv" ? 3 :
+                        b.TrangThaiHomNay == "hoan_tat" || b.TrangThaiHomNay == "hoan_thanh" || b.TrangThaiHomNay == "da_hoan_tat" ? 4 :
+                        b.TrangThaiHomNay == "da_huy" || b.TrangThaiHomNay == "huy" ? 5 :
+                        6)
+                    .ThenByDescending(b => b.NgayTrangThai)
+                    .ThenBy(b => b.HoTen),
+
                 ("ngaytrangthai", "desc") => query.OrderByDescending(b => b.NgayTrangThai),
                 ("ngaytrangthai", _) => query.OrderBy(b => b.NgayTrangThai),
 
@@ -403,8 +426,8 @@ namespace HealthCare.Services.PatientManagement
         // ============================================================
 
         public async Task<PatientDetailDto?> CapNhatTrangThaiBenhNhanAsync(
-     string maBenhNhan,
-     PatientStatusUpdateRequest request)
+            string maBenhNhan,
+            PatientStatusUpdateRequest request)
         {
             // PATCH: validate input rõ ràng
             if (string.IsNullOrWhiteSpace(maBenhNhan))
@@ -439,10 +462,18 @@ namespace HealthCare.Services.PatientManagement
             if (current == "hoan_tat" && target == "da_huy")
                 throw new InvalidOperationException("Bệnh nhân đã hoàn tất, không thể hủy.");
 
+            using var transaction = await _db.Database.BeginTransactionAsync();
+
+            if (target == "da_huy")
+            {
+                await DongBoHoSoDangXuLyKhiBoVeAsync(entity.MaBenhNhan);
+            }
+
             entity.TrangThaiHomNay = request.TrangThaiHomNay;
             entity.NgayTrangThai = DateTime.Today;
 
             await _db.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             var dto = MapToDto(entity);
 
@@ -452,6 +483,105 @@ namespace HealthCare.Services.PatientManagement
             // 🔥 Trả về PatientDetailDto thay vì PatientDto
             var detail = await LayBenhNhanAsync(dto.MaBenhNhan);
             return detail;
+        }
+
+        private async Task DongBoHoSoDangXuLyKhiBoVeAsync(string maBenhNhan)
+        {
+            var now = DateTime.Now;
+
+            var activeClinicalExams = await _db.PhieuKhamLamSangs
+                .Where(p =>
+                    p.MaBenhNhan == maBenhNhan &&
+                    p.TrangThai != "da_hoan_tat" &&
+                    p.TrangThai != "da_huy")
+                .Select(p => new { p.MaPhieuKham })
+                .ToListAsync();
+
+            var activeExamIds = activeClinicalExams
+                .Select(p => p.MaPhieuKham)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (activeExamIds.Count > 0)
+            {
+                await _db.PhieuKhamLamSangs
+                    .Where(p => activeExamIds.Contains(p.MaPhieuKham))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(p => p.TrangThai, "da_huy"));
+            }
+
+            var activeClsOrders = await _db.PhieuKhamCanLamSangs
+                .Include(p => p.ChiTietDichVus)
+                .Where(p =>
+                    activeExamIds.Contains(p.MaPhieuKhamLs) &&
+                    p.TrangThai != "da_hoan_tat" &&
+                    p.TrangThai != "da_huy")
+                .ToListAsync();
+
+            var activeClsIds = activeClsOrders
+                .Select(p => p.MaPhieuKhamCls)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var cls in activeClsOrders)
+            {
+                cls.TrangThai = "da_huy";
+                foreach (var detail in cls.ChiTietDichVus)
+                {
+                    detail.TrangThai = "da_huy";
+                }
+            }
+
+            var activeQueues = await _db.HangDois
+                .Include(h => h.LuotKhamBenh)
+                .Where(h =>
+                    h.MaBenhNhan == maBenhNhan &&
+                    h.TrangThai != "da_huy" &&
+                    h.TrangThai != "huy" &&
+                    h.TrangThai != "da_phuc_vu")
+                .ToListAsync();
+
+            foreach (var queue in activeQueues)
+            {
+                queue.NgayCapNhat = now;
+
+                if (queue.LuotKhamBenh is not null &&
+                    queue.LuotKhamBenh.TrangThai != "hoan_tat" &&
+                    queue.LuotKhamBenh.TrangThai != "da_huy")
+                {
+                    queue.LuotKhamBenh.TrangThai = "da_huy";
+                    queue.LuotKhamBenh.ThoiGianKetThuc = now;
+                    queue.LuotKhamBenh.NgayCapNhat = now;
+                    queue.TrangThai = "da_phuc_vu";
+                    continue;
+                }
+
+                queue.TrangThai = "da_huy";
+            }
+
+            var relatedInvoices = await _db.HoaDonThanhToans
+                .Where(h =>
+                    h.MaBenhNhan == maBenhNhan &&
+                    (h.TrangThai == "chua_thu" || h.TrangThai == "da_thu") &&
+                    (
+                        (h.MaPhieuKham != null && h.MaPhieuKham != "" && activeExamIds.Contains(h.MaPhieuKham)) ||
+                        (h.MaPhieuKhamCls != null && h.MaPhieuKhamCls != "" && activeClsIds.Contains(h.MaPhieuKhamCls))
+                    ))
+                .ToListAsync();
+
+            foreach (var invoice in relatedInvoices)
+            {
+                if (string.Equals(invoice.TrangThai, "chua_thu", StringComparison.OrdinalIgnoreCase))
+                {
+                    invoice.TrangThai = "da_huy";
+                }
+                else if (string.Equals(invoice.TrangThai, "da_thu", StringComparison.OrdinalIgnoreCase))
+                {
+                    invoice.TrangThai = "bao_luu";
+                }
+
+                invoice.ThoiGianHuy ??= now;
+            }
         }
 
 

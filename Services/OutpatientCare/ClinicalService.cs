@@ -1058,7 +1058,130 @@ namespace HealthCare.Services.OutpatientCare
             }
         }
 
-       
+        public async Task HuyCaChoKhamAsync(string maHangDoi)
+        {
+            if (string.IsNullOrWhiteSpace(maHangDoi))
+                throw new ArgumentException("MaHangDoi lÃ  báº¯t buá»™c");
+
+            using var transaction = await _db.Database.BeginTransactionAsync();
+            try
+            {
+                var hangDoi = await _db.HangDois
+                    .Include(h => h.BenhNhan)
+                    .Include(h => h.PhieuKhamLamSang)
+                    .Include(h => h.LuotKhamBenh)
+                    .FirstOrDefaultAsync(h => h.MaHangDoi == maHangDoi)
+                    ?? throw new KeyNotFoundException($"KhÃ´ng tÃ¬m tháº¥y hÃ ng Ä‘á»£i {maHangDoi}");
+
+                if (!string.Equals(hangDoi.LoaiHangDoi, "kham_lam_sang", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException("Chá»‰ há»— trá»£ há»§y ca Ä‘ang chá» cá»§a khÃ¡m lÃ¢m sÃ ng.");
+                }
+
+                var queueStatus = (hangDoi.TrangThai ?? string.Empty).ToLowerInvariant();
+                if (queueStatus != "cho_goi" && queueStatus != "dang_goi")
+                {
+                    throw new InvalidOperationException(
+                        $"Chá»‰ cÃ³ thá»ƒ há»§y ca Ä‘ang chá». Tráº¡ng thÃ¡i hÃ ng Ä‘á»£i hiá»‡n táº¡i: {hangDoi.TrangThai}.");
+                }
+
+                if (hangDoi.LuotKhamBenh is not null)
+                {
+                    var visitStatus = (hangDoi.LuotKhamBenh.TrangThai ?? string.Empty).ToLowerInvariant();
+                    if (visitStatus == "dang_thuc_hien")
+                    {
+                        throw new InvalidOperationException("Ca nÃ y Ä‘Ã£ vÃ o khÃ¡m. HÃ£y dÃ¹ng chá»©c nÄƒng há»§y lÆ°á»£t khÃ¡m Ä‘ang thá»±c hiá»‡n.");
+                    }
+
+                    throw new InvalidOperationException(
+                        $"Ca nÃ y Ä‘Ã£ phÃ¡t sinh lÆ°á»£t khÃ¡m vá»›i tráº¡ng thÃ¡i '{hangDoi.LuotKhamBenh.TrangThai}', khÃ´ng thá»ƒ há»§y theo luá»“ng Ä‘ang chá».");
+                }
+
+                hangDoi.TrangThai = "da_huy";
+                hangDoi.NgayCapNhat = DateTime.Now;
+
+                if (hangDoi.PhieuKhamLamSang is not null)
+                {
+                    hangDoi.PhieuKhamLamSang.TrangThai = "da_huy";
+                }
+
+                if (hangDoi.BenhNhan is not null)
+                {
+                    hangDoi.BenhNhan.TrangThaiHomNay = "da_huy";
+                    hangDoi.BenhNhan.NgayTrangThai = DateTime.Today;
+                }
+
+                if (!string.IsNullOrWhiteSpace(hangDoi.MaPhieuKham))
+                {
+                    var unpaidInvoices = await _db.HoaDonThanhToans
+                        .Where(h =>
+                            h.MaPhieuKham == hangDoi.MaPhieuKham &&
+                            h.TrangThai == "chua_thu")
+                        .ToListAsync();
+
+                    foreach (var invoice in unpaidInvoices)
+                    {
+                        invoice.TrangThai = "da_huy";
+                        invoice.ThoiGianHuy = DateTime.Now;
+                    }
+                }
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                try
+                {
+                    var queueDto = await _queue.LayHangDoiAsync(maHangDoi);
+                    if (queueDto is not null)
+                    {
+                        await _realtime.BroadcastQueueItemChangedAsync(queueDto);
+                    }
+
+                    var roomItems = await _queue.LayHangDoiTheoPhongAsync(hangDoi.MaPhong);
+                    await _realtime.BroadcastQueueByRoomAsync(hangDoi.MaPhong, roomItems);
+                }
+                catch { /* ignore realtime errors */ }
+
+                if (hangDoi.BenhNhan is not null)
+                {
+                    try
+                    {
+                        await _realtime.BroadcastPatientStatusUpdatedAsync(new PatientDto
+                        {
+                            MaBenhNhan = hangDoi.BenhNhan.MaBenhNhan,
+                            HoTen = hangDoi.BenhNhan.HoTen,
+                            TrangThaiHomNay = hangDoi.BenhNhan.TrangThaiHomNay
+                        });
+                    }
+                    catch { /* ignore realtime errors */ }
+                }
+
+                if (!string.IsNullOrWhiteSpace(hangDoi.MaPhieuKham))
+                {
+                    try
+                    {
+                        var phieu = await LayPhieuKhamAsync(hangDoi.MaPhieuKham);
+                        if (phieu is not null)
+                        {
+                            await _realtime.BroadcastClinicalExamUpdatedAsync(phieu);
+                        }
+                    }
+                    catch { /* ignore realtime errors */ }
+                }
+
+                try
+                {
+                    var dashboard = await _dashboard.LayDashboardHomNayAsync();
+                    await _realtime.BroadcastDashboardTodayAsync(dashboard);
+                }
+                catch { /* ignore realtime errors */ }
+            }
+            catch (Exception)
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
 
     }
 }

@@ -37,6 +37,7 @@ namespace HealthCare.Services.OutpatientCare
 
         // ===== HỦY LƯỢT KHÁM =====
         Task HuyLuotKhamAsync(string maLuotKham);
+        Task HuyCaChoKhamAsync(string maHangDoi);
     }
 
     public interface IClsService

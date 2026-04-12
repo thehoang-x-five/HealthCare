@@ -149,19 +149,62 @@ namespace HealthCare.Controllers
         {
             try
             {
+                var visitExists = await _db.LuotKhamBenhs
+                    .AsNoTracking()
+                    .AnyAsync(l => l.MaLuotKham == maLuotKham);
+
+                if (!visitExists)
+                    return NotFound(new { message = $"Không tìm thấy lượt khám {maLuotKham}." });
+
                 if (!await CanAccessVisitAsync(maLuotKham))
-                    return Forbid();
+                    return StatusCode(403, new { Message = "Bạn không có quyền hủy lượt khám này." });
 
                 await _service.HuyLuotKhamAsync(maLuotKham);
                 return Ok(new { message = "Đã hủy lượt khám thành công." });
             }
             catch (KeyNotFoundException ex)
             {
-                return NotFound(new { message = ex.Message });
+                return NotFound(new { Message = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new { Message = ex.Message });
+            }
+        }
+
+        [HttpPut("queues/{maHangDoi}/cancel")]
+        [RequireRole("bac_si", "y_ta")]
+        [RequireNurseType("phong_kham")]
+        public async Task<ActionResult> HuyCaChoKham(string maHangDoi)
+        {
+            try
+            {
+                var queueExists = await _db.HangDois
+                    .AsNoTracking()
+                    .AnyAsync(h =>
+                        h.MaHangDoi == maHangDoi &&
+                        h.LoaiHangDoi == "kham_lam_sang");
+
+                if (!queueExists)
+                    return NotFound(new { Message = $"KhÃ´ng tÃ¬m tháº¥y ca chá» khÃ¡m {maHangDoi}." });
+
+                if (!await CanAccessClinicalQueueAsync(maHangDoi))
+                    return StatusCode(403, new { Message = "Báº¡n khÃ´ng cÃ³ quyá»n há»§y ca chá» khÃ¡m nÃ y." });
+
+                await _service.HuyCaChoKhamAsync(maHangDoi);
+                return Ok(new { Message = "ÄÃ£ há»§y ca Ä‘ang chá» thÃ nh cÃ´ng." });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { Message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { Message = ex.Message });
             }
         }
 
@@ -197,6 +240,25 @@ namespace HealthCare.Controllers
                         (l.MaNhanSuThucHien != null && l.NhanSuThucHien!.MaKhoa == maKhoa) ||
                         (l.MaYTaHoTro != null && l.YTaHoTro.MaKhoa == maKhoa)
                     ));
+        }
+
+        private async Task<bool> CanAccessClinicalQueueAsync(string maHangDoi)
+        {
+            var scope = User.GetUserScope();
+            if (scope.IsGlobal)
+                return true;
+            if (string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return false;
+
+            var maKhoa = scope.DepartmentScope;
+            return await _db.HangDois
+                .AsNoTracking()
+                .AnyAsync(h =>
+                    h.MaHangDoi == maHangDoi &&
+                    h.LoaiHangDoi == "kham_lam_sang" &&
+                    (h.Phong.MaKhoa == maKhoa ||
+                     (h.PhieuKhamLamSang != null &&
+                      h.PhieuKhamLamSang.DichVuKham.PhongThucHien.MaKhoa == maKhoa)));
         }
     }
 }
