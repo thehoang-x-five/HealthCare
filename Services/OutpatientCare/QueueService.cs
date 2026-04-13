@@ -479,8 +479,9 @@ namespace HealthCare.Services.OutpatientCare
                 }
                 else if (isYta || isTechnician)
                 {
-                    // Y tá LS/CLS và KTV: lấy phòng theo lịch trực hiện tại, fallback phòng phụ trách
-                    var targetTime = filter.FromTime ?? DateTime.Now;
+                    // Y tá LS/CLS và KTV: luôn scope theo ca trực hiện tại trên màn khám bệnh.
+                    // Không dùng filter.FromTime (thường là 00:00 hôm nay) vì sẽ lệch ca trực thật.
+                    var targetTime = DateTime.Now;
                     var lich = await _db.LichTrucs
                         .AsNoTracking()
                         .Where(l =>
@@ -657,6 +658,16 @@ namespace HealthCare.Services.OutpatientCare
 
             dto.MaLuotKham = luotKham?.MaLuotKham;
             dto.TrangThaiLuot = luotKham?.TrangThai;
+
+            if (string.Equals(h.LoaiHangDoi, "kham_lam_sang", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(h.MaPhieuKham))
+            {
+                dto.HasPendingCls = await _db.PhieuKhamCanLamSangs
+                    .AsNoTracking()
+                    .AnyAsync(cls =>
+                        cls.MaPhieuKhamLs == h.MaPhieuKham &&
+                        cls.TrangThai != "da_huy");
+            }
 
             // ===================== 1. PHIẾU KHÁM LS =====================
             if (!string.IsNullOrWhiteSpace(h.MaPhieuKham))

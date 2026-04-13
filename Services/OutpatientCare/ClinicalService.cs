@@ -283,13 +283,14 @@ namespace HealthCare.Services.OutpatientCare
 
             phieuInUse.HinhThucTiepNhan = hinhThucTiepNhan;
 
+            // Đồng bộ trạng thái BN ngay trong transaction hiện tại,
+            // tránh gọi PatientService mở transaction lồng nhau.
+            benhNhan.TrangThaiHomNay = "cho_kham";
+            benhNhan.NgayTrangThai = DateTime.Today;
+
             await _db.SaveChangesAsync();
 
             // ===== 5. Đẩy vào queue phòng khám =====
-            // Cập nhật trạng thái BN trước khi thao tác queue
-            await _patients.CapNhatTrangThaiBenhNhanAsync(
-                phieuInUse.MaBenhNhan,
-                new PatientStatusUpdateRequest { TrangThaiHomNay = "cho_kham" });
 
             var queueExisting = await _db.HangDois.AsNoTracking()
                 .FirstOrDefaultAsync(h => h.MaPhieuKham == phieuInUse.MaPhieuKham);
@@ -417,6 +418,19 @@ namespace HealthCare.Services.OutpatientCare
             // ===== Broadcast realtime AFTER successful transaction =====
             var dto = MapClinicalExam(loaded);
 
+            await _realtime.BroadcastPatientStatusUpdatedAsync(new PatientDto
+            {
+                MaBenhNhan = benhNhan.MaBenhNhan,
+                HoTen = benhNhan.HoTen,
+                NgaySinh = benhNhan.NgaySinh,
+                GioiTinh = benhNhan.GioiTinh,
+                DienThoai = benhNhan.DienThoai,
+                Email = benhNhan.Email,
+                DiaChi = benhNhan.DiaChi,
+                TrangThaiTaiKhoan = benhNhan.TrangThaiTaiKhoan,
+                TrangThaiHomNay = benhNhan.TrangThaiHomNay,
+                NgayTrangThai = benhNhan.NgayTrangThai
+            });
             await _realtime.BroadcastClinicalExamCreatedAsync(dto);
             await TaoThongBaoPhieuKhamMoiAsync(dto);
 

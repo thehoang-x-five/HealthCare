@@ -402,7 +402,7 @@ namespace HealthCare.Services.MasterData
 
             return result;
         }
-
+ 
         // ========== PHÒNG ==========
 
         public async Task<IReadOnlyList<RoomDto>> LayDanhSachPhongAsync(

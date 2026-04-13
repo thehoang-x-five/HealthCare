@@ -1,4 +1,4 @@
-﻿namespace HealthCare.DTOs
+namespace HealthCare.DTOs
 {
     public record class QueueItemDto
     {
@@ -36,6 +36,12 @@
         public ClinicalExamDto? PhieuKhamLsFull { get; set; }
         public ClsOrderDto? PhieuKhamClsFull { get; set; }
         public ClsItemDto? PhieuKhamClsItem { get; set; }
+
+        /// <summary>
+        /// true nếu queue LS này có ít nhất 1 phiếu CLS chưa hoàn tất
+        /// (FE dùng để khóa nút "Đang khám" → hiện "Chờ CLS")
+        /// </summary>
+        public bool HasPendingCls { get; set; } = false;
     }
 
 
