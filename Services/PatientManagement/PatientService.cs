@@ -23,6 +23,12 @@ namespace HealthCare.Services.PatientManagement
         private readonly IRealtimeService _realtime = realtime;
         private readonly INotificationService _notifications = notifications;
 
+        private static bool IsClsRoomType(string? loaiPhong)
+        {
+            var value = (loaiPhong ?? string.Empty).Trim().ToLowerInvariant();
+            return value is "phong_dich_vu" or "phong_cls";
+        }
+
         // ============================================================
         // =   1. TẠO HOẶC CẬP NHẬT BỆNH NHÂN (CREATE / UPSERT)      =
         // ============================================================
@@ -683,7 +689,7 @@ namespace HealthCare.Services.PatientManagement
             var pcd = phieuLs?.PhieuChanDoanCuoi;
             var phieuCls = phieuLs?.PhieuKhamCanLamSang;
 
-            bool laDichVu = phong.LoaiPhong == "phong_dich_vu";
+            bool laDichVu = IsClsRoomType(phong.LoaiPhong);
             string loaiLuot = laDichVu ? "service" : "clinic";
 
             string? note = pcd?.ChanDoanCuoi

@@ -560,6 +560,9 @@ namespace HealthCare.Services.MedicationBilling
                 .Include(d => d.BenhNhan)
                 .Include(d => d.BacSiKeDon)
                 .Include(d => d.PhieuChanDoanCuoi)
+                    .ThenInclude(p => p.PhieuKhamLamSang)
+                        .ThenInclude(pk => pk.HangDois)
+                            .ThenInclude(hd => hd.LuotKhamBenh)
                 .Include(d => d.ChiTietDonThuocs)
                     .ThenInclude(c => c.KhoThuoc);
         }
@@ -582,6 +585,14 @@ namespace HealthCare.Services.MedicationBilling
                 };
             }).ToList() ?? new List<PrescriptionItemDto>();
 
+            // Trace: PhieuChanDoanCuoi → PhieuKhamLamSang → HangDoi → LuotKhamBenh
+            string? maLuotKham = null;
+            var hangDoi = d.PhieuChanDoanCuoi?.PhieuKhamLamSang?.HangDois;
+            if (hangDoi != null)
+            {
+                maLuotKham = hangDoi.LuotKhamBenh?.MaLuotKham;
+            }
+
             return new PrescriptionDto
             {
                 MaDonThuoc = d.MaDonThuoc,
@@ -590,6 +601,8 @@ namespace HealthCare.Services.MedicationBilling
                 MaBacSiKeDon = d.MaBacSiKeDon,
                 TenBacSiKeDon = d.BacSiKeDon?.HoTen ?? string.Empty,
                 MaPhieuChanDoanCuoi = d.PhieuChanDoanCuoi?.MaPhieuChanDoan,
+                MaPhieuKham = d.PhieuChanDoanCuoi?.MaPhieuKham,
+                MaLuotKham = maLuotKham,
                 ChanDoan = d.PhieuChanDoanCuoi?.ChanDoanCuoi,
                 ThoiGianKeDon = d.ThoiGianKeDon,
                 TrangThai = d.TrangThai,

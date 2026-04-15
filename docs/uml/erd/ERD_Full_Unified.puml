@@ -39,9 +39,10 @@ package "01_DuLieuNen" as P01 #E0F2FE {
     --
     # MaKhoa : VARCHAR(20) <<FK>>
     # MaBacSiPhuTrach : VARCHAR(20) <<FK>> <<NULLABLE>>
+    # MaKTVPhuTrach : VARCHAR(20) <<FK>> <<NULLABLE>>
     --
     TenPhong : NVARCHAR(100) <<NOT NULL>>
-    LoaiPhong : ENUM(PhongKham,PhongDichVu)
+    LoaiPhong : ENUM(PhongKhamLS,PhongCLS)
     SucChua : INT
     ViTri : NVARCHAR(100)
     Email : VARCHAR(100)
@@ -568,6 +569,7 @@ Khoa      ||--|{ Phong
 Khoa      ||--|{ NhanSu
 
 Phong     |o--o| NhanSu          : BsPhuTrach
+Phong     |o--o| NhanSu          : KtvPhuTrachCls
 Phong     ||--o{ LichTruc
 NhanSu    ||--o{ LichTruc        : YTaTruc
 NhanSu    ||--o{ RefreshToken
@@ -666,6 +668,16 @@ note as StatsNote #FFF3E0
   06_MongoDB:      2 collections
   --
   **Tong: 22 tables + 2 collections**
+end note
+
+note right of Phong
+  LS room:
+  - MaBacSiPhuTrach used
+  - MaKTVPhuTrach = NULL
+
+  CLS room:
+  - MaKTVPhuTrach used
+  - MaBacSiPhuTrach = NULL
 end note
 
 @enduml

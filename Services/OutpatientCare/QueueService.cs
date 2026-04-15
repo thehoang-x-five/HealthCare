@@ -21,6 +21,55 @@ namespace HealthCare.Services.OutpatientCare
         private readonly IPatientService _patients = patients;
         private readonly IServiceProvider _provider = provider;
 
+        private sealed record DutyStaffInfo(
+            string? MaNhanSu,
+            string? TenNhanSu,
+            string? VaiTro,
+            string? ChucVu);
+
+        private static bool IsTechnicianRole(string? vaiTro, string? chucVu) =>
+            string.Equals(vaiTro, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(chucVu, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase);
+
+        private static LichTruc? SelectBestDuty(IEnumerable<LichTruc> schedules, DateTime at)
+        {
+            var list = schedules
+                .Where(l => !l.NghiTruc)
+                .ToList();
+
+            if (list.Count == 0)
+                return null;
+
+            var ngay = at.Date;
+            var gio = at.TimeOfDay;
+
+            var sameDay = list
+                .Where(l => l.Ngay.Date == ngay)
+                .ToList();
+
+            var active = sameDay
+                .Where(l => l.GioBatDau <= gio && l.GioKetThuc >= gio)
+                .OrderBy(l => l.GioBatDau)
+                .FirstOrDefault();
+
+            if (active is not null)
+                return active;
+
+            var nearestSameDay = sameDay
+                .OrderBy(l => Math.Abs((l.GioBatDau - gio).TotalMinutes))
+                .ThenBy(l => l.GioBatDau)
+                .FirstOrDefault();
+
+            if (nearestSameDay is not null)
+                return nearestSameDay;
+
+            return list
+                .OrderBy(l => Math.Abs((l.Ngay.Date.Add(l.GioBatDau) - at).TotalMinutes))
+                .ThenByDescending(l => l.Ngay)
+                .ThenBy(l => l.GioBatDau)
+                .FirstOrDefault();
+        }
+
         private async Task<QueueItemDto> BroadcastAndReturnAsync(HangDoi entity)
         {
             var dto = await MapToDtoAsync(entity);
@@ -652,12 +701,28 @@ namespace HealthCare.Services.OutpatientCare
                 .Select(l => new
                 {
                     l.MaLuotKham,
-                    l.TrangThai
+                    l.TrangThai,
+                    MaNhanSuThucHien = l.MaNhanSuThucHien,
+                    TenNhanSuThucHien = l.NhanSuThucHien != null ? l.NhanSuThucHien.HoTen : null,
+                    VaiTroNhanSuThucHien = l.NhanSuThucHien != null ? l.NhanSuThucHien.VaiTro : null,
+                    ChucVuNhanSuThucHien = l.NhanSuThucHien != null ? l.NhanSuThucHien.ChucVu : null,
+                    ThoiGianBatDau = l.ThoiGianBatDau,
+                    ThoiGianKetThuc = l.ThoiGianKetThuc
                 })
                 .FirstOrDefaultAsync();
 
             dto.MaLuotKham = luotKham?.MaLuotKham;
             dto.TrangThaiLuot = luotKham?.TrangThai;
+            dto.MaNhanSuThucHien = luotKham?.MaNhanSuThucHien;
+            dto.TenNhanSuThucHien = luotKham?.TenNhanSuThucHien;
+            dto.ThoiGianBatDauLuot = luotKham?.ThoiGianBatDau;
+            dto.ThoiGianKetThucLuot = luotKham?.ThoiGianKetThuc;
+
+            if (IsTechnicianRole(luotKham?.VaiTroNhanSuThucHien, luotKham?.ChucVuNhanSuThucHien))
+            {
+                dto.MaKyThuatVienThucHien = luotKham?.MaNhanSuThucHien;
+                dto.TenKyThuatVienThucHien = luotKham?.TenNhanSuThucHien;
+            }
 
             if (string.Equals(h.LoaiHangDoi, "kham_lam_sang", StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(h.MaPhieuKham))
@@ -743,6 +808,26 @@ namespace HealthCare.Services.OutpatientCare
                 {
                     var cls = ct.PhieuKhamCanLamSang;
 
+                    var phongTh = ct.DichVuYTe?.PhongThucHien;
+                    var dutyStaff = await LayNhanSuTrucTheoPhongAsync(phongTh?.MaPhong, h.ThoiGianCheckin);
+                    var maNhanSuCls = dto.MaNhanSuThucHien ?? dutyStaff.MaNhanSu;
+                    var tenNhanSuCls = dto.TenNhanSuThucHien ?? dutyStaff.TenNhanSu;
+                    var isKtvCls = IsTechnicianRole(
+                        luotKham?.VaiTroNhanSuThucHien ?? dutyStaff.VaiTro,
+                        luotKham?.ChucVuNhanSuThucHien ?? dutyStaff.ChucVu);
+
+                    if (string.IsNullOrWhiteSpace(dto.MaNhanSuThucHien))
+                    {
+                        dto.MaNhanSuThucHien = maNhanSuCls;
+                        dto.TenNhanSuThucHien = tenNhanSuCls;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(dto.MaKyThuatVienThucHien) && isKtvCls)
+                    {
+                        dto.MaKyThuatVienThucHien = maNhanSuCls;
+                        dto.TenKyThuatVienThucHien = tenNhanSuCls;
+                    }
+
                     dto.PhieuKhamCls = new QueueClsExamInfoDto
                     {
                         MaPhieuKhamCls = cls.MaPhieuKhamCls,
@@ -750,11 +835,16 @@ namespace HealthCare.Services.OutpatientCare
                         NgayGioLap = cls.NgayGioLap,
                         AutoPublishEnabled = cls.AutoPublishEnabled,
                         TrangThai = cls.TrangThai,
-                        TenDichVuCls = ct.DichVuYTe?.TenDichVu
+                        TenDichVuCls = ct.DichVuYTe?.TenDichVu,
+                        MaNhanSuThucHien = maNhanSuCls,
+                        TenNhanSuThucHien = tenNhanSuCls,
+                        MaKyThuatVienThucHien = isKtvCls ? maNhanSuCls : null,
+                        TenKyThuatVienThucHien = isKtvCls ? tenNhanSuCls : null,
+                        ThoiGianBatDau = dto.ThoiGianBatDauLuot,
+                        ThoiGianKetThuc = dto.ThoiGianKetThucLuot
                     };
 
                     // 🔥 Phòng / khoa lấy từ phòng thực hiện dịch vụ CLS
-                    var phongTh = ct.DichVuYTe?.PhongThucHien;
                     if (phongTh != null)
                     {
                         dto.MaPhong = phongTh.MaPhong;
@@ -781,9 +871,6 @@ namespace HealthCare.Services.OutpatientCare
                         // ignore
                     }
 
-                    var (maYTaThucHien, tenYTaThucHien) =
-                        await LayYTaTrucTheoPhongAsync(phongTh?.MaPhong);
-
                     dto.PhieuKhamClsItem = new ClsItemDto
                     {
                         MaChiTietDv = ct.MaChiTietDv,
@@ -792,8 +879,14 @@ namespace HealthCare.Services.OutpatientCare
                         TenDichVu = ct.DichVuYTe?.TenDichVu ?? "",
                         MaPhong = phongTh?.MaPhong ?? "",
                         TenPhong = phongTh?.TenPhong ?? "",
-                        MaYTaThucHien = maYTaThucHien,
-                        TenYTaThucHien = tenYTaThucHien,
+                        MaNhanSuThucHien = maNhanSuCls,
+                        TenNhanSuThucHien = tenNhanSuCls,
+                        MaKyThuatVienThucHien = isKtvCls ? maNhanSuCls : null,
+                        TenKyThuatVienThucHien = isKtvCls ? tenNhanSuCls : null,
+                        MaYTaThucHien = maNhanSuCls,
+                        TenYTaThucHien = tenNhanSuCls,
+                        ThoiGianBatDau = dto.ThoiGianBatDauLuot,
+                        ThoiGianKetThuc = dto.ThoiGianKetThucLuot,
                         LoaiDichVu = ct.DichVuYTe?.LoaiDichVu ?? "",
                         PhiDV = ct.DichVuYTe?.DonGia.ToString("0") ?? "0",
                         GhiChu = ct.GhiChu,
@@ -841,30 +934,63 @@ namespace HealthCare.Services.OutpatientCare
             return dto;
         }
 
-        private async Task<(string? MaYTa, string? TenYTa)> LayYTaTrucTheoPhongAsync(
+        private async Task<DutyStaffInfo> LayNhanSuTrucTheoPhongAsync(
             string? maPhong,
             DateTime? thoiDiem = null)
         {
             if (string.IsNullOrWhiteSpace(maPhong))
-                return (null, null);
+                return new DutyStaffInfo(null, null, null, null);
+
+            var fixedStaff = await _db.Phongs
+                .AsNoTracking()
+                .Include(p => p.KTVPhuTrach)
+                .Where(p => p.MaPhong == maPhong)
+                .Select(p => new
+                {
+                    p.MaKTVPhuTrach,
+                    TenNhanSu = p.KTVPhuTrach != null ? p.KTVPhuTrach.HoTen : null,
+                    VaiTro = p.KTVPhuTrach != null ? p.KTVPhuTrach.VaiTro : null,
+                    ChucVu = p.KTVPhuTrach != null ? p.KTVPhuTrach.ChucVu : null
+                })
+                .FirstOrDefaultAsync();
+
+            if (!string.IsNullOrWhiteSpace(fixedStaff?.MaKTVPhuTrach))
+            {
+                return new DutyStaffInfo(
+                    fixedStaff.MaKTVPhuTrach,
+                    fixedStaff.TenNhanSu,
+                    fixedStaff.VaiTro,
+                    fixedStaff.ChucVu);
+            }
 
             var at = thoiDiem ?? DateTime.Now;
             var ngay = at.Date;
-            var gio = at.TimeOfDay;
-
-            var lich = await _db.LichTrucs
+            var sameDayLichTrucs = await _db.LichTrucs
                 .AsNoTracking()
                 .Include(l => l.YTaTruc)
                 .Where(l =>
                     l.MaPhong == maPhong &&
                     !l.NghiTruc &&
-                    l.Ngay == ngay &&
-                    l.GioBatDau <= gio &&
-                    l.GioKetThuc >= gio)
-                .OrderBy(l => l.GioBatDau)
-                .FirstOrDefaultAsync();
+                    l.Ngay == ngay)
+                .ToListAsync();
 
-            return (lich?.MaYTaTruc, lich?.YTaTruc?.HoTen);
+            var allLichTrucs = sameDayLichTrucs.Count > 0
+                ? sameDayLichTrucs
+                : await _db.LichTrucs
+                    .AsNoTracking()
+                    .Include(l => l.YTaTruc)
+                    .Where(l =>
+                        l.MaPhong == maPhong &&
+                        !l.NghiTruc)
+                    .ToListAsync();
+
+            var lich = SelectBestDuty(allLichTrucs, at);
+
+            return new DutyStaffInfo(
+                lich?.MaYTaTruc,
+                lich?.YTaTruc?.HoTen,
+                lich?.YTaTruc?.VaiTro,
+                lich?.YTaTruc?.ChucVu);
         }
 
     }

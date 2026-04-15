@@ -78,6 +78,7 @@ namespace HealthCare.DTOs
     {
         public string? Q { get; set; }
         public string? VaiTro { get; set; }
+        public string? LoaiYTa { get; set; }
         public string? TrangThai { get; set; }
         public string? MaKhoa { get; set; }
         public int Page { get; set; } = 1;

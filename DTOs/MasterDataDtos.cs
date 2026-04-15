@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HealthCare.DTOs
@@ -51,7 +51,7 @@ namespace HealthCare.DTOs
         public string MaPhong { get; set;} = default!;
         public string TenPhong { get; set;} = default!;
         public string MaKhoa { get; set;} = default!;
-        public string LoaiPhong { get; set;} = default!; // phong_kham_ls, phong_cls, thu_ngan...
+        public string LoaiPhong { get; set;} = default!; // phong_kham_ls, phong_cls
         public int? SucChua { get; set;}
         public string? ViTri { get; set;}
         public string? Email { get; set;}
@@ -62,6 +62,9 @@ namespace HealthCare.DTOs
         public string TrangThai { get; set;} = "hoat_dong"; // hoat_dong, tam_dung
 
         public string? MaBacSiPhuTrach { get; set;}
+        public string? TenBacSiPhuTrach { get; set;}
+        public string? MaKTVPhuTrach { get; set;}
+        public string? TenKTVPhuTrach { get; set;}
     }
 
     public record class RoomUpsertRequest
@@ -79,6 +82,7 @@ namespace HealthCare.DTOs
         public List<string> ThietBi { get; set; } = new();
         public string TrangThai { get; set; } = "hoat_dong";
         public string? MaBacSiPhuTrach { get; set; }
+        public string? MaKTVPhuTrach { get; set; }
     }
 
     public record class RoomSearchFilter
@@ -88,6 +92,7 @@ namespace HealthCare.DTOs
         public string? LoaiPhong { get; set;}
         public string? TrangThai { get; set;}
         public string? MaBacSiPhuTrach { get; set;}
+        public string? MaKTVPhuTrach { get; set;}
         public string? SortBy { get; set;}              // "TenPhong", ...
         public string? SortDirection { get; set;} = "asc";
 
@@ -108,6 +113,8 @@ namespace HealthCare.DTOs
 
         public string? MaBacSiPhuTrach { get; set;}
         public string? TenBacSiPhuTrach { get; set;}
+        public string? MaKTVPhuTrach { get; set;}
+        public string? TenKTVPhuTrach { get; set;}
 
         public string? DienThoai { get; set;}
         public string? Email { get; set;}
@@ -137,6 +144,8 @@ namespace HealthCare.DTOs
 
         public string? MaBacSiPhuTrach { get; set;}
         public string? TenBacSiPhuTrach { get; set;}
+        public string? MaKTVPhuTrach { get; set;}
+        public string? TenKTVPhuTrach { get; set;}
 
         public IReadOnlyList<string> ThietBi { get; set;} = Array.Empty<string>();
 
@@ -170,6 +179,8 @@ namespace HealthCare.DTOs
 
         public string? MaBacSiPhuTrach { get; set;}
         public string? TenBacSiPhuTrach { get; set;}
+        public string? MaKTVPhuTrach { get; set;}
+        public string? TenKTVPhuTrach { get; set;}
 
         public DateTime Today { get; set;}
         public IReadOnlyList<RoomDutyDayDto> LichDieuDuongTuan { get; set;} = Array.Empty<RoomDutyDayDto>();
@@ -239,6 +250,7 @@ namespace HealthCare.DTOs
         public string? MaKhoa { get; set;}
         public string? VaiTro { get; set;}             // bac_si, y_ta
         public string? TrangThaiCongTac { get; set;}   // dang_cong_tac, tam_nghi...
+        public string? LoaiYTa { get; set;}             // hanhchinh, ls, cls
         public string? MaPhongPhuTrach { get; set;}
 
         public string? SortBy { get; set;}             // "HoTen", ...
@@ -273,10 +285,13 @@ namespace HealthCare.DTOs
         // Phòng/bàn hôm nay (kèm chip "Phòng hôm nay")
         public string? MaPhongHomNay { get; set;}
         public string? TenPhongHomNay { get; set;}
+        public string? MaPhongPhuTrach { get; set;}
+        public string? TenPhongPhuTrach { get; set;}
 
         // BS: số lịch hẹn hôm nay; YT: số ca trực tuần này
         public int SoLichHenHomNay { get; set;}
         public int SoCaTrucTuanNay { get; set;}
+        public int SoCaLamClsHomNay { get; set;}
     }
 
     /// <summary>
@@ -307,10 +322,13 @@ namespace HealthCare.DTOs
         // Thống kê nhanh
         public int? SoLichHenHomNay { get; set;}              // bác sĩ
         public int? SoCaTrucTuanNay { get; set;}              // y tá
+        public int? SoCaLamClsHomNay { get; set;}             // kỹ thuật viên
 
         // Phòng / bàn trực hôm nay
         public string? MaPhongHoacBanHomNay { get; set;}
         public string? TenPhongHoacBanHomNay { get; set;}
+        public string? MaPhongPhuTrach { get; set;}
+        public string? TenPhongPhuTrach { get; set;}
 
         // Kỹ năng (chips)
         public IReadOnlyList<string> KyNang { get; set;} = Array.Empty<string>();
@@ -475,6 +493,8 @@ namespace HealthCare.DTOs
 
         public string MaBacSi { get; set;} = default!;
         public string TenBacSi { get; set;} = default!;
+        public string MaKTVPhuTrach { get; set;} = default!;
+        public string TenKTVPhuTrach { get; set;} = default!;
 
         public string TenDichVu { get; set;} = default!;
         public string LoaiDichVu { get; set;} = default!;   // kham_lam_sang, can_lam_sang, ...

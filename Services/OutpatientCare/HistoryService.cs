@@ -32,6 +32,12 @@ namespace HealthCare.Services.OutpatientCare
         private readonly IClinicalService _clinical = clinical;
         private readonly IPharmacyService _pharmacy = pharmacy;
 
+        private static bool IsClsRoomType(string? loaiPhong)
+        {
+            var value = (loaiPhong ?? string.Empty).Trim().ToLowerInvariant();
+            return value is "phong_dich_vu" or "phong_cls";
+        }
+
         // ==================== LIST LỊCH SỬ KHÁM (TAB "KHÁM BỆNH") ====================
 
         public async Task<PagedResult<HistoryVisitRecordDto>> LayLichSuAsync(HistoryFilterRequest filter)
@@ -93,7 +99,7 @@ namespace HealthCare.Services.OutpatientCare
             if (laCls.HasValue)
             {
                 q = q.Where(l =>
-                    (l.HangDoi.Phong.LoaiPhong == "phong_dich_vu") == laCls.Value);
+                    IsClsRoomType(l.HangDoi.Phong.LoaiPhong) == laCls.Value);
             }
 
             // ----- keyword toàn văn -----
@@ -180,7 +186,7 @@ namespace HealthCare.Services.OutpatientCare
             var phieuCls = phieuLs?.PhieuKhamCanLamSang;
             var phieuTongHop = phieuLs?.PhieuTongHopKetQua ?? phieuCls?.PhieuTongHopKetQua;
 
-            bool laDichVu = phong.LoaiPhong == "phong_dich_vu";
+            bool laDichVu = IsClsRoomType(phong.LoaiPhong);
 
             // Exam rows (tóm tắt khám)
             var examRows = new List<HistoryExamRowDto>();
@@ -318,11 +324,7 @@ namespace HealthCare.Services.OutpatientCare
             var maBenhNhan = hangDoi.MaBenhNhan;
 
             // Phân biệt khám LS vs CLS theo loại phòng
-            var laPhongDichVu = string.Equals(
-                hangDoi.Phong.LoaiPhong,
-                "phong_dich_vu",
-                StringComparison.OrdinalIgnoreCase
-            );
+            var laPhongDichVu = IsClsRoomType(hangDoi.Phong.LoaiPhong);
 
             // Suy ra LoaiLuot: prefer request -> nhan -> theo loai phong
             string NormalizeLoaiLuot(string? value)
@@ -616,7 +618,7 @@ l.GioKetThuc >= gio)
             var phieuCls = phieuLs?.PhieuKhamCanLamSang;
             var phieuTongHop = phieuLs?.PhieuTongHopKetQua ?? phieuCls?.PhieuTongHopKetQua;
 
-            bool laDichVu = phong.LoaiPhong == "phong_dich_vu";
+            bool laDichVu = IsClsRoomType(phong.LoaiPhong);
             string loaiLuot = laDichVu ? "can_lam_sang" : "kham_lam_sang";
 
             string? note = pcd?.ChanDoanCuoi

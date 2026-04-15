@@ -79,6 +79,63 @@ namespace HealthCare.Services.OutpatientCare
             return parts.Count == 0 ? null : string.Join(" | ", parts);
         }
 
+        private sealed record StaffDutyInfo(
+            string? MaNhanSu,
+            string? TenNhanSu,
+            string? VaiTro,
+            string? ChucVu);
+
+        private sealed record ClsExecutionInfo(
+            string? MaNhanSuThucHien,
+            string? TenNhanSuThucHien,
+            string? VaiTro,
+            string? ChucVu,
+            DateTime? ThoiGianBatDau,
+            DateTime? ThoiGianKetThuc);
+
+        private static bool IsTechnicianRole(string? vaiTro, string? chucVu) =>
+            string.Equals(vaiTro, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(chucVu, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase);
+
+        private static LichTruc? SelectBestDuty(IEnumerable<LichTruc> schedules, DateTime at)
+        {
+            var list = schedules
+                .Where(l => !l.NghiTruc)
+                .ToList();
+
+            if (list.Count == 0)
+                return null;
+
+            var ngay = at.Date;
+            var gio = at.TimeOfDay;
+
+            var sameDay = list
+                .Where(l => l.Ngay.Date == ngay)
+                .ToList();
+
+            var active = sameDay
+                .Where(l => l.GioBatDau <= gio && l.GioKetThuc >= gio)
+                .OrderBy(l => l.GioBatDau)
+                .FirstOrDefault();
+
+            if (active is not null)
+                return active;
+
+            var nearestSameDay = sameDay
+                .OrderBy(l => Math.Abs((l.GioBatDau - gio).TotalMinutes))
+                .ThenBy(l => l.GioBatDau)
+                .FirstOrDefault();
+
+            if (nearestSameDay is not null)
+                return nearestSameDay;
+
+            return list
+                .OrderBy(l => Math.Abs((l.Ngay.Date.Add(l.GioBatDau) - at).TotalMinutes))
+                .ThenByDescending(l => l.Ngay)
+                .ThenBy(l => l.GioBatDau)
+                .FirstOrDefault();
+        }
+
         private async Task<IReadOnlyList<ClsItemDto>> MapClsItemsAsync(
             IEnumerable<ChiTietDichVu> chiTietList,
             DateTime? thoiDiem = null)
@@ -97,27 +154,148 @@ namespace HealthCare.Services.OutpatientCare
                 .Select(mp => mp!)
                 .Distinct()
                 .ToList();
+            var fixedStaffByPhong = maPhongs.Count == 0
+                ? new Dictionary<string, StaffDutyInfo>()
+                : await _db.Phongs
+                    .AsNoTracking()
+                    .Include(p => p.KTVPhuTrach)
+                    .Where(p => maPhongs.Contains(p.MaPhong) && p.MaKTVPhuTrach != null)
+                    .ToDictionaryAsync(
+                        p => p.MaPhong,
+                        p => new StaffDutyInfo(
+                            p.MaKTVPhuTrach,
+                            p.KTVPhuTrach != null ? p.KTVPhuTrach.HoTen : null,
+                            p.KTVPhuTrach != null ? p.KTVPhuTrach.VaiTro : null,
+                            p.KTVPhuTrach != null ? p.KTVPhuTrach.ChucVu : null));
 
-            var lichTrucs = maPhongs.Count == 0
-                ? new List<LichTruc>()
-                : await _db.LichTrucs
+            List<LichTruc> lichTrucs = new();
+            if (maPhongs.Count > 0)
+            {
+                var sameDayLichTrucs = await _db.LichTrucs
                     .AsNoTracking()
                     .Include(l => l.YTaTruc)
                     .Where(l =>
                         maPhongs.Contains(l.MaPhong) &&
                         !l.NghiTruc &&
-                        l.Ngay == ngay &&
-                        l.GioBatDau <= gio &&
-                        l.GioKetThuc >= gio)
+                        l.Ngay == ngay)
                     .ToListAsync();
 
-            var ytaByPhong = lichTrucs
+                var missingPhongIds = maPhongs
+                    .Except(sameDayLichTrucs.Select(l => l.MaPhong))
+                    .ToList();
+
+                var fallbackLichTrucs = missingPhongIds.Count == 0
+                    ? new List<LichTruc>()
+                    : await _db.LichTrucs
+                        .AsNoTracking()
+                        .Include(l => l.YTaTruc)
+                        .Where(l =>
+                            missingPhongIds.Contains(l.MaPhong) &&
+                            !l.NghiTruc)
+                        .ToListAsync();
+
+                lichTrucs = sameDayLichTrucs
+                    .Concat(fallbackLichTrucs)
+                    .ToList();
+            }
+
+            var dutyByPhong = lichTrucs
                 .GroupBy(l => l.MaPhong)
                 .ToDictionary(
                     g => g.Key,
-                    g => g.OrderBy(l => l.GioBatDau).First());
+                    g =>
+                    {
+                        var lich = SelectBestDuty(g, now)!;
+                        return new StaffDutyInfo(
+                            lich.MaYTaTruc,
+                            lich.YTaTruc?.HoTen,
+                            lich.YTaTruc?.VaiTro,
+                            lich.YTaTruc?.ChucVu);
+                    });
 
-            return list.Select(ct => MapClsItem(ct, ytaByPhong)).ToList();
+            var maChiTietDvs = list
+                .Select(ct => ct.MaChiTietDv)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct()
+                .ToList();
+
+            var queueRefs = maChiTietDvs.Count == 0
+                ? new List<(string MaChiTietDv, string MaHangDoi)>()
+                : (await _db.HangDois
+                    .AsNoTracking()
+                    .Where(h => h.MaChiTietDv != null && maChiTietDvs.Contains(h.MaChiTietDv))
+                    .Select(h => new
+                    {
+                        MaChiTietDv = h.MaChiTietDv!,
+                        h.MaHangDoi
+                    })
+                    .ToListAsync())
+                    .Select(x => (x.MaChiTietDv, x.MaHangDoi))
+                    .ToList();
+
+            var queueByChiTietDv = queueRefs
+                .GroupBy(x => x.MaChiTietDv)
+                .ToDictionary(g => g.Key, g => g.First().MaHangDoi);
+
+            var maHangDois = queueByChiTietDv.Values
+                .Distinct()
+                .ToList();
+
+            List<(string MaHangDoi, string? MaNhanSu, string? TenNhanSu, string? VaiTro, string? ChucVu, DateTime? BatDau, DateTime? KetThuc)> clsVisits;
+            if (maHangDois.Count == 0)
+            {
+                clsVisits = new();
+            }
+            else
+            {
+                clsVisits = (await _db.LuotKhamBenhs
+                    .AsNoTracking()
+                    .Where(l => maHangDois.Contains(l.MaHangDoi))
+                    .OrderByDescending(l => l.NgayCapNhat)
+                    .ThenByDescending(l => l.NgayTao)
+                    .Select(l => new
+                    {
+                        l.MaHangDoi,
+                        MaNhanSu = l.MaNhanSuThucHien,
+                        TenNhanSu = l.NhanSuThucHien != null ? l.NhanSuThucHien.HoTen : null,
+                        VaiTro = l.NhanSuThucHien != null ? l.NhanSuThucHien.VaiTro : null,
+                        ChucVu = l.NhanSuThucHien != null ? l.NhanSuThucHien.ChucVu : null,
+                        BatDau = l.ThoiGianBatDau,
+                        KetThuc = l.ThoiGianKetThuc
+                    })
+                    .ToListAsync())
+                    .Select(x => (
+                        MaHangDoi: x.MaHangDoi,
+                        MaNhanSu: (string?)x.MaNhanSu,
+                        TenNhanSu: (string?)x.TenNhanSu,
+                        VaiTro: (string?)x.VaiTro,
+                        ChucVu: (string?)x.ChucVu,
+                        BatDau: (DateTime?)x.BatDau,
+                        KetThuc: x.KetThuc))
+                    .ToList();
+            }
+
+            var visitByQueue = clsVisits
+                .GroupBy(x => x.MaHangDoi)
+                .ToDictionary(
+                    g => g.Key,
+                    g =>
+                    {
+                        var luot = g.First();
+                        return new ClsExecutionInfo(
+                            luot.MaNhanSu,
+                            luot.TenNhanSu,
+                            luot.VaiTro,
+                            luot.ChucVu,
+                            luot.BatDau,
+                            luot.KetThuc);
+                    });
+
+            var executionByChiTietDv = queueByChiTietDv
+                .Where(kv => visitByQueue.ContainsKey(kv.Value))
+                .ToDictionary(kv => kv.Key, kv => visitByQueue[kv.Value]);
+
+            return list.Select(ct => MapClsItem(ct, fixedStaffByPhong, dutyByPhong, executionByChiTietDv)).ToList();
         }
 
         private async Task<ClsItemDto> MapClsItemAsync(ChiTietDichVu c, DateTime? thoiDiem = null)
@@ -128,7 +306,9 @@ namespace HealthCare.Services.OutpatientCare
 
         private static ClsItemDto MapClsItem(
             ChiTietDichVu c,
-            IDictionary<string, LichTruc> ytaByPhong)
+            IDictionary<string, StaffDutyInfo> fixedStaffByPhong,
+            IDictionary<string, StaffDutyInfo> dutyByPhong,
+            IDictionary<string, ClsExecutionInfo> executionByChiTietDv)
         {
             var dv = c.DichVuYTe;
             var trangThai = c.TrangThai?.ToLowerInvariant();
@@ -140,7 +320,16 @@ namespace HealthCare.Services.OutpatientCare
             };
 
             var maPhong = dv?.MaPhongThucHien ?? "";
-            ytaByPhong.TryGetValue(maPhong, out var lichYTa);
+            fixedStaffByPhong.TryGetValue(maPhong, out var fixedStaff);
+            dutyByPhong.TryGetValue(maPhong, out var duty);
+            executionByChiTietDv.TryGetValue(c.MaChiTietDv, out var execution);
+
+            var maNhanSu = execution?.MaNhanSuThucHien ?? fixedStaff?.MaNhanSu ?? duty?.MaNhanSu;
+            var tenNhanSu = execution?.TenNhanSuThucHien ?? fixedStaff?.TenNhanSu ?? duty?.TenNhanSu;
+            var vaiTro = execution?.VaiTro ?? fixedStaff?.VaiTro ?? duty?.VaiTro;
+            var chucVu = execution?.ChucVu ?? fixedStaff?.ChucVu ?? duty?.ChucVu;
+            var maKyThuatVien = IsTechnicianRole(vaiTro, chucVu) ? maNhanSu : null;
+            var tenKyThuatVien = IsTechnicianRole(vaiTro, chucVu) ? tenNhanSu : null;
 
             return new ClsItemDto
             {
@@ -152,8 +341,14 @@ namespace HealthCare.Services.OutpatientCare
                 PhiDV = dv?.DonGia.ToString("0") ?? "0",
                 MaPhong = maPhong,
                 TenPhong = dv?.PhongThucHien?.TenPhong ?? "",
-                MaYTaThucHien = lichYTa?.MaYTaTruc,
-                TenYTaThucHien = lichYTa?.YTaTruc?.HoTen,
+                MaNhanSuThucHien = maNhanSu,
+                TenNhanSuThucHien = tenNhanSu,
+                MaKyThuatVienThucHien = maKyThuatVien,
+                TenKyThuatVienThucHien = tenKyThuatVien,
+                MaYTaThucHien = maNhanSu,
+                TenYTaThucHien = tenNhanSu,
+                ThoiGianBatDau = execution?.ThoiGianBatDau,
+                ThoiGianKetThuc = execution?.ThoiGianKetThuc,
                 GhiChu = c.GhiChu,
                 TrangThai = statusNormalized
             };
@@ -167,8 +362,11 @@ namespace HealthCare.Services.OutpatientCare
                            on cls.MaPhieuKhamLs equals ls.MaPhieuKham
                        join bn in _db.BenhNhans.AsNoTracking()
                            on ls.MaBenhNhan equals bn.MaBenhNhan
+                       join nguoiLap in _db.NhanVienYTes.AsNoTracking()
+                           on ls.MaNguoiLap equals nguoiLap.MaNhanVien into nguoiLapGroup
+                       from nguoiLap in nguoiLapGroup.DefaultIfEmpty()
                        where cls.MaPhieuKhamCls == maPhieuKhamCls
-                       select new { cls, ls, bn })
+                       select new { cls, ls, bn, nguoiLap })
                 .FirstOrDefaultAsync();
 
             if (row is null) return null;
@@ -177,9 +375,11 @@ namespace HealthCare.Services.OutpatientCare
                 .AsNoTracking()
                 .Where(c => c.MaPhieuKhamCls == maPhieuKhamCls)
                 .Include(c => c.DichVuYTe)
+                    .ThenInclude(dv => dv.PhongThucHien)
+                        .ThenInclude(p => p.KhoaChuyenMon)
                 .ToListAsync();
 
-            var itemDtos = await MapClsItemsAsync(chiTietList);
+            var itemDtos = await MapClsItemsAsync(chiTietList, row.cls.NgayGioLap);
 
             var firstDv = chiTietList.FirstOrDefault()?.DichVuYTe;
 
@@ -203,11 +403,11 @@ namespace HealthCare.Services.OutpatientCare
                 NgayLap = row.cls.NgayGioLap,
                 GioLap = row.cls.NgayGioLap.TimeOfDay,
 
-                MaKhoa = "",
-                TenKhoa = null,
+                MaKhoa = firstDv?.PhongThucHien?.MaKhoa ?? "",
+                TenKhoa = firstDv?.PhongThucHien?.KhoaChuyenMon?.TenKhoa,
 
                 MaNguoiLap = row.ls.MaNguoiLap,
-                TenNguoiLap = null,
+                TenNguoiLap = row.nguoiLap?.HoTen,
 
                 ThongTinChiTiet = BuildThongTinChiTiet(row.bn),
                 ListItemDV = itemDtos
@@ -390,11 +590,12 @@ namespace HealthCare.Services.OutpatientCare
                 var maBenhNhan2 = phieu.PhieuKhamLamSang?.MaBenhNhan;
                 var firstCt = phieu.ChiTietDichVus.FirstOrDefault();
 
-                if (!string.IsNullOrWhiteSpace(maBenhNhan2))
+                var benhNhan = phieu.PhieuKhamLamSang?.BenhNhan;
+                if (benhNhan is not null)
                 {
-                    await _patients.CapNhatTrangThaiBenhNhanAsync(
-                        maBenhNhan2,
-                        new PatientStatusUpdateRequest { TrangThaiHomNay = "cho_kham_dv" });
+                    benhNhan.TrangThaiHomNay = "cho_kham_dv";
+                    benhNhan.NgayTrangThai = DateTime.Today;
+                    await _db.SaveChangesAsync();
                 }
 
                 if (firstCt is not null)
@@ -430,6 +631,24 @@ namespace HealthCare.Services.OutpatientCare
 
                 if (dto is not null)
                 {
+                    var benhNhanForBroadcast = phieu.PhieuKhamLamSang?.BenhNhan;
+                    if (benhNhanForBroadcast is not null)
+                    {
+                        await _realtime.BroadcastPatientStatusUpdatedAsync(new PatientDto
+                        {
+                            MaBenhNhan = benhNhanForBroadcast.MaBenhNhan,
+                            HoTen = benhNhanForBroadcast.HoTen,
+                            NgaySinh = benhNhanForBroadcast.NgaySinh,
+                            GioiTinh = benhNhanForBroadcast.GioiTinh,
+                            DienThoai = benhNhanForBroadcast.DienThoai,
+                            Email = benhNhanForBroadcast.Email,
+                            DiaChi = benhNhanForBroadcast.DiaChi,
+                            TrangThaiTaiKhoan = benhNhanForBroadcast.TrangThaiTaiKhoan,
+                            TrangThaiHomNay = benhNhanForBroadcast.TrangThaiHomNay,
+                            NgayTrangThai = benhNhanForBroadcast.NgayTrangThai
+                        });
+                    }
+
                     await _realtime.BroadcastClsOrderStatusUpdatedAsync(dto);
                     var dashboard = await _dashboard.LayDashboardHomNayAsync();
                     await _realtime.BroadcastDashboardTodayAsync(dashboard);
@@ -490,7 +709,10 @@ namespace HealthCare.Services.OutpatientCare
                     on cls.MaPhieuKhamLs equals ls.MaPhieuKham
                 join bn in _db.BenhNhans.AsNoTracking()
                     on ls.MaBenhNhan equals bn.MaBenhNhan
-                select new { cls, ls, bn };
+                join nguoiLap in _db.NhanVienYTes.AsNoTracking()
+                    on ls.MaNguoiLap equals nguoiLap.MaNhanVien into nguoiLapGroup
+                from nguoiLap in nguoiLapGroup.DefaultIfEmpty()
+                select new { cls, ls, bn, nguoiLap };
 
             if (!string.IsNullOrWhiteSpace(maBenhNhan))
                 query = query.Where(x => x.bn.MaBenhNhan == maBenhNhan);
@@ -542,6 +764,8 @@ namespace HealthCare.Services.OutpatientCare
                 .AsNoTracking()
                 .Where(c => maClsList.Contains(c.MaPhieuKhamCls))
                 .Include(c => c.DichVuYTe)
+                    .ThenInclude(dv => dv.PhongThucHien)
+                        .ThenInclude(p => p.KhoaChuyenMon)
                 .GroupBy(c => c.MaPhieuKhamCls)
                 .ToDictionaryAsync(g => g.Key, g => g.ToList());
 
@@ -550,7 +774,7 @@ namespace HealthCare.Services.OutpatientCare
             foreach (var row in pageData)
             {
                 itemsByHeader.TryGetValue(row.cls.MaPhieuKhamCls, out var list);
-                var itemDtos = await MapClsItemsAsync(list ?? new List<ChiTietDichVu>());
+                var itemDtos = await MapClsItemsAsync(list ?? new List<ChiTietDichVu>(), row.cls.NgayGioLap);
 
                 var firstDv = (list ?? new List<ChiTietDichVu>())
                     .FirstOrDefault()?.DichVuYTe;
@@ -575,11 +799,11 @@ namespace HealthCare.Services.OutpatientCare
                     NgayLap = row.cls.NgayGioLap,
                     GioLap = row.cls.NgayGioLap.TimeOfDay,
 
-                    MaKhoa = "",
-                    TenKhoa = null,
+                    MaKhoa = firstDv?.PhongThucHien?.MaKhoa ?? "",
+                    TenKhoa = firstDv?.PhongThucHien?.KhoaChuyenMon?.TenKhoa,
 
                     MaNguoiLap = row.ls.MaNguoiLap,
-                    TenNguoiLap = null,
+                    TenNguoiLap = row.nguoiLap?.HoTen,
 
                     ThongTinChiTiet = BuildThongTinChiTiet(row.bn),
                     ListItemDV = itemDtos

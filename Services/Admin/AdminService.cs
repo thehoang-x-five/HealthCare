@@ -40,6 +40,11 @@ namespace HealthCare.Services.Admin
             if (!string.IsNullOrWhiteSpace(filter.MaKhoa))
                 query = query.Where(n => n.MaKhoa == filter.MaKhoa);
 
+            if (!string.IsNullOrWhiteSpace(filter.LoaiYTa))
+            {
+                var loai = filter.LoaiYTa.Trim().ToLower();
+                query = query.Where(n => n.LoaiYTa != null && n.LoaiYTa.ToLower() == loai);
+            }
             var total = await query.CountAsync();
 
             var items = await query

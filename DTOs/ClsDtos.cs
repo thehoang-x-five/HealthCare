@@ -92,9 +92,15 @@ namespace HealthCare.DTOs
         public string TenDichVu { get; set;} = default!;
         public string MaPhong { get; set;} = default!;
         public string? TenPhong { get; set;}
+        public string? MaNhanSuThucHien { get; set;}
+        public string? TenNhanSuThucHien { get; set;}
+        public string? MaKyThuatVienThucHien { get; set;}
+        public string? TenKyThuatVienThucHien { get; set;}
         /// <summary>Y t  tr?c ph•ng CLS th?c hi?n d?ch v? (l?y t? lich_truc).</summary>
         public string? MaYTaThucHien { get; set;}
         public string? TenYTaThucHien { get; set;}
+        public DateTime? ThoiGianBatDau { get; set;}
+        public DateTime? ThoiGianKetThuc { get; set;}
         /// <summary>cls,...</summary>
         public string LoaiDichVu { get; set;} = default!;
         /// <summary>Phí DV — theo API doc là string (hiển thị), không phải decimal.</summary>

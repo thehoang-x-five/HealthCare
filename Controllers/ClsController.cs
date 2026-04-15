@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using HealthCare.Attributes;
 using HealthCare.Datas;
@@ -42,18 +43,48 @@ namespace HealthCare.Controllers
         }
 
         [HttpPut("orders/{maPhieuKhamCls}/status")]
-        [RequireRole("ky_thuat_vien", "y_ta")]
-        [RequireNurseType("can_lam_sang")]
+        [RequireRole("admin", "ky_thuat_vien", "y_ta")]
         public async Task<ActionResult<ClsOrderDto>> CapNhatTrangThaiPhieu(
-            string maPhieuKhamCls,
-            [FromBody] string trangThai)
+            string maPhieuKhamCls)
         {
             try
             {
+                var trangThai = Request.Query["trangThai"].ToString();
+                if (string.IsNullOrWhiteSpace(trangThai) && Request.ContentLength > 0)
+                {
+                    Request.EnableBuffering();
+                    using var reader = new StreamReader(Request.Body, leaveOpen: true);
+                    trangThai = (await reader.ReadToEndAsync()).Trim().Trim('"');
+                    Request.Body.Position = 0;
+                }
+
+                if (string.IsNullOrWhiteSpace(trangThai))
+                    return BadRequest("TrangThai là bắt buộc");
+
                 if (!await CanAccessOrderAsync(maPhieuKhamCls))
                     return Forbid();
 
-                var result = await _service.CapNhatTrangThaiPhieuClsAsync(maPhieuKhamCls, trangThai);
+                var currentStatus = await _db.PhieuKhamCanLamSangs
+                    .AsNoTracking()
+                    .Where(p => p.MaPhieuKhamCls == maPhieuKhamCls)
+                    .Select(p => p.TrangThai)
+                    .FirstOrDefaultAsync();
+
+                if (currentStatus is null)
+                    return NotFound();
+
+                var scope = User.GetUserScope();
+                var normalizedStatus = NormalizeStatus(trangThai);
+
+                if (!CanUpdateOrderStatus(scope, currentStatus, normalizedStatus))
+                {
+                    return StatusCode(403, new
+                    {
+                        message = BuildStatusPermissionMessage(scope, currentStatus, normalizedStatus)
+                    });
+                }
+
+                var result = await _service.CapNhatTrangThaiPhieuClsAsync(maPhieuKhamCls, normalizedStatus);
                 if (result is null) return NotFound();
                 return Ok(result);
             }
@@ -340,6 +371,49 @@ namespace HealthCare.Controllers
             }
 
             return false;
+        }
+
+        private static string NormalizeStatus(string? status)
+        {
+            return (status ?? string.Empty).Trim().ToLowerInvariant();
+        }
+
+        private static bool CanUpdateOrderStatus(
+            UserScopeContext scope,
+            string? currentStatus,
+            string targetStatus)
+        {
+            var current = NormalizeStatus(currentStatus);
+
+            if (scope.IsManagement || scope.IsClsRole)
+                return true;
+
+            if (scope.IsReceptionNurse)
+            {
+                return current == "da_lap" && targetStatus == "dang_thuc_hien";
+            }
+
+            return false;
+        }
+
+        private static string BuildStatusPermissionMessage(
+            UserScopeContext scope,
+            string? currentStatus,
+            string targetStatus)
+        {
+            var current = NormalizeStatus(currentStatus);
+
+            if (scope.IsReceptionNurse)
+            {
+                return "Y tá hành chính chỉ được tiếp nhận phiếu CLS ở bước 'Đã lập' sang 'Đang thực hiện'.";
+            }
+
+            if (scope.IsClinicalCareRole)
+            {
+                return $"Vai trò hiện tại không được đổi trạng thái phiếu CLS từ '{current}' sang '{targetStatus}'.";
+            }
+
+            return "Bạn không có quyền cập nhật trạng thái phiếu CLS.";
         }
     }
 }

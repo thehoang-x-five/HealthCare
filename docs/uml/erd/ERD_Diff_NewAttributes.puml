@@ -17,6 +17,7 @@ package "01_DuLieuNen" #E0F2FE {
   }
   
   class Phong {
+    + MaKTVPhuTrach : VARCHAR(20)
     + NgayTao : DATETIME
     + NgayCapNhat : DATETIME
   }
@@ -163,6 +164,13 @@ end note
 note bottom of ThongBaoMau
   Templating cho thong bao
   (Dynamic Content)
+end note
+
+note right of Phong
+  New in 2026-04:
+  - them MaKTVPhuTrach
+  - dung cho phong CLS co KTV co dinh 1-1
+  - phong LS van dung MaBacSiPhuTrach
 end note
 
 note as RemovedFields #FEE2E2

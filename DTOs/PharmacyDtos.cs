@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace HealthCare.DTOs
@@ -95,6 +95,12 @@ namespace HealthCare.DTOs
 
   
         public string? MaPhieuChanDoanCuoi { get; set; }
+
+        /// <summary>Mã phiếu khám LS — dùng để link về lượt khám</summary>
+        public string? MaPhieuKham { get; set; }
+
+        /// <summary>Mã lượt khám — dùng để highlight dòng lịch sử trên trang History</summary>
+        public string? MaLuotKham { get; set; }
 
         public string? ChanDoan { get; set; }
 

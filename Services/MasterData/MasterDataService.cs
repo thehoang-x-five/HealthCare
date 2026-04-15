@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -409,7 +409,11 @@ namespace HealthCare.Services.MasterData
             string? maKhoa = null,
             string? loaiPhong = null)
         {
-            var query = _db.Phongs.AsNoTracking().AsQueryable();
+            var query = _db.Phongs
+                .AsNoTracking()
+                .Include(p => p.BacSiPhuTrach)
+                .Include(p => p.KTVPhuTrach)
+                .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(maKhoa))
             {
@@ -419,8 +423,7 @@ namespace HealthCare.Services.MasterData
 
             if (!string.IsNullOrWhiteSpace(loaiPhong))
             {
-                var lp = loaiPhong.Trim();
-                query = query.Where(p => p.LoaiPhong == lp);
+                query = ApplyRoomTypeFilter(query, loaiPhong);
             }
 
             query = query.OrderBy(p => p.TenPhong);
@@ -451,8 +454,7 @@ namespace HealthCare.Services.MasterData
 
             if (!string.IsNullOrWhiteSpace(filter.LoaiPhong))
             {
-                var lp = filter.LoaiPhong.Trim();
-                query = query.Where(p => p.LoaiPhong == lp);
+                query = ApplyRoomTypeFilter(query, filter.LoaiPhong);
             }
 
             if (!string.IsNullOrWhiteSpace(filter.TrangThai))
@@ -464,6 +466,11 @@ namespace HealthCare.Services.MasterData
             {
                 var mns = filter.MaBacSiPhuTrach.Trim();
                 query = query.Where(p => p.MaBacSiPhuTrach == mns);
+            }
+            if (!string.IsNullOrWhiteSpace(filter.MaKTVPhuTrach))
+            {
+                var mns = filter.MaKTVPhuTrach.Trim();
+                query = query.Where(p => p.MaKTVPhuTrach == mns);
             }
             var sortBy = (filter.SortBy ?? "TenPhong").ToLowerInvariant();
             var sortDir = (filter.SortDirection ?? "asc").ToLowerInvariant();
@@ -522,8 +529,7 @@ namespace HealthCare.Services.MasterData
 
             if (!string.IsNullOrWhiteSpace(filter.LoaiPhong))
             {
-                var lp = filter.LoaiPhong.Trim();
-                query = query.Where(p => p.LoaiPhong == lp);
+                query = ApplyRoomTypeFilter(query, filter.LoaiPhong);
             }
 
             if (!string.IsNullOrWhiteSpace(filter.TrangThai))
@@ -576,6 +582,11 @@ namespace HealthCare.Services.MasterData
                 .Where(m => !string.IsNullOrEmpty(m))
                 .Distinct()
                 .ToList();
+            var maKtvs = list
+                .Select(p => p.MaKTVPhuTrach)
+                .Where(m => !string.IsNullOrEmpty(m))
+                .Distinct()
+                .ToList();
 
             // Tên khoa
             var dictKhoa = await _db.KhoaChuyenMons
@@ -587,6 +598,10 @@ namespace HealthCare.Services.MasterData
             var dictBacSi = await _db.NhanVienYTes
                 .AsNoTracking()
                 .Where(nv => maBacSis.Contains(nv.MaNhanVien))
+                .ToDictionaryAsync(nv => nv.MaNhanVien, nv => nv.HoTen);
+            var dictKtv = await _db.NhanVienYTes
+                .AsNoTracking()
+                .Where(nv => maKtvs.Contains(nv.MaNhanVien))
                 .ToDictionaryAsync(nv => nv.MaNhanVien, nv => nv.HoTen);
 
             // ====== Hàng chờ (Đang chờ khám – lấy theo Hàng đợi) ======
@@ -650,6 +665,13 @@ namespace HealthCare.Services.MasterData
                     tenBacSi = tenBs;
                 }
 
+                string? tenKtv = null;
+                if (!string.IsNullOrEmpty(p.MaKTVPhuTrach) &&
+                    dictKtv.TryGetValue(p.MaKTVPhuTrach!, out var tenKt))
+                {
+                    tenKtv = tenKt;
+                }
+
                 queueLookup.TryGetValue(p.MaPhong, out var qInfo);
                 visitLookup.TryGetValue(p.MaPhong, out var vInfo);
 
@@ -662,11 +684,13 @@ namespace HealthCare.Services.MasterData
                     MaPhong = p.MaPhong,
                     TenPhong = p.TenPhong,
                     TenKhoa = tenKhoa,
-                    LoaiPhong = p.LoaiPhong,
+                    LoaiPhong = NormalizeRoomTypeCode(p.LoaiPhong),
                     TrangThai = p.TrangThai,
 
                     MaBacSiPhuTrach = p.MaBacSiPhuTrach,
                     TenBacSiPhuTrach = tenBacSi,
+                    MaKTVPhuTrach = p.MaKTVPhuTrach,
+                    TenKTVPhuTrach = tenKtv,
 
                     DienThoai = p.DienThoai,
                     Email = p.Email,
@@ -723,6 +747,15 @@ namespace HealthCare.Services.MasterData
                     .Select(nv => nv.HoTen)
                     .FirstOrDefaultAsync();
             }
+            string? tenKtv = null;
+            if (!string.IsNullOrEmpty(room.MaKTVPhuTrach))
+            {
+                tenKtv = await _db.NhanVienYTes
+                    .AsNoTracking()
+                    .Where(nv => nv.MaNhanVien == room.MaKTVPhuTrach)
+                    .Select(nv => nv.HoTen)
+                    .FirstOrDefaultAsync();
+            }
 
             // ====== Hàng chờ của phòng này (Đang chờ khám) ======
             var waitingQueueStatuses = new[] { "cho_goi" };
@@ -774,7 +807,7 @@ namespace HealthCare.Services.MasterData
                 MaPhong = room.MaPhong,
                 TenPhong = room.TenPhong,
                 TenKhoa = tenKhoa,
-                LoaiPhong = room.LoaiPhong,
+                LoaiPhong = NormalizeRoomTypeCode(room.LoaiPhong),
                 TrangThai = room.TrangThai,
 
                 KhuVuc = room.ViTri,
@@ -785,6 +818,8 @@ namespace HealthCare.Services.MasterData
 
                 MaBacSiPhuTrach = room.MaBacSiPhuTrach,
                 TenBacSiPhuTrach = tenBacSi,
+                MaKTVPhuTrach = room.MaKTVPhuTrach,
+                TenKTVPhuTrach = tenKtv,
 
                 ThietBi = room.ThietBi ?? new List<string>(),
 
@@ -809,14 +844,16 @@ namespace HealthCare.Services.MasterData
                 throw new InvalidOperationException($"Phòng '{maPhong}' đã tồn tại.");
 
             await ValidateDepartmentExistsAsync(request.MaKhoa);
+            ValidateRoomRoleAssignmentsAsync(request);
             await ValidateDoctorAssignmentAsync(request.MaBacSiPhuTrach, maPhong: null);
+            await ValidateTechnicianAssignmentAsync(request.MaKTVPhuTrach, maPhong: null);
 
             var entity = new Phong
             {
                 MaPhong = maPhong,
                 TenPhong = request.TenPhong.Trim(),
                 MaKhoa = request.MaKhoa.Trim(),
-                LoaiPhong = request.LoaiPhong.Trim(),
+                LoaiPhong = NormalizeRoomTypeCode(request.LoaiPhong),
                 SucChua = request.SucChua,
                 ViTri = NormalizeOptional(request.ViTri),
                 Email = NormalizeOptional(request.Email),
@@ -825,7 +862,8 @@ namespace HealthCare.Services.MasterData
                 GioDongCua = request.GioDongCua,
                 ThietBi = request.ThietBi?.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToList() ?? new List<string>(),
                 TrangThai = string.IsNullOrWhiteSpace(request.TrangThai) ? "hoat_dong" : request.TrangThai.Trim(),
-                MaBacSiPhuTrach = NormalizeOptional(request.MaBacSiPhuTrach)
+                MaBacSiPhuTrach = NormalizeOptional(request.MaBacSiPhuTrach),
+                MaKTVPhuTrach = NormalizeOptional(request.MaKTVPhuTrach)
             };
 
             _db.Phongs.Add(entity);
@@ -846,11 +884,13 @@ namespace HealthCare.Services.MasterData
                 throw new KeyNotFoundException($"Không tìm thấy phòng '{maPhong}'.");
 
             await ValidateDepartmentExistsAsync(request.MaKhoa);
+            ValidateRoomRoleAssignmentsAsync(request);
             await ValidateDoctorAssignmentAsync(request.MaBacSiPhuTrach, maPhong);
+            await ValidateTechnicianAssignmentAsync(request.MaKTVPhuTrach, maPhong);
 
             entity.TenPhong = request.TenPhong.Trim();
             entity.MaKhoa = request.MaKhoa.Trim();
-            entity.LoaiPhong = request.LoaiPhong.Trim();
+            entity.LoaiPhong = NormalizeRoomTypeCode(request.LoaiPhong);
             entity.SucChua = request.SucChua;
             entity.ViTri = NormalizeOptional(request.ViTri);
             entity.Email = NormalizeOptional(request.Email);
@@ -860,6 +900,7 @@ namespace HealthCare.Services.MasterData
             entity.ThietBi = request.ThietBi?.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).ToList() ?? new List<string>();
             entity.TrangThai = string.IsNullOrWhiteSpace(request.TrangThai) ? entity.TrangThai : request.TrangThai.Trim();
             entity.MaBacSiPhuTrach = NormalizeOptional(request.MaBacSiPhuTrach);
+            entity.MaKTVPhuTrach = NormalizeOptional(request.MaKTVPhuTrach);
 
             await _db.SaveChangesAsync();
 
@@ -874,7 +915,7 @@ namespace HealthCare.Services.MasterData
                 MaPhong = p.MaPhong,
                 TenPhong = p.TenPhong,
                 MaKhoa = p.MaKhoa,
-                LoaiPhong = p.LoaiPhong,
+                LoaiPhong = NormalizeRoomTypeCode(p.LoaiPhong),
                 SucChua = p.SucChua,
                 ViTri = p.ViTri,
                 Email = p.Email,
@@ -883,7 +924,10 @@ namespace HealthCare.Services.MasterData
                 GioDongCua = p.GioDongCua,
                 ThietBi = p.ThietBi ?? new List<string>(),
                 TrangThai = p.TrangThai,
-                MaBacSiPhuTrach = p.MaBacSiPhuTrach
+                MaBacSiPhuTrach = p.MaBacSiPhuTrach,
+                TenBacSiPhuTrach = p.BacSiPhuTrach?.HoTen,
+                MaKTVPhuTrach = p.MaKTVPhuTrach,
+                TenKTVPhuTrach = p.KTVPhuTrach?.HoTen
             };
         }
 
@@ -978,6 +1022,32 @@ namespace HealthCare.Services.MasterData
                 throw new ArgumentException($"Không tìm thấy phòng '{normalized}'.");
         }
 
+        private async Task ValidateServiceRoomCompatibilityAsync(string? loaiDichVu, string? maPhong)
+        {
+            var normalizedRoomId = NormalizeOptional(maPhong);
+            if (normalizedRoomId == null)
+                throw new ArgumentException("MaPhong là bắt buộc.");
+
+            var room = await _db.Phongs
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.MaPhong == normalizedRoomId);
+
+            if (room == null)
+                throw new ArgumentException($"Không tìm thấy phòng '{normalizedRoomId}'.");
+
+            var serviceType = (loaiDichVu ?? string.Empty).Trim().ToLowerInvariant();
+            var roomType = NormalizeRoomTypeCode(room.LoaiPhong);
+
+            if (serviceType == "kham_lam_sang" && !IsClinicalRoomType(roomType))
+                throw new ArgumentException("Dịch vụ khám lâm sàng chỉ được gán cho phòng khám LS.");
+
+            if (serviceType == "can_lam_sang" && !IsClsRoomType(roomType))
+                throw new ArgumentException("Dịch vụ cận lâm sàng chỉ được gán cho phòng CLS / dịch vụ.");
+
+            if (serviceType == "khac" && string.Equals(roomType, "thu_ngan", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Dịch vụ không được gán cho phòng thu ngân.");
+        }
+
         private async Task ValidateDoctorAssignmentAsync(string? maBacSiPhuTrach, string? maPhong)
         {
             var doctorId = NormalizeOptional(maBacSiPhuTrach);
@@ -1000,6 +1070,145 @@ namespace HealthCare.Services.MasterData
 
             if (assignedElsewhere)
                 throw new ArgumentException($"Bác sĩ '{doctorId}' đã được gán cho phòng khác.");
+        }
+
+        private async Task ValidateTechnicianAssignmentAsync(string? maKtvPhuTrach, string? maPhong)
+        {
+            var technicianId = NormalizeOptional(maKtvPhuTrach);
+            if (technicianId == null)
+                return;
+
+            var technician = await _db.NhanVienYTes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(nv => nv.MaNhanVien == technicianId);
+
+            if (technician == null)
+                throw new ArgumentException($"Không tìm thấy kỹ thuật viên '{technicianId}'.");
+
+            if (!string.Equals(technician.VaiTro, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("MaKTVPhuTrach phải là nhân sự có vai trò kỹ thuật viên.");
+
+            var assignedElsewhere = await _db.Phongs
+                .AsNoTracking()
+                .AnyAsync(p => p.MaKTVPhuTrach == technicianId && p.MaPhong != maPhong);
+
+            if (assignedElsewhere)
+                throw new ArgumentException($"Kỹ thuật viên '{technicianId}' đã được gán cho phòng CLS khác.");
+        }
+
+        private static string NormalizeRoomTypeCode(string? loaiPhong)
+        {
+            var value = (loaiPhong ?? string.Empty).Trim().ToLowerInvariant();
+
+            return value switch
+            {
+                "phong_kham" or "phong_kham_ls" => "phong_kham_ls",
+                "phong_dich_vu" or "phong_cls" => "phong_cls",
+                _ => value
+            };
+        }
+
+        private static string NormalizeNurseTypeCode(string? loaiYTa)
+        {
+            var value = (loaiYTa ?? string.Empty).Trim().ToLowerInvariant();
+
+            return value switch
+            {
+                "ls" or "lam_sang" or "phong_kham" or "y_ta_lam_sang" => "lam_sang",
+                "cls" or "can_lam_sang" or "y_ta_can_lam_sang" => "can_lam_sang",
+                "hanhchinh" or "hanh_chinh" or "hc" or "y_ta_hanh_chinh" => "hanh_chinh",
+                _ => value
+            };
+        }
+
+        private static void ValidateRoomRoleAssignmentsAsync(RoomUpsertRequest request)
+        {
+            var loaiPhong = NormalizeRoomTypeCode(request.LoaiPhong);
+            var maBacSi = NormalizeOptional(request.MaBacSiPhuTrach);
+            var maKtv = NormalizeOptional(request.MaKTVPhuTrach);
+
+            if (IsClinicalRoomType(loaiPhong))
+            {
+                if (maBacSi == null)
+                    throw new ArgumentException("Phòng khám LS phải có MaBacSiPhuTrach.");
+                if (maKtv != null)
+                    throw new ArgumentException("Phòng khám LS không được gán MaKTVPhuTrach.");
+                return;
+            }
+
+            if (IsClsRoomType(loaiPhong))
+            {
+                if (maKtv == null)
+                    throw new ArgumentException("Phòng CLS phải có MaKTVPhuTrach.");
+                if (maBacSi != null)
+                    throw new ArgumentException("Phòng CLS không được gán MaBacSiPhuTrach.");
+                return;
+            }
+
+            if (maBacSi != null || maKtv != null)
+                throw new ArgumentException("Loại phòng hiện tại không hỗ trợ gán bác sĩ hoặc kỹ thuật viên phụ trách.");
+        }
+
+        private static bool IsClinicalRoomType(string? loaiPhong)
+        {
+            var value = NormalizeRoomTypeCode(loaiPhong);
+            return value is "phong_kham" or "phong_kham_ls";
+        }
+
+        private static bool IsClsRoomType(string? loaiPhong)
+        {
+            var value = NormalizeRoomTypeCode(loaiPhong);
+            return value is "phong_dich_vu" or "phong_cls";
+        }
+
+        private static bool CanAssignDutyStaffToRoom(Phong room, NhanVienYTe staff)
+        {
+            if (staff.TrangThaiCongTac != "dang_cong_tac" || staff.TrangThaiTaiKhoan != "hoat_dong")
+                return false;
+
+            var roomType = NormalizeRoomTypeCode(room.LoaiPhong);
+
+            if (IsClsRoomType(roomType))
+            {
+                return staff.VaiTro == "ky_thuat_vien"
+                    || (staff.VaiTro == "y_ta" && NormalizeNurseTypeCode(staff.LoaiYTa) == "can_lam_sang");
+            }
+
+            if (IsClinicalRoomType(roomType))
+            {
+                return (staff.VaiTro == "bac_si" && room.MaBacSiPhuTrach == staff.MaNhanVien)
+                    || (staff.VaiTro == "y_ta" && NormalizeNurseTypeCode(staff.LoaiYTa) == "lam_sang");
+            }
+
+            return false;
+        }
+
+        private static string GetRoomDutyRoleHint(Phong room)
+        {
+            var roomType = NormalizeRoomTypeCode(room.LoaiPhong);
+
+            if (IsClsRoomType(roomType))
+                return "Phòng CLS chỉ cho phép kỹ thuật viên hoặc y tá cận lâm sàng trực.";
+
+            if (IsClinicalRoomType(roomType))
+                return "Phòng khám LS chỉ cho phép bác sĩ phụ trách hoặc y tá lâm sàng trực.";
+
+            return "Loại phòng hiện tại không hỗ trợ phân công lịch trực.";
+        }
+
+        private static IQueryable<Phong> ApplyRoomTypeFilter(IQueryable<Phong> query, string? loaiPhong)
+        {
+            var value = NormalizeRoomTypeCode(loaiPhong);
+            if (string.IsNullOrWhiteSpace(value))
+                return query;
+
+            if (value is "ls" or "clinical" or "phong_kham" or "phong_kham_ls")
+                return query.Where(p => p.LoaiPhong == "phong_kham" || p.LoaiPhong == "phong_kham_ls");
+
+            if (value is "cls" or "can_lam_sang" or "paraclinical" or "phong_cls" or "phong_dich_vu")
+                return query.Where(p => p.LoaiPhong == "phong_cls" || p.LoaiPhong == "phong_dich_vu");
+
+            return query.Where(p => p.LoaiPhong == value);
         }
 
         private static string? NormalizeOptional(string? value)
@@ -1054,6 +1263,15 @@ namespace HealthCare.Services.MasterData
                     .Select(nv => nv.HoTen)
                     .FirstOrDefaultAsync();
             }
+            string? tenKtv = null;
+            if (!string.IsNullOrEmpty(room.MaKTVPhuTrach))
+            {
+                tenKtv = await _db.NhanVienYTes
+                    .AsNoTracking()
+                    .Where(nv => nv.MaNhanVien == room.MaKTVPhuTrach)
+                    .Select(nv => nv.HoTen)
+                    .FirstOrDefaultAsync();
+            }
 
             var items = lichTrucs
                 .OrderBy(l => l.Ngay)
@@ -1082,6 +1300,8 @@ namespace HealthCare.Services.MasterData
                 TenKhoa = room.KhoaChuyenMon?.TenKhoa,
                 MaBacSiPhuTrach = room.MaBacSiPhuTrach,
                 TenBacSiPhuTrach = tenBacSi,
+                MaKTVPhuTrach = room.MaKTVPhuTrach,
+                TenKTVPhuTrach = tenKtv,
                 Today = current,
                 LichDieuDuongTuan = items
             };
@@ -1148,17 +1368,25 @@ namespace HealthCare.Services.MasterData
                 if (invalidStaffIds.Count > 0)
                     throw new InvalidOperationException($"Không tìm thấy nhân sự: {string.Join(", ", invalidStaffIds)}.");
 
-                var invalidAssignments = validStaff
+                var inactiveAssignments = validStaff
                     .Where(nv =>
-                        (nv.VaiTro != "y_ta" && nv.VaiTro != "ky_thuat_vien") ||
                         nv.TrangThaiCongTac != "dang_cong_tac" ||
                         nv.TrangThaiTaiKhoan != "hoat_dong")
-                    .Select(nv => nv.MaNhanVien)
+                    .Select(nv => $"{nv.MaNhanVien} ({nv.HoTen})")
+                    .ToList();
+
+                if (inactiveAssignments.Count > 0)
+                    throw new InvalidOperationException(
+                        $"Chỉ có thể phân công nhân sự đang hoạt động. Nhân sự không hợp lệ: {string.Join(", ", inactiveAssignments)}.");
+
+                var invalidAssignments = validStaff
+                    .Where(nv => !CanAssignDutyStaffToRoom(room, nv))
+                    .Select(nv => $"{nv.MaNhanVien} ({nv.HoTen})")
                     .ToList();
 
                 if (invalidAssignments.Count > 0)
                     throw new InvalidOperationException(
-                        $"Chỉ có thể phân công y tá/kỹ thuật viên đang hoạt động. Nhân sự không hợp lệ: {string.Join(", ", invalidAssignments)}.");
+                        $"{GetRoomDutyRoleHint(room)} Nhân sự không hợp lệ: {string.Join(", ", invalidAssignments)}.");
             }
 
             var existingSchedules = await _db.LichTrucs
@@ -1280,6 +1508,7 @@ namespace HealthCare.Services.MasterData
                 .AsNoTracking()
                 .Include(nv => nv.KhoaChuyenMon)
                 .Include(nv => nv.PhongsPhuTrach)
+                .Include(nv => nv.PhongClsPhuTrach)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(maKhoa))
@@ -1307,6 +1536,7 @@ namespace HealthCare.Services.MasterData
                 .AsNoTracking()
                 .Include(nv => nv.KhoaChuyenMon)
                 .Include(nv => nv.PhongsPhuTrach)
+                .Include(nv => nv.PhongClsPhuTrach)
                 .AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(filter.Keyword))
@@ -1336,11 +1566,18 @@ namespace HealthCare.Services.MasterData
                 query = query.Where(nv => nv.TrangThaiCongTac == tt);
             }
 
+            if (!string.IsNullOrWhiteSpace(filter.LoaiYTa))
+            {
+                var loai = filter.LoaiYTa.Trim().ToLower();
+                query = query.Where(nv => nv.LoaiYTa != null && nv.LoaiYTa.ToLower() == loai);
+            }
+
             if (!string.IsNullOrWhiteSpace(filter.MaPhongPhuTrach))
             {
                 var mp = filter.MaPhongPhuTrach.Trim();
-                query = query.Where(nv => nv.PhongsPhuTrach != null &&
-                                          nv.PhongsPhuTrach.MaPhong == mp);
+                query = query.Where(nv =>
+                    (nv.PhongsPhuTrach != null && nv.PhongsPhuTrach.MaPhong == mp) ||
+                    (nv.PhongClsPhuTrach != null && nv.PhongClsPhuTrach.MaPhong == mp));
             }
 
             var sortBy = (filter.SortBy ?? "HoTen").ToLowerInvariant();
@@ -1397,17 +1634,49 @@ namespace HealthCare.Services.MasterData
                 ChuyenKhoa = nv.ChuyenMon,            // entity: ChuyenMon
                 AnhDaiDien = nv.AnhDaiDien,
 
-                MaPhongPhuTrach = nv.PhongsPhuTrach?.MaPhong,
-                TenPhongPhuTrach = nv.PhongsPhuTrach?.TenPhong,
+                MaPhongPhuTrach = nv.VaiTro == "ky_thuat_vien"
+                    ? nv.PhongClsPhuTrach?.MaPhong
+                    : nv.PhongsPhuTrach?.MaPhong,
+                TenPhongPhuTrach = nv.VaiTro == "ky_thuat_vien"
+                    ? nv.PhongClsPhuTrach?.TenPhong
+                    : nv.PhongsPhuTrach?.TenPhong,
 
                 LoaiYTa = nv.VaiTro == "y_ta" ? nv.LoaiYTa : null
             };
         }
 
         // ========== NHÂN SỰ — CARD / CHI TIẾT / LỊCH TRỰC TUẦN ==========
+        private static IReadOnlyList<string> BuildStaffSkills(NhanVienYTe nv)
+        {
+            var skills = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(nv.ChuyenMon))
+                skills.Add(nv.ChuyenMon.Trim());
+
+            if (nv.VaiTro == "ky_thuat_vien")
+            {
+                skills.Add("Vận hành CLS");
+                skills.Add("Xử lý kết quả");
+            }
+            else if (nv.VaiTro == "y_ta")
+            {
+                var nurseType = NormalizeNurseTypeCode(nv.LoaiYTa);
+                if (nurseType == "lam_sang")
+                    skills.Add("Hỗ trợ khám bệnh");
+                else if (nurseType == "can_lam_sang")
+                    skills.Add("Điều phối CLS");
+                else if (nurseType == "hanh_chinh")
+                    skills.Add("Tiếp nhận bệnh nhân");
+            }
+
+            return skills
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         public async Task<PagedResult<StaffCardDto>> TimKiemNhanSuCardAsync(StaffSearchFilter filter)
         {
-            // Dùng lại filter chung
             var pagedStaff = await TimKiemNhanSuAsync(filter);
             var staffItems = pagedStaff.Items.ToList();
 
@@ -1426,151 +1695,156 @@ namespace HealthCare.Services.MasterData
             var startOfWeek = GetStartOfWeek(today);
             var endOfWeekExclusive = startOfWeek.AddDays(7);
 
-            var nurseIds = staffItems.Where(s => s.VaiTro == "y_ta")
-                                     .Select(s => s.MaNhanVien)
-                                     .ToList();
+            var nurseIds = staffItems
+                .Where(s => s.VaiTro == "y_ta")
+                .Select(s => s.MaNhanVien)
+                .ToList();
+            var technicianIds = staffItems
+                .Where(s => s.VaiTro == "ky_thuat_vien")
+                .Select(s => s.MaNhanVien)
+                .ToList();
+            var dutyStaffIds = nurseIds
+                .Concat(technicianIds)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var doctorIds = staffItems
+                .Where(s => s.VaiTro == "bac_si")
+                .Select(s => s.MaNhanVien)
+                .ToList();
 
-            var doctorIds = staffItems.Where(s => s.VaiTro == "bac_si")
-                                      .Select(s => s.MaNhanVien)
-                                      .ToList();
-
-            // ================== Y TÁ: ca trực tuần & phòng hôm nay ==================
-            var soCaTrucTuanByYTa = new Dictionary<string, int>();
-            var phongHomNayByYTa = new Dictionary<string, (string? MaPhong, string? TenPhong)>();
-
-            if (nurseIds.Count > 0)
+            var soCaTrucTuanByDutyStaff = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var phongHomNayByDutyStaff = new Dictionary<string, (string? MaPhong, string? TenPhong)>(StringComparer.OrdinalIgnoreCase);
+            if (dutyStaffIds.Count > 0)
             {
-                var lichTuanYTa = await _db.LichTrucs
+                var lichTuanDutyStaff = await _db.LichTrucs
                     .AsNoTracking()
-                    .Where(l => nurseIds.Contains(l.MaYTaTruc)
-                                && l.Ngay >= startOfWeek
-                                && l.Ngay < endOfWeekExclusive
-                                && !l.NghiTruc)
+                    .Where(l => dutyStaffIds.Contains(l.MaYTaTruc)
+                        && l.Ngay >= startOfWeek
+                        && l.Ngay < endOfWeekExclusive
+                        && !l.NghiTruc)
                     .ToListAsync();
 
-                soCaTrucTuanByYTa = lichTuanYTa
+                soCaTrucTuanByDutyStaff = lichTuanDutyStaff
                     .GroupBy(l => l.MaYTaTruc)
-                    .ToDictionary(g => g.Key, g => g.Count());
+                    .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
 
-                var lichHomNayYTa = lichTuanYTa
+                var lichHomNayDutyStaff = lichTuanDutyStaff
                     .Where(l => l.Ngay.Date == today)
                     .ToList();
 
-                var maPhongsHomNay = lichHomNayYTa
+                var maPhongsHomNay = lichHomNayDutyStaff
                     .Select(l => l.MaPhong)
                     .Distinct()
                     .ToList();
 
-                var dictPhong = maPhongsHomNay.Count == 0
-                    ? new Dictionary<string, string>()
+                var dictPhongHomNay = maPhongsHomNay.Count == 0
+                    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                     : await _db.Phongs
                         .AsNoTracking()
                         .Where(p => maPhongsHomNay.Contains(p.MaPhong))
                         .ToDictionaryAsync(p => p.MaPhong, p => p.TenPhong);
-                phongHomNayByYTa = lichHomNayYTa
-    .GroupBy(l => l.MaYTaTruc)
-    .ToDictionary(
-        g => g.Key,
-        g => {
-            var first = g.FirstOrDefault();
-            return first == null
-                ? (null, null)
-                : (first.MaPhong, dictPhong.TryGetValue(first.MaPhong, out var tenPhong) ? tenPhong : null);
-        });
 
+                phongHomNayByDutyStaff = lichHomNayDutyStaff
+                    .GroupBy(l => l.MaYTaTruc)
+                    .ToDictionary(
+                        g => g.Key,
+                        g =>
+                        {
+                            var first = g.OrderBy(x => x.CaTruc).FirstOrDefault();
+                            return first == null
+                                ? (null, null)
+                                : (first.MaPhong, dictPhongHomNay.TryGetValue(first.MaPhong, out var tenPhong) ? tenPhong : null);
+                        },
+                        StringComparer.OrdinalIgnoreCase);
             }
 
-            // ================== BÁC SĨ: phòng phụ trách & số lịch hẹn hôm nay ==================
+            var soCaLamClsHomNayByKtv = technicianIds.Count == 0
+                ? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                : (await _db.LuotKhamBenhs
+                    .AsNoTracking()
+                    .Where(v => v.MaNhanSuThucHien != null
+                        && technicianIds.Contains(v.MaNhanSuThucHien)
+                        && v.LoaiLuot == "can_lam_sang"
+                        && v.ThoiGianBatDau >= today
+                        && v.ThoiGianBatDau < today.AddDays(1)
+                        && v.TrangThai != "da_huy")
+                    .GroupBy(v => v.MaNhanSuThucHien!)
+                    .Select(g => new { MaNhanVien = g.Key, Count = g.Count() })
+                    .ToListAsync())
+                    .ToDictionary(x => x.MaNhanVien, x => x.Count, StringComparer.OrdinalIgnoreCase);
 
-            // Lấy phòng mà BS phụ trách
             var phongBacSis = doctorIds.Count == 0
                 ? new List<Phong>()
                 : await _db.Phongs
                     .AsNoTracking()
-                    .Where(p => p.MaBacSiPhuTrach != null &&
-                                doctorIds.Contains(p.MaBacSiPhuTrach))
+                    .Where(p => p.MaBacSiPhuTrach != null && doctorIds.Contains(p.MaBacSiPhuTrach))
                     .ToListAsync();
 
             var phongByBacSi = phongBacSis
                 .GroupBy(p => p.MaBacSiPhuTrach!)
-                .ToDictionary(g => g.Key, g => g.First());
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 
-            // Lịch trực hôm nay của các phòng có BS phụ trách
             var maPhongBs = phongBacSis.Select(p => p.MaPhong).Distinct().ToList();
-
             var lichTrucPhongHomNay = maPhongBs.Count == 0
                 ? new List<LichTruc>()
                 : await _db.LichTrucs
                     .AsNoTracking()
                     .Where(l => maPhongBs.Contains(l.MaPhong)
-                                && l.Ngay >= today
-                                && l.Ngay < today.AddDays(1)
-                                && !l.NghiTruc)
+                        && l.Ngay >= today
+                        && l.Ngay < today.AddDays(1)
+                        && !l.NghiTruc)
                     .ToListAsync();
 
-            var maLichTrucPhongHomNay = lichTrucPhongHomNay
-                .Select(l => l.MaLichTruc)
-                .Distinct()
-                .ToList();
+            var maLichTrucPhongHomNay = lichTrucPhongHomNay.Select(l => l.MaLichTruc).Distinct().ToList();
+            var phongByLichTruc = lichTrucPhongHomNay.ToDictionary(l => l.MaLichTruc, l => l.MaPhong, StringComparer.OrdinalIgnoreCase);
+            var phongByMaPhong = phongBacSis.ToDictionary(p => p.MaPhong, p => p, StringComparer.OrdinalIgnoreCase);
 
-            var phongByLichTruc = lichTrucPhongHomNay
-                .ToDictionary(l => l.MaLichTruc, l => l.MaPhong);
-
-            // Lịch hẹn hôm nay gắn với các lịch trực đó
             var lichHenHomNay = maLichTrucPhongHomNay.Count == 0
                 ? new List<LichHenKham>()
                 : await _db.LichHenKhams
                     .AsNoTracking()
                     .Where(h => h.CoHieuLuc
-                                && h.TrangThai != "da_huy"
-                                && h.NgayHen >= today
-                                && h.NgayHen < today.AddDays(1)
-                                && maLichTrucPhongHomNay.Contains(h.MaLichTruc))
+                        && h.TrangThai != "da_huy"
+                        && h.NgayHen >= today
+                        && h.NgayHen < today.AddDays(1)
+                        && maLichTrucPhongHomNay.Contains(h.MaLichTruc))
                     .ToListAsync();
 
-            var soLichHenHomNayByBacSi = new Dictionary<string, int>();
-
-            foreach (var h in lichHenHomNay)
+            var soLichHenHomNayByBacSi = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var lichHen in lichHenHomNay)
             {
-                if (!phongByLichTruc.TryGetValue(h.MaLichTruc, out var maPhong))
+                if (!phongByLichTruc.TryGetValue(lichHen.MaLichTruc, out var maPhong) ||
+                    !phongByMaPhong.TryGetValue(maPhong, out var phong) ||
+                    string.IsNullOrWhiteSpace(phong.MaBacSiPhuTrach))
+                {
                     continue;
+                }
 
-                var phong = phongBacSis.FirstOrDefault(p => p.MaPhong == maPhong);
-                if (phong?.MaBacSiPhuTrach == null) continue;
-
-                var maBs = phong.MaBacSiPhuTrach;
-                if (!soLichHenHomNayByBacSi.TryGetValue(maBs, out var count))
-                    soLichHenHomNayByBacSi[maBs] = 1;
-                else
-                    soLichHenHomNayByBacSi[maBs] = count + 1;
+                soLichHenHomNayByBacSi.TryGetValue(phong.MaBacSiPhuTrach, out var count);
+                soLichHenHomNayByBacSi[phong.MaBacSiPhuTrach] = count + 1;
             }
 
-            // ================== MAP RA DTO ==================
-
             var cards = new List<StaffCardDto>();
-            
             foreach (var s in staffItems)
             {
                 string? maPhongHomNay = null;
                 string? tenPhongHomNay = null;
                 int soLichHenHomNay = 0;
                 int soCaTrucTuanNay = 0;
+                int soCaLamClsHomNay = 0;
 
                 if (s.VaiTro == "y_ta")
                 {
-                    // Y tá: lấy phòng & ca trực tuần từ LichTruc
-                    if (phongHomNayByYTa.TryGetValue(s.MaNhanVien, out var phongInfo))
+                    if (phongHomNayByDutyStaff.TryGetValue(s.MaNhanVien, out var phongInfo))
                     {
                         maPhongHomNay = phongInfo.MaPhong;
                         tenPhongHomNay = phongInfo.TenPhong;
                     }
 
-                    soCaTrucTuanByYTa.TryGetValue(s.MaNhanVien, out soCaTrucTuanNay);
-                    soLichHenHomNay = 0; // Y tá KHÔNG dùng lịch hẹn
+                    soCaTrucTuanByDutyStaff.TryGetValue(s.MaNhanVien, out soCaTrucTuanNay);
                 }
                 else if (s.VaiTro == "bac_si")
                 {
-                    // Bác sĩ: phòng cố định + số lịch hẹn hôm nay
                     if (phongByBacSi.TryGetValue(s.MaNhanVien, out var phong))
                     {
                         maPhongHomNay = phong.MaPhong;
@@ -1578,12 +1852,26 @@ namespace HealthCare.Services.MasterData
                     }
 
                     soLichHenHomNayByBacSi.TryGetValue(s.MaNhanVien, out soLichHenHomNay);
-                    soCaTrucTuanNay = 0; // BS không hiển thị số ca trực tuần
+                }
+                else if (s.VaiTro == "ky_thuat_vien")
+                {
+                    if (phongHomNayByDutyStaff.TryGetValue(s.MaNhanVien, out var phongInfo))
+                    {
+                        maPhongHomNay = phongInfo.MaPhong;
+                        tenPhongHomNay = phongInfo.TenPhong;
+                    }
+                    else
+                    {
+                        maPhongHomNay = s.MaPhongPhuTrach;
+                        tenPhongHomNay = s.TenPhongPhuTrach;
+                    }
+
+                    soCaTrucTuanByDutyStaff.TryGetValue(s.MaNhanVien, out soCaTrucTuanNay);
+                    soCaLamClsHomNayByKtv.TryGetValue(s.MaNhanVien, out soCaLamClsHomNay);
                 }
 
                 cards.Add(new StaffCardDto
                 {
-
                     MaNhanVien = s.MaNhanVien,
                     HoTen = s.HoTen,
                     VaiTro = s.VaiTro,
@@ -1598,8 +1886,11 @@ namespace HealthCare.Services.MasterData
                     LoaiYTa = s.LoaiYTa,
                     MaPhongHomNay = maPhongHomNay,
                     TenPhongHomNay = tenPhongHomNay,
-                    SoLichHenHomNay = soLichHenHomNay,  // BS dùng field này
-                    SoCaTrucTuanNay = soCaTrucTuanNay   // YT dùng field này
+                    MaPhongPhuTrach = s.MaPhongPhuTrach,
+                    TenPhongPhuTrach = s.TenPhongPhuTrach,
+                    SoLichHenHomNay = soLichHenHomNay,
+                    SoCaTrucTuanNay = soCaTrucTuanNay,
+                    SoCaLamClsHomNay = soCaLamClsHomNay
                 });
             }
 
@@ -1630,12 +1921,14 @@ namespace HealthCare.Services.MasterData
 
             int? soLichHenHomNay = null;
             int? soCaTrucTuanNay = null;
+            int? soCaLamClsHomNay = null;
             string? maPhongHomNay = null;
             string? tenPhongHomNay = null;
+            string? maPhongPhuTrach = null;
+            string? tenPhongPhuTrach = null;
 
             if (nv.VaiTro == "y_ta")
             {
-                // Y TÁ: dùng LichTruc
                 var lichTuan = await _db.LichTrucs
                     .AsNoTracking()
                     .Where(l => l.MaYTaTruc == nv.MaNhanVien
@@ -1661,13 +1954,14 @@ namespace HealthCare.Services.MasterData
             }
             else if (nv.VaiTro == "bac_si")
             {
-                // BÁC SĨ: phòng cố định + số lịch hẹn hôm nay
                 var phongBs = await _db.Phongs
                     .AsNoTracking()
                     .FirstOrDefaultAsync(p => p.MaBacSiPhuTrach == nv.MaNhanVien);
 
                 if (phongBs != null)
                 {
+                    maPhongPhuTrach = phongBs.MaPhong;
+                    tenPhongPhuTrach = phongBs.TenPhong;
                     maPhongHomNay = phongBs.MaPhong;
                     tenPhongHomNay = phongBs.TenPhong;
 
@@ -1708,6 +2002,57 @@ namespace HealthCare.Services.MasterData
 
                 soCaTrucTuanNay = null;   // BS không hiển thị ca trực
             }
+            else if (nv.VaiTro == "ky_thuat_vien")
+            {
+                var lichTuan = await _db.LichTrucs
+                    .AsNoTracking()
+                    .Where(l => l.MaYTaTruc == nv.MaNhanVien
+                        && l.Ngay >= startOfWeek
+                        && l.Ngay < endOfWeekExclusive
+                        && !l.NghiTruc)
+                    .ToListAsync();
+
+                soCaTrucTuanNay = lichTuan.Count;
+
+                var phongCls = await _db.Phongs
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.MaKTVPhuTrach == nv.MaNhanVien);
+
+                if (phongCls != null)
+                {
+                    maPhongPhuTrach = phongCls.MaPhong;
+                    tenPhongPhuTrach = phongCls.TenPhong;
+                }
+
+                var homNay = lichTuan
+                    .Where(l => l.Ngay.Date == today)
+                    .OrderBy(l => l.CaTruc)
+                    .FirstOrDefault();
+
+                if (homNay != null)
+                {
+                    maPhongHomNay = homNay.MaPhong;
+                    tenPhongHomNay = await _db.Phongs
+                        .AsNoTracking()
+                        .Where(p => p.MaPhong == homNay.MaPhong)
+                        .Select(p => p.TenPhong)
+                        .FirstOrDefaultAsync();
+                }
+                else
+                {
+                    maPhongHomNay = maPhongPhuTrach;
+                    tenPhongHomNay = tenPhongPhuTrach;
+                }
+
+                soCaLamClsHomNay = await _db.LuotKhamBenhs
+                    .AsNoTracking()
+                    .Where(v => v.MaNhanSuThucHien == nv.MaNhanVien
+                        && v.LoaiLuot == "can_lam_sang"
+                        && v.ThoiGianBatDau >= today
+                        && v.ThoiGianBatDau < today.AddDays(1)
+                        && v.TrangThai != "da_huy")
+                    .CountAsync();
+            }
 
             return new StaffDetailDto
             {
@@ -1724,9 +2069,12 @@ namespace HealthCare.Services.MasterData
                 LoaiYTa = nv.VaiTro == "y_ta" ? nv.LoaiYTa : null,
                 SoLichHenHomNay = soLichHenHomNay,      // BS
                 SoCaTrucTuanNay = soCaTrucTuanNay,      // YT
+                SoCaLamClsHomNay = soCaLamClsHomNay,
                 MaPhongHoacBanHomNay = maPhongHomNay,
                 TenPhongHoacBanHomNay = tenPhongHomNay,
-                KyNang = Array.Empty<string>()
+                MaPhongPhuTrach = maPhongPhuTrach,
+                TenPhongPhuTrach = tenPhongPhuTrach,
+                KyNang = BuildStaffSkills(nv)
             };
         }
 
@@ -1751,27 +2099,56 @@ namespace HealthCare.Services.MasterData
             string? trangThaiHomNay = null;
             string? tenPhongHoacBanHomNay = null;
 
-            var isNurse = nv.VaiTro == "y_ta";
+            var isDoctor = nv.VaiTro == "bac_si";
+            var isDirectDutyStaff = isDoctor || nv.VaiTro == "y_ta" || nv.VaiTro == "ky_thuat_vien";
 
-            // ===== Lấy list lịch trực của nhân sự trong tuần =====
-            IQueryable<LichTruc> lichQuery = _db.LichTrucs.AsNoTracking();
+            // ===== L?y list l?ch tr?c c?a nh?n s? trong tu?n =====
+            List<LichTruc> lichTuan;
 
-            if (isNurse)
+            if (isDoctor || nv.VaiTro == "ky_thuat_vien")
             {
-                // Y tá: gắn trực tiếp vào MaYTaTruc
-                lichQuery = lichQuery.Where(l => l.MaYTaTruc == maNhanVien);
+                var directSchedules = await _db.LichTrucs
+                    .AsNoTracking()
+                    .Where(l => l.MaYTaTruc == maNhanVien
+                                && l.Ngay >= startOfWeek
+                                && l.Ngay < endOfWeekExclusive)
+                    .ToListAsync();
+
+                if (directSchedules.Count > 0)
+                {
+                    lichTuan = directSchedules;
+                }
+                else
+                {
+                    lichTuan = await _db.LichTrucs
+                        .AsNoTracking()
+                        .Include(l => l.Phong)
+                        .Where(l => l.Ngay >= startOfWeek
+                                    && l.Ngay < endOfWeekExclusive
+                                    && l.Phong != null
+                                    && (isDoctor ? l.Phong.MaBacSiPhuTrach == maNhanVien : l.Phong.MaKTVPhuTrach == maNhanVien))
+                        .ToListAsync();
+                }
             }
             else
             {
-                // Bác sĩ: lấy các ca trực của phòng mà BS phụ trách
-                lichQuery = lichQuery
-                    .Include(l => l.Phong)
-                    .Where(l => l.Phong != null && l.Phong.MaBacSiPhuTrach == maNhanVien);
-            }
+                IQueryable<LichTruc> lichQuery = _db.LichTrucs.AsNoTracking();
 
-            var lichTuan = await lichQuery
-                .Where(l => l.Ngay >= startOfWeek && l.Ngay < endOfWeekExclusive)
-                .ToListAsync();
+                if (isDirectDutyStaff)
+                {
+                    lichQuery = lichQuery.Where(l => l.MaYTaTruc == maNhanVien);
+                }
+                else
+                {
+                    lichQuery = lichQuery
+                        .Include(l => l.Phong)
+                        .Where(l => l.Phong != null && l.Phong.MaBacSiPhuTrach == maNhanVien);
+                }
+
+                lichTuan = await lichQuery
+                    .Where(l => l.Ngay >= startOfWeek && l.Ngay < endOfWeekExclusive)
+                    .ToListAsync();
+            }
 
             // Map MaPhong -> TenPhong để hiển thị
             var maPhongs = lichTuan.Select(l => l.MaPhong).Distinct().ToList();
@@ -1869,6 +2246,15 @@ namespace HealthCare.Services.MasterData
             // Nếu tới cuối vẫn chưa set thì mặc định là nghỉ
             if (trangThaiHomNay == null)
                 trangThaiHomNay = "nghi";
+
+            if (string.IsNullOrWhiteSpace(tenPhongHoacBanHomNay) && nv.VaiTro == "ky_thuat_vien")
+            {
+                tenPhongHoacBanHomNay = await _db.Phongs
+                    .AsNoTracking()
+                    .Where(p => p.MaKTVPhuTrach == nv.MaNhanVien)
+                    .Select(p => p.TenPhong)
+                    .FirstOrDefaultAsync();
+            }
 
             return new StaffDutyWeekDto
             {
@@ -1997,8 +2383,35 @@ namespace HealthCare.Services.MasterData
                 throw new KeyNotFoundException($"Không tìm thấy nhân sự '{maNhanVien}'.");
 
             var vaiTro = nhanSu.VaiTro?.Trim().ToLowerInvariant();
-            if (vaiTro != "y_ta" && vaiTro != "ky_thuat_vien")
-                throw new InvalidOperationException("Chỉ hỗ trợ quản lý lịch làm cho y tá và kỹ thuật viên.");
+            if (vaiTro != "y_ta" && vaiTro != "ky_thuat_vien" && vaiTro != "bac_si")
+                throw new InvalidOperationException("Chỉ hỗ trợ quản lý lịch làm cho bác sĩ, y tá và kỹ thuật viên.");
+            var isTechnician = vaiTro == "ky_thuat_vien";
+            var isDoctor = vaiTro == "bac_si";
+            var hasFixedRoom = isTechnician || isDoctor;
+
+            string? fixedRoomId = null;
+            if (isTechnician)
+            {
+                fixedRoomId = await _db.Phongs
+                    .AsNoTracking()
+                    .Where(p => p.MaKTVPhuTrach == maNhanVien)
+                    .Select(p => p.MaPhong)
+                    .FirstOrDefaultAsync();
+
+                if (string.IsNullOrWhiteSpace(fixedRoomId))
+                    throw new InvalidOperationException("KTV phải được gán phòng CLS cố định trước khi xếp lịch làm.");
+            }
+            else if (isDoctor)
+            {
+                fixedRoomId = await _db.Phongs
+                    .AsNoTracking()
+                    .Where(p => p.MaBacSiPhuTrach == maNhanVien)
+                    .Select(p => p.MaPhong)
+                    .FirstOrDefaultAsync();
+
+                if (string.IsNullOrWhiteSpace(fixedRoomId))
+                    throw new InvalidOperationException("Bác sĩ phải được gán phòng khám cố định trước khi xếp lịch làm.");
+            }
 
             var weekStart = GetStartOfWeek(request.WeekStartDate.Date);
             var weekEndExclusive = weekStart.AddDays(7);
@@ -2009,25 +2422,40 @@ namespace HealthCare.Services.MasterData
                 .ToDictionary(g => g.Key, g => g.Last());
 
             var requestedRooms = requestedItems.Values
-                .Where(x => !x.NghiTruc && !string.IsNullOrWhiteSpace(x.MaPhong))
-                .Select(x => x.MaPhong!.Trim())
+                .Where(x => !x.NghiTruc && !string.IsNullOrWhiteSpace(x.CaTruc))
+                .Select(x => hasFixedRoom
+                    ? fixedRoomId!
+                    : NormalizeOptional(x.MaPhong))
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (requestedRooms.Count > 0)
             {
-                var validRooms = await _db.Phongs
+                var roomEntities = await _db.Phongs
                     .AsNoTracking()
                     .Where(p => requestedRooms.Contains(p.MaPhong))
-                    .Select(p => p.MaPhong)
                     .ToListAsync();
 
                 var invalidRooms = requestedRooms
-                    .Except(validRooms, StringComparer.OrdinalIgnoreCase)
+                    .Except(roomEntities.Select(p => p.MaPhong), StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
                 if (invalidRooms.Count > 0)
                     throw new InvalidOperationException($"Không tìm thấy phòng: {string.Join(", ", invalidRooms)}.");
+            }
+
+            if (requestedRooms.Count > 0)
+            {
+                foreach (var room in await _db.Phongs
+                    .AsNoTracking()
+                    .Where(p => requestedRooms.Contains(p.MaPhong))
+                    .ToListAsync())
+                {
+                    if (!CanAssignDutyStaffToRoom(room, nhanSu))
+                        throw new InvalidOperationException(GetRoomDutyRoleHint(room));
+                }
             }
 
             var existingSchedules = await _db.LichTrucs
@@ -2077,7 +2505,7 @@ namespace HealthCare.Services.MasterData
                     requested != null &&
                     !requested.NghiTruc &&
                     !string.IsNullOrWhiteSpace(requested.CaTruc) &&
-                    !string.IsNullOrWhiteSpace(requested.MaPhong);
+                    (hasFixedRoom || !string.IsNullOrWhiteSpace(requested.MaPhong));
 
                 if (!isWorkingDay)
                 {
@@ -2098,7 +2526,9 @@ namespace HealthCare.Services.MasterData
 
                 var shift = NormalizeDutyShift(requested!.CaTruc!);
                 var (gioBatDau, gioKetThuc) = ResolveDutyShiftHours(shift);
-                var maPhong = requested.MaPhong!.Trim();
+                var maPhong = hasFixedRoom
+                    ? fixedRoomId!
+                    : requested.MaPhong!.Trim();
 
                 if (keeper == null)
                 {
@@ -2298,12 +2728,22 @@ namespace HealthCare.Services.MasterData
             // Lấy bác sĩ phụ trách phòng (mặc định dịch vụ lâm sàng sẽ có BS)
             var maBacSi = phong?.MaBacSiPhuTrach ?? string.Empty;
             var tenBacSi = string.Empty;
+            var maKtv = phong?.MaKTVPhuTrach ?? string.Empty;
+            var tenKtv = string.Empty;
 
             if (!string.IsNullOrEmpty(maBacSi))
             {
                 tenBacSi = await _db.NhanVienYTes
                     .AsNoTracking()
                     .Where(nv => nv.MaNhanVien == maBacSi)
+                    .Select(nv => nv.HoTen)
+                    .FirstOrDefaultAsync() ?? string.Empty;
+            }
+            if (!string.IsNullOrEmpty(maKtv))
+            {
+                tenKtv = await _db.NhanVienYTes
+                    .AsNoTracking()
+                    .Where(nv => nv.MaNhanVien == maKtv)
                     .Select(nv => nv.HoTen)
                     .FirstOrDefaultAsync() ?? string.Empty;
             }
@@ -2316,6 +2756,8 @@ namespace HealthCare.Services.MasterData
                 TenPhong = tenPhong,
                 MaBacSi = maBacSi,
                 TenBacSi = tenBacSi,
+                MaKTVPhuTrach = maKtv,
+                TenKTVPhuTrach = tenKtv,
                 TenDichVu = dichVu.TenDichVu,
                 LoaiDichVu = dichVu.LoaiDichVu,
                 DonGia = dichVu.DonGia
@@ -2332,6 +2774,7 @@ namespace HealthCare.Services.MasterData
                 throw new InvalidOperationException($"Dịch vụ '{maDichVu}' đã tồn tại.");
 
             await ValidateRoomExistsAsync(request.MaPhong);
+            await ValidateServiceRoomCompatibilityAsync(request.LoaiDichVu, request.MaPhong);
 
             var entity = new DichVuYTe
             {
@@ -2365,6 +2808,7 @@ namespace HealthCare.Services.MasterData
                 throw new KeyNotFoundException($"Không tìm thấy dịch vụ '{maDichVu}'.");
 
             await ValidateRoomExistsAsync(request.MaPhong);
+            await ValidateServiceRoomCompatibilityAsync(request.LoaiDichVu, request.MaPhong);
 
             entity.TenDichVu = request.TenDichVu.Trim();
             entity.LoaiDichVu = request.LoaiDichVu.Trim();

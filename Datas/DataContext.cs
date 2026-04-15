@@ -115,6 +115,13 @@ namespace HealthCare.Datas
                 .HasForeignKey<Phong>(p => p.MaBacSiPhuTrach)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Phong CLS - KTV phụ trách (1 - 1, mỗi phòng CLS tối đa 1 KTV phụ trách)
+            modelBuilder.Entity<Phong>()
+                .HasOne(p => p.KTVPhuTrach)
+                .WithOne(nv => nv.PhongClsPhuTrach)
+                .HasForeignKey<Phong>(p => p.MaKTVPhuTrach)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Phong - LichTruc (1 - n)
             modelBuilder.Entity<LichTruc>()
                 .HasOne(lt => lt.Phong)

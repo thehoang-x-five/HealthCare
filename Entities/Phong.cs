@@ -10,7 +10,7 @@ namespace HealthCare.Entities
         public string MaPhong { get; set; } = default!;
         public string TenPhong { get; set; } = default!;
         public string MaKhoa { get; set; } = default!;
-        public string LoaiPhong { get; set; } = default!; // phong_kham,phong_dich_vu
+        public string LoaiPhong { get; set; } = default!; // phong_kham_ls, phong_cls
         public int? SucChua { get; set; }
         public string? ViTri { get; set; }
         public string? Email { get; set; }
@@ -20,10 +20,12 @@ namespace HealthCare.Entities
         public string? DienThoai { get; set; }
         public string TrangThai { get; set; } = "hoat_dong"; // hoat_dong,tam_dung
         public string? MaBacSiPhuTrach { get; set; }
+        public string? MaKTVPhuTrach { get; set; }
 
         public KhoaChuyenMon KhoaChuyenMon { get; set; } = default!;
 
         public NhanVienYTe? BacSiPhuTrach { get; set; }
+        public NhanVienYTe? KTVPhuTrach { get; set; }
 
         public ICollection<LichTruc> LichTrucs { get; set; } = new List<LichTruc>();
         public ICollection<DichVuYTe> DichVuYTes { get; set; } = new List<DichVuYTe>();

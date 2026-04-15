@@ -26,6 +26,7 @@ namespace HealthCare.Entities
 
         public KhoaChuyenMon KhoaChuyenMon { get; set; } = default!;
         public Phong? PhongsPhuTrach { get; set; }
+        public Phong? PhongClsPhuTrach { get; set; }
         public ICollection<LichTruc> LichTrucsYTa { get; set; } = new List<LichTruc>();
         public ICollection<ThongBaoNguoiNhan> ThongBaoNguoiNhans { get; set; } = new List<ThongBaoNguoiNhan>();
         public ICollection<KetQuaDichVu> KetQuaDichVus { get; set; } = new List<KetQuaDichVu>();
