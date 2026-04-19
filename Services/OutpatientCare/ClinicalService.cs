@@ -666,6 +666,27 @@ namespace HealthCare.Services.OutpatientCare
 
                 await _realtime.BroadcastFinalDiagnosisChangedAsync(dto);
 
+                // Đồng bộ UI hàng đợi (y tá phòng / BS khác): ClinicalExamUpdated có thể không tới client đang mở danh sách.
+                try
+                {
+                    if (hangDoi is not null &&
+                        !string.IsNullOrWhiteSpace(hangDoi.MaHangDoi) &&
+                        !string.IsNullOrWhiteSpace(hangDoi.MaPhong))
+                    {
+                        var queueDto = await _queue.LayHangDoiAsync(hangDoi.MaHangDoi);
+                        if (queueDto is not null)
+                        {
+                            await _realtime.BroadcastQueueItemChangedAsync(queueDto);
+                            var roomItems = await _queue.LayHangDoiTheoPhongAsync(hangDoi.MaPhong);
+                            await _realtime.BroadcastQueueByRoomAsync(hangDoi.MaPhong, roomItems);
+                        }
+                    }
+                }
+                catch
+                {
+                    // best-effort: dữ liệu đã commit, không làm hỏng response
+                }
+
                 if (!string.IsNullOrWhiteSpace(maBenhNhan))
                 {
                     await _patients.CapNhatTrangThaiBenhNhanAsync(maBenhNhan, new PatientStatusUpdateRequest
