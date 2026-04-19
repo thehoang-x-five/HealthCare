@@ -524,6 +524,7 @@ namespace HealthCare.Services.OutpatientCare
 
             // Use transaction for complex cascade updates
             using var transaction = await _db.Database.BeginTransactionAsync();
+            var transactionCommitted = false;
             try
             {
                 var phieu = await _db.PhieuKhamLamSangs
@@ -601,6 +602,7 @@ namespace HealthCare.Services.OutpatientCare
 
                 // Commit transaction before broadcasting
                 await transaction.CommitAsync();
+                transactionCommitted = true;
 
                 // ===== LOG TO MONGODB: Medical Event History =====
                 var payload = new BsonDocument
@@ -680,8 +682,10 @@ namespace HealthCare.Services.OutpatientCare
             }
             catch (Exception)
             {
-                // Rollback on any error
-                await transaction.RollbackAsync();
+                // Chỉ rollback khi transaction chưa commit; rollback sau commit
+                // sẽ ném thêm exception và che lỗi gốc (thường thấy 500 từ SignalR / thông báo).
+                if (!transactionCommitted)
+                    await transaction.RollbackAsync();
                 throw;
             }
         }
