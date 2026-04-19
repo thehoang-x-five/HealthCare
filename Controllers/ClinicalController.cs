@@ -89,9 +89,10 @@ namespace HealthCare.Controllers
             return Ok(result);
         }
 
+        // Hoàn tất phiếu khám sau bước “xử lý chẩn đoán” (thu phí / đóng lượt): y tá hành chính, không phải y tá phòng khám LS.
         [HttpPost("{maPhieuKham}/complete")]
         [RequireRole("bac_si", "y_ta")]
-        [RequireNurseType("phong_kham")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<ClinicalExamDto>> CompleteExam(
             string maPhieuKham,
             [FromBody] CompleteExamRequest? request = null)
