@@ -1,4 +1,4 @@
-﻿using BCrypt.Net;
+using BCrypt.Net;
 using HealthCare.Entities;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -214,17 +214,23 @@ namespace HealthCare.Datas
                 new DichVuYTe { MaDichVu = "DV_SIEUAM_TUYEN_GIAP_01", LoaiDichVu = "can_lam_sang", TenDichVu = "Siêu âm tuyến giáp", DonGia = 260000m, ThoiGianDuKienPhut = 20, MaPhongThucHien = "CLS_SA_01" }
             };
 
+        /// <summary>
+        /// Kho demo cho RxPickerModal (searchStock) → MaThuoc khớp ChiTietDonThuoc / TaoDonThuocAsync.
+        /// - Tồn cao: tránh lỗi "không đủ tồn kho" khi kê nhiều hoặc test lặp.
+        /// - Hạn xa (AddYears): tránh hết hạn theo lịch thật sau vài tháng (BE chặn HanSuDung &lt; Today).
+        /// - Trạng thái hoat_dong: TimKiemThuocAsync có thể lọc theo trạng thái.
+        /// </summary>
         private static List<KhoThuoc> BuildMedicines(SeedClock clock) =>
             new()
             {
-                new KhoThuoc { MaThuoc = "THUOC_001", TenThuoc = "Paracetamol 500mg", DonViTinh = "viên", CongDung = "Hạ sốt, giảm đau", GiaNiemYet = 2500m, SoLuongTon = 180, HanSuDung = clock.Today.AddMonths(18), SoLo = "LO-PARA-01", TrangThai = "hoat_dong" },
-                new KhoThuoc { MaThuoc = "THUOC_002", TenThuoc = "Cetirizine 10mg", DonViTinh = "viên", CongDung = "Chống dị ứng", GiaNiemYet = 3000m, SoLuongTon = 110, HanSuDung = clock.Today.AddMonths(16), SoLo = "LO-CETI-01", TrangThai = "hoat_dong" },
-                new KhoThuoc { MaThuoc = "THUOC_003", TenThuoc = "Omeprazole 20mg", DonViTinh = "viên", CongDung = "Giảm tiết acid", GiaNiemYet = 4000m, SoLuongTon = 95, HanSuDung = clock.Today.AddMonths(14), SoLo = "LO-OME-01", TrangThai = "hoat_dong" },
-                new KhoThuoc { MaThuoc = "THUOC_004", TenThuoc = "Domperidone 10mg", DonViTinh = "viên", CongDung = "Giảm buồn nôn", GiaNiemYet = 3500m, SoLuongTon = 90, HanSuDung = clock.Today.AddMonths(12), SoLo = "LO-DOM-01", TrangThai = "hoat_dong" },
-                new KhoThuoc { MaThuoc = "THUOC_005", TenThuoc = "Vitamin C 500mg", DonViTinh = "viên", CongDung = "Bổ sung vitamin", GiaNiemYet = 2000m, SoLuongTon = 40, HanSuDung = clock.Today.AddMonths(10), SoLo = "LO-VITC-01", TrangThai = "sap_het_ton" },
-                new KhoThuoc { MaThuoc = "THUOC_006", TenThuoc = "Amoxicillin 500mg", DonViTinh = "viên", CongDung = "Kháng sinh đường hô hấp", GiaNiemYet = 5000m, SoLuongTon = 120, HanSuDung = clock.Today.AddMonths(15), SoLo = "LO-AMOX-01", TrangThai = "hoat_dong" },
-                new KhoThuoc { MaThuoc = "THUOC_007", TenThuoc = "Alpha Chymotrypsin", DonViTinh = "viên", CongDung = "Giảm phù nề viêm họng", GiaNiemYet = 4500m, SoLuongTon = 100, HanSuDung = clock.Today.AddMonths(11), SoLo = "LO-ALPHA-01", TrangThai = "hoat_dong" },
-                new KhoThuoc { MaThuoc = "THUOC_008", TenThuoc = "Oresol", DonViTinh = "gói", CongDung = "Bù nước điện giải", GiaNiemYet = 3500m, SoLuongTon = 80, HanSuDung = clock.Today.AddMonths(20), SoLo = "LO-ORE-01", TrangThai = "hoat_dong" }
+                new KhoThuoc { MaThuoc = "THUOC_001", TenThuoc = "Paracetamol 500mg", DonViTinh = "viên", CongDung = "Hạ sốt, giảm đau", GiaNiemYet = 2500m, SoLuongTon = 1990, HanSuDung = clock.Today.AddYears(4), SoLo = "LO-PARA-01", TrangThai = "hoat_dong" },
+                new KhoThuoc { MaThuoc = "THUOC_002", TenThuoc = "Cetirizine 10mg", DonViTinh = "viên", CongDung = "Chống dị ứng", GiaNiemYet = 3000m, SoLuongTon = 793, HanSuDung = clock.Today.AddYears(4), SoLo = "LO-CETI-01", TrangThai = "hoat_dong" },
+                new KhoThuoc { MaThuoc = "THUOC_003", TenThuoc = "Omeprazole 20mg", DonViTinh = "viên", CongDung = "Giảm tiết acid", GiaNiemYet = 4000m, SoLuongTon = 2000, HanSuDung = clock.Today.AddYears(4), SoLo = "LO-OME-01", TrangThai = "hoat_dong" },
+                new KhoThuoc { MaThuoc = "THUOC_004", TenThuoc = "Domperidone 10mg", DonViTinh = "viên", CongDung = "Giảm buồn nôn", GiaNiemYet = 3500m, SoLuongTon = 2000, HanSuDung = clock.Today.AddYears(4), SoLo = "LO-DOM-01", TrangThai = "hoat_dong" },
+                new KhoThuoc { MaThuoc = "THUOC_005", TenThuoc = "Vitamin C 500mg", DonViTinh = "viên", CongDung = "Bổ sung vitamin", GiaNiemYet = 2000m, SoLuongTon = 590, HanSuDung = clock.Today.AddYears(4), SoLo = "LO-VITC-01", TrangThai = "hoat_dong" },
+                new KhoThuoc { MaThuoc = "THUOC_006", TenThuoc = "Amoxicillin 500mg", DonViTinh = "viên", CongDung = "Kháng sinh đường hô hấp", GiaNiemYet = 5000m, SoLuongTon = 2000, HanSuDung = clock.Today.AddYears(4), SoLo = "LO-AMOX-01", TrangThai = "hoat_dong" },
+                new KhoThuoc { MaThuoc = "THUOC_007", TenThuoc = "Alpha Chymotrypsin", DonViTinh = "viên", CongDung = "Giảm phù nề viêm họng", GiaNiemYet = 4500m, SoLuongTon = 2000, HanSuDung = clock.Today.AddYears(4), SoLo = "LO-ALPHA-01", TrangThai = "hoat_dong" },
+                new KhoThuoc { MaThuoc = "THUOC_008", TenThuoc = "Oresol", DonViTinh = "gói", CongDung = "Bù nước điện giải", GiaNiemYet = 3500m, SoLuongTon = 2000, HanSuDung = clock.Today.AddYears(4), SoLo = "LO-ORE-01", TrangThai = "hoat_dong" }
             };
 
         private static List<BenhNhan> BuildPatients(SeedClock clock)
@@ -1093,9 +1099,9 @@ namespace HealthCare.Datas
         private static List<LichSuXuatKho> BuildStockLogs(SeedClock clock) =>
             new()
             {
-                new LichSuXuatKho { MaGiaoDich = "XK_DEMO_001", MaThuoc = "THUOC_001", MaDonThuoc = "DT_DEMO_001", MaNhanSuXuat = "NV_YT_HC_01", LoaiGiaoDich = "xuat_ban", SoLuong = 10, SoLuongConLai = 170, ThoiGianXuat = At(clock.Yesterday, 10, 52), GhiChu = "Phát thuốc cho BN_DEMO_01" },
-                new LichSuXuatKho { MaGiaoDich = "XK_DEMO_002", MaThuoc = "THUOC_002", MaDonThuoc = "DT_DEMO_001", MaNhanSuXuat = "NV_YT_HC_01", LoaiGiaoDich = "xuat_ban", SoLuong = 7, SoLuongConLai = 103, ThoiGianXuat = At(clock.Yesterday, 10, 52), GhiChu = "Phát thuốc cho BN_DEMO_01" },
-                new LichSuXuatKho { MaGiaoDich = "XK_DEMO_003", MaThuoc = "THUOC_005", MaDonThuoc = "DT_DEMO_001", MaNhanSuXuat = "NV_YT_HC_01", LoaiGiaoDich = "xuat_ban", SoLuong = 10, SoLuongConLai = 30, ThoiGianXuat = At(clock.Yesterday, 10, 52), GhiChu = "Phát vitamin cho BN_DEMO_01" }
+                new LichSuXuatKho { MaGiaoDich = "XK_DEMO_001", MaThuoc = "THUOC_001", MaDonThuoc = "DT_DEMO_001", MaNhanSuXuat = "NV_YT_HC_01", LoaiGiaoDich = "xuat_ban", SoLuong = 10, SoLuongConLai = 1990, ThoiGianXuat = At(clock.Yesterday, 10, 52), GhiChu = "Phát thuốc cho BN_DEMO_01" },
+                new LichSuXuatKho { MaGiaoDich = "XK_DEMO_002", MaThuoc = "THUOC_002", MaDonThuoc = "DT_DEMO_001", MaNhanSuXuat = "NV_YT_HC_01", LoaiGiaoDich = "xuat_ban", SoLuong = 7, SoLuongConLai = 793, ThoiGianXuat = At(clock.Yesterday, 10, 52), GhiChu = "Phát thuốc cho BN_DEMO_01" },
+                new LichSuXuatKho { MaGiaoDich = "XK_DEMO_003", MaThuoc = "THUOC_005", MaDonThuoc = "DT_DEMO_001", MaNhanSuXuat = "NV_YT_HC_01", LoaiGiaoDich = "xuat_ban", SoLuong = 10, SoLuongConLai = 590, ThoiGianXuat = At(clock.Yesterday, 10, 52), GhiChu = "Phát vitamin cho BN_DEMO_01" }
             };
 
         private static List<ThongBaoMau> BuildNotificationTemplates(SeedClock clock) =>
