@@ -13,7 +13,7 @@ namespace HealthCare.Infrastructure.Repositories
         /// Log a medical event to MongoDB history collection.
         /// </summary>
         /// <param name="maBenhNhan">Patient identifier</param>
-        /// <param name="eventType">Event type: kham_lam_sang, xet_nghiem, chan_doan_hinh_anh, don_thuoc, thanh_toan</param>
+        /// <param name="eventType">Event type, e.g. kham_lam_sang, xet_nghiem, chan_doan_hinh_anh, cls_order_created, cls_service_completed, tong_hop_cls, don_thuoc, thanh_toan</param>
         /// <param name="payload">Event-specific data as BsonDocument</param>
         /// <param name="maNhanSu">Healthcare staff identifier who performed the action</param>
         /// <returns>True if logged successfully, false if MongoDB unavailable</returns>

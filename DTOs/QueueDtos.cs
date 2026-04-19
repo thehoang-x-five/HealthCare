@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace HealthCare.DTOs
 {
     public record class QueueItemDto
@@ -41,6 +43,51 @@ namespace HealthCare.DTOs
         public ClsItemDto? PhieuKhamClsItem { get; set; }
 
         public bool HasPendingCls { get; set; } = false;
+
+        public string? MaPhieuTongHopCls { get; set; }
+        public string? SnapshotKqKhamCls { get; set; }
+
+        [JsonPropertyName("serviceResults")]
+        public IReadOnlyList<QueueServiceResultDto> ServiceResults { get; set; } = [];
+    }
+
+    public record class QueueServiceResultDto
+    {
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = default!;
+
+        [JsonPropertyName("serviceName")]
+        public string ServiceName { get; set; } = default!;
+
+        [JsonPropertyName("note")]
+        public string? Note { get; set; }
+
+        [JsonPropertyName("result")]
+        public string? Result { get; set; }
+
+        [JsonPropertyName("status")]
+        public string? Status { get; set; }
+
+        [JsonPropertyName("staffName")]
+        public string? StaffName { get; set; }
+
+        [JsonPropertyName("createdAt")]
+        public DateTime? CreatedAt { get; set; }
+
+        [JsonPropertyName("files")]
+        public IReadOnlyList<QueueServiceResultFileDto> Files { get; set; } = [];
+    }
+
+    public record class QueueServiceResultFileDto
+    {
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("url")]
+        public string? Url { get; set; }
     }
 
     public record class QueueClinicalExamInfoDto

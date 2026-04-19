@@ -55,7 +55,8 @@ namespace HealthCare.Services.OutpatientCare
             int page,
             int pageSize,
             string? originMaKhoaScope = null,
-            string? serviceMaKhoaScope = null);
+            string? serviceMaKhoaScope = null,
+            string? serviceMaPhongScope = null);
 
         // ===== CHI TIẾT DỊCH VỤ CLS =====
         Task<IReadOnlyList<ClsItemDto>> LayDanhSachDichVuClsAsync(string maPhieuKhamCls);
@@ -70,7 +71,8 @@ namespace HealthCare.Services.OutpatientCare
         Task<PagedResult<ClsSummaryDto>> LayTongHopKetQuaChoLapPhieuKhamAsync(
             ClsSummaryFilter filter,
             string? originMaKhoaScope = null,
-            string? serviceMaKhoaScope = null);
+            string? serviceMaKhoaScope = null,
+            string? serviceMaPhongScope = null);
         Task<ClsSummaryDto?> LayPhieuTongHopKetQuaAsync(string maPhieuTongHop);
         Task<ClsSummaryDto?> CapNhatTrangThaiTongHopAsync(
             string maPhieuTongHop,

@@ -222,7 +222,7 @@ var app = builder.Build();
  }
 
 // ===== Middleware pipeline =====
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Docker"))
 {
     app.UseSwagger();
     app.UseSwaggerUI();

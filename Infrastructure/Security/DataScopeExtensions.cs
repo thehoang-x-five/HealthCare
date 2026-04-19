@@ -74,6 +74,15 @@ namespace HealthCare.Infrastructure.Security
                 p.ChiTietDichVus.Any(ct => ct.DichVuYTe.PhongThucHien.MaKhoa == scope));
         }
 
+        public static IQueryable<PhieuKhamCanLamSang> ApplyClsServiceRoomScope(
+            this IQueryable<PhieuKhamCanLamSang> query,
+            string maPhong)
+        {
+            var scope = NormalizeScope(maPhong);
+            return query.Where(p =>
+                p.ChiTietDichVus.Any(ct => ct.DichVuYTe.MaPhongThucHien == scope));
+        }
+
         public static IQueryable<PhieuTongHopKetQua> ApplyClsSummaryOriginDepartmentScope(
             this IQueryable<PhieuTongHopKetQua> query,
             string maKhoa)
@@ -91,6 +100,15 @@ namespace HealthCare.Infrastructure.Security
             var scope = NormalizeScope(maKhoa);
             return query.Where(p =>
                 p.PhieuKhamCanLamSang.ChiTietDichVus.Any(ct => ct.DichVuYTe.PhongThucHien.MaKhoa == scope));
+        }
+
+        public static IQueryable<PhieuTongHopKetQua> ApplyClsSummaryServiceRoomScope(
+            this IQueryable<PhieuTongHopKetQua> query,
+            string maPhong)
+        {
+            var scope = NormalizeScope(maPhong);
+            return query.Where(p =>
+                p.PhieuKhamCanLamSang.ChiTietDichVus.Any(ct => ct.DichVuYTe.MaPhongThucHien == scope));
         }
 
         public static IQueryable<DonThuoc> ApplyPrescriptionDepartmentScope(

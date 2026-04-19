@@ -301,6 +301,50 @@ namespace HealthCare.Services.OutpatientCare
                 if (string.Equals(luotDaCo.TrangThai, "hoan_tat", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("Queue này đã được phục vụ, hãy tạo queue mới để tiếp tục.");
 
+                var hangDoiDaCo = luotDaCo.HangDoi;
+                var phieuLsDaCo = hangDoiDaCo?.PhieuKhamLamSang;
+                var maBenhNhanDaCo = hangDoiDaCo?.MaBenhNhan;
+                var laPhongDichVuDaCo = hangDoiDaCo?.Phong is not null && IsClsRoomType(hangDoiDaCo.Phong.LoaiPhong);
+
+                if (hangDoiDaCo is not null &&
+                    !string.Equals(hangDoiDaCo.TrangThai, "dang_thuc_hien", StringComparison.OrdinalIgnoreCase))
+                {
+                    await _queue.CapNhatTrangThaiHangDoiAsync(
+                        hangDoiDaCo.MaHangDoi,
+                        new QueueStatusUpdateRequest
+                        {
+                            TrangThai = "dang_thuc_hien"
+                        });
+                }
+
+                if (!laPhongDichVuDaCo && phieuLsDaCo is not null &&
+                    !string.Equals(phieuLsDaCo.TrangThai, "dang_thuc_hien", StringComparison.OrdinalIgnoreCase))
+                {
+                    await _clinical.CapNhatTrangThaiPhieuKhamAsync(
+                        phieuLsDaCo.MaPhieuKham!,
+                        new ClinicalExamStatusUpdateRequest
+                        {
+                            TrangThai = "dang_thuc_hien"
+                        });
+                }
+
+                if (laPhongDichVuDaCo && hangDoiDaCo?.ChiTietDichVu is not null &&
+                    !string.Equals(hangDoiDaCo.ChiTietDichVu.TrangThai, "dang_thuc_hien", StringComparison.OrdinalIgnoreCase))
+                {
+                    hangDoiDaCo.ChiTietDichVu.TrangThai = "dang_thuc_hien";
+                    await _db.SaveChangesAsync();
+                }
+
+                if (!string.IsNullOrWhiteSpace(maBenhNhanDaCo))
+                {
+                    await _patients.CapNhatTrangThaiBenhNhanAsync(
+                        maBenhNhanDaCo!,
+                        new PatientStatusUpdateRequest
+                        {
+                            TrangThaiHomNay = !laPhongDichVuDaCo ? "dang_kham" : "dang_kham_dv"
+                        });
+                }
+
                 return MapToVisitRecord(luotDaCo);
             }
 

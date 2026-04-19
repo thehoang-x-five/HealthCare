@@ -1,9 +1,12 @@
 using System.Security.Claims;
 using System.Threading.Tasks;
+using HealthCare.Datas;
 using HealthCare.DTOs;
+using HealthCare.Infrastructure.Security;
 using HealthCare.Services.Report;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HealthCare.Controllers
 {
@@ -12,10 +15,12 @@ namespace HealthCare.Controllers
     public class DashboardController : ControllerBase
     {
         private readonly IDashboardService _dashboardService;
+        private readonly DataContext _db;
 
-        public DashboardController(IDashboardService dashboardService)
+        public DashboardController(IDashboardService dashboardService, DataContext db)
         {
             _dashboardService = dashboardService;
+            _db = db;
         }
 
         /// <summary>
@@ -44,7 +49,21 @@ namespace HealthCare.Controllers
             // Các vai trò theo khoa luôn bị khóa về khoa trong JWT.
             string? effectiveScope = isGlobal ? maKhoa : jwtMaKhoa;
 
-            var dto = await _dashboardService.LayDashboardHomNayAsync(effectiveScope);
+            var scope = User.GetUserScope();
+            string? effectiveRoomScope = null;
+            if (scope.IsTechnician)
+            {
+                effectiveRoomScope = await _db.Phongs
+                    .AsNoTracking()
+                    .Where(p => p.MaKTVPhuTrach == scope.MaNhanSu)
+                    .Select(p => p.MaPhong)
+                    .FirstOrDefaultAsync();
+
+                if (string.IsNullOrWhiteSpace(effectiveRoomScope))
+                    return Forbid();
+            }
+
+            var dto = await _dashboardService.LayDashboardHomNayAsync(effectiveScope, effectiveRoomScope);
             return Ok(dto);
         }
     }

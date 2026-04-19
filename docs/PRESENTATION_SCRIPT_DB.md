@@ -1,65 +1,89 @@
-# Kịch bản Thuyết trình: Kiến trúc Database HealthCare+
+# Kịch bản thuyết trình: Kiến trúc Database HealthCare+
 
-Tài liệu này cung cấp kịch bản thuyết trình từng bước, khớp với sơ đồ kiến trúc **Polyglot Persistence** của dự án.
-
----
-
-## 🎙️ PHẦN 1: MỞ ĐẦU & ĐẶT VẤN ĐỀ (30 giây)
-
-**Người nói:** 
-"Kính thưa Hội đồng, khi thiết kế hệ thống HealthCare+, thách thức lớn nhất mà nhóm gặp phải là sự xung đột giữa hai loại dữ liệu: 
-1. Dữ liệu **Tài chính & Quy trình** cần sự chính xác tuyệt đối (ACID).
-2. Dữ liệu **Bệnh án Lâm sàng** lại cực kỳ đa dạng và biến đổi liên tục.
-
-Nếu gộp tất cả vào một Database duy nhất, chúng ta sẽ đối mặt với tình trạng 'phình to' bảng với hàng trăm cột NULL hoặc sự chậm trễ khi truy vấn lịch sử bệnh án dài hạn. Vì vậy, chúng em đã lựa chọn kiến trúc **Polyglot Persistence** — kết hợp thế mạnh của cả MySQL và MongoDB."
+Tài liệu này dùng để thuyết trình phần thiết kế cơ sở dữ liệu theo kiến trúc **Polyglot Persistence**: MySQL giữ dữ liệu giao dịch có ràng buộc mạnh, MongoDB giữ lịch sử y khoa linh hoạt và phục vụ đọc/analytics.
 
 ---
 
-## 🎙️ PHẦN 2: CHIẾN LƯỢC LƯU TRỮ LAI (1 phút)
-
-**Người nói:** (Chỉ vào phần MySQL và MongoDB trên sơ đồ)
-
-"Ở tầng lưu trữ, chúng em chia hệ thống thành hai 'bán cầu' riêng biệt:
-
-*   **Bên phải (MySQL) — 'Sổ sách kế toán' của hệ thống:** Đảm nhận 24 bảng thuộc 6 Domain chính như Nhân sự, Hàng đợi, và Tài chính. Tại đây, tính nhất quán (Consistency) và quan hệ chặt chẽ (Foreign Key) được đặt lên hàng đầu để đảm bảo không sai sót một đồng phí hay một lịch hẹn nào.
-*   **Bên trái (MongoDB) — 'Hồ sơ lưu trữ' thông minh:** Thay vì tạo hàng chục bảng lâm sàng, chúng em chỉ dùng 1 Collection duy nhất là `medical_histories`. Nhờ cơ chế **Schema Evolution**, chúng em có thể lưu trữ mọi loại sự kiện từ Xét nghiệm máu, Siêu âm đến Đơn thuốc dưới dạng JSON linh hoạt. Việc thêm một loại chuyên khoa mới chỉ mất 0 giây cấu hình DB và 0 phút downtime."
-
----
-
-## 🎙️ PHẦN 3: ĐIỀU PHỐI CQRS & HYBRID FLOW (1 phút)
-
-**Người nói:** (Chỉ vào tầng CQRS và luồng mũi tên)
-
-"Để tối ưu hiệu năng, chúng em áp dụng mô hình **CQRS (tách biệt luồng Đọc và Ghi)**:
-*   Mọi lệnh **Ghi (Write)** về giao dịch được đẩy xuống MySQL theo cơ chế Transaction chặt chẽ.
-*   Việc **Đọc (Read)** lịch sử bệnh án được thực hiện trực tiếp trên MongoDB thông qua **Aggregation Pipeline**.
-
-Một điểm sáng kỹ thuật là **Hybrid Data Flow**: Khi bác sĩ xem 'Phiếu tổng hợp', Backend sẽ lấy trạng thái từ MySQL và chi tiết lâm sàng từ MongoDB để ghép thành một DTO hoàn chỉnh. Điều này giúp hệ thống vừa giữ được tính pháp lý của dữ liệu gốc, vừa mang lại trải nghiệm truy vấn siêu tốc."
-
----
-
-## 🎙️ PHẦN 4: CHIẾN LƯỢC PHÒNG THỦ CHIỀU SÂU (45 giây)
-
-**Người nói:** (Chỉ vào lớp Defense Tier 1 và Tier 2)
-
-"Bảo mật y tế là ưu tiên hàng đầu, vì vậy chúng em triển khai **Defense-in-Depth** với hai tầng bảo vệ:
-1.  **Tier 1 (Backend):** Kiểm tra Code-first để phản hồi nhanh và giảm tải cho Database.
-2.  **Tier 2 (Database Level):** Đây là chốt chặn cuối cùng. Chúng em sử dụng **Stored Procedures** với mức cô lập `SERIALIZABLE` để chống Race Condition khi đặt lịch hẹn. Các lệnh **CHECK Constraint** và **TRIGGER** đảm bảo số lượng tồn kho hay đơn giá không bao giờ bị âm, ngay cả khi có sự cố từ phía Backend."
-
----
-
-## 🎙️ PHẦN 5: KẾT LUẬN & GIÁ TRỊ (15 giây)
+## Phần 1: Mở đầu và vấn đề thiết kế
 
 **Người nói:**
-"Tóm lại, với sự kết hợp giữa **MySQL (Chính xác)** và **MongoDB (Linh hoạt)**, HealthCare+ không chỉ là một ứng dụng quản lý, mà là một hệ thống có khả năng mở rộng không giới hạn, an toàn tuyệt đối và sẵn sàng cho các bài toán phân tích Big Data trong tương lai. Em xin cảm ơn Hội đồng đã lắng nghe!"
+"Kính thưa Hội đồng, khi thiết kế HealthCare+, nhóm gặp một bài toán rất thực tế: không phải dữ liệu nào trong hệ thống y tế cũng có cùng đặc tính.
+
+Thứ nhất, dữ liệu vận hành như lịch hẹn, hàng đợi, hóa đơn, tồn kho và phân quyền cần tính chính xác cao, có khóa ngoại, ràng buộc và transaction ACID.
+
+Thứ hai, dữ liệu bệnh án như kết quả khám, xét nghiệm, chẩn đoán hình ảnh, đơn thuốc và thanh toán lại phát triển liên tục theo nghiệp vụ. Nếu ép toàn bộ vào bảng quan hệ, hệ thống sẽ phình to, nhiều cột JSON/NULL và khó mở rộng.
+
+Vì vậy, nhóm chọn kiến trúc Polyglot Persistence: dùng đúng loại database cho đúng loại dữ liệu."
 
 ---
 
-## 💡 CÁC CÂU HỎI "HÓA GIẢI" NHANH (Q&A)
+## Phần 2: Vai trò của MySQL và MongoDB
 
-> [!TIP]
-> **Hỏi: "Tại sao không dùng cột JSON trong MySQL cho xong?"**
-> **Trả lời:** "Dạ, cột JSON của MySQL không hỗ trợ Index trên các trường lồng nhau hiệu quả bằng MongoDB. Hơn nữa, việc đẩy gánh nặng đọc lịch sử sang MongoDB giúp MySQL rảnh tay để xử lý các giao dịch tài chính quan trọng."
->
-> **Hỏi: "Dữ liệu hai bên có bị lệch nhau (Out of sync) không?"**
-> **Trả lời:** "Hệ thống dùng cơ chế One-way Sync. MySQL giữ dữ liệu gốc (Gold source), MongoDB lưu bản Snapshot. Nếu MongoDB gặp sự cố, chúng em hoàn toàn có thể tái tạo lại dữ liệu từ các bảng ghi trong MySQL."
+**Người nói:**
+"Ở tầng lưu trữ, hệ thống được chia thành hai phần rõ ràng.
+
+**MySQL là nguồn dữ liệu vận hành chính.** MySQL lưu nhân sự, khoa phòng, lịch hẹn, hàng đợi, phiếu khám, phiếu CLS, hóa đơn, đơn thuốc và kho thuốc. Các bảng này cần khóa ngoại, constraint, trigger và transaction để đảm bảo dữ liệu không sai lệch.
+
+**MongoDB là kho lịch sử y khoa và audit.** Collection `medical_histories` lưu các sự kiện y khoa theo dạng document linh hoạt. Một bệnh nhân có thể phát sinh nhiều loại event như `kham_lam_sang`, `xet_nghiem`, `chan_doan_hinh_anh`, `cls_order_created`, `cls_service_completed`, `tong_hop_cls`, `don_thuoc`, `thanh_toan`. Nhờ schema linh hoạt, khi bổ sung loại phiếu hoặc chỉ số mới, hệ thống không cần ALTER TABLE."
+
+---
+
+## Phần 3: CQRS và luồng ghi/đọc lai
+
+**Người nói:**
+"Kiến trúc này được triển khai theo hướng CQRS nhẹ.
+
+Luồng ghi vẫn đi qua MySQL trước để đảm bảo ACID. Ví dụ với CLS, hệ thống tạo phiếu CLS, tạo chi tiết dịch vụ, chuyển hàng đợi qua từng phòng CLS, ghi kết quả và cuối cùng tạo phiếu tổng hợp trong MySQL.
+
+Sau mỗi bước y khoa quan trọng, backend dual-write một event sang MongoDB. Nếu MongoDB tạm thời lỗi, luồng vận hành MySQL vẫn hoàn tất; MongoDB đóng vai trò read/history store và có thể tái tạo từ MySQL.
+
+Luồng đọc bệnh án và phân tích y khoa ưu tiên đọc từ MongoDB. Khi bác sĩ xem phiếu tổng hợp CLS, backend giữ trạng thái pháp lý từ MySQL, đồng thời đưa các event y khoa từ MongoDB vào snapshot để tạo một góc nhìn đầy đủ cho bác sĩ."
+
+---
+
+## Phần 4: Ví dụ flow CLS
+
+**Người nói:**
+"Flow cận lâm sàng thể hiện rõ nhất kiến trúc Polyglot Persistence.
+
+Khi bác sĩ chỉ định CLS, MySQL tạo `phieu_kham_can_lam_sang` và các dòng `chi_tiet_dich_vu`, còn MongoDB ghi event `cls_order_created`.
+
+Khi bệnh nhân bắt đầu thực hiện CLS, MySQL tạo hàng đợi cho phòng thực hiện. KTV chỉ được xử lý dịch vụ thuộc phòng mình phụ trách. Khi KTV chốt kết quả, MySQL cập nhật trạng thái dịch vụ và hàng đợi, còn MongoDB ghi event chuyên môn như `xet_nghiem` hoặc `chan_doan_hinh_anh`, kèm event vòng đời `cls_service_completed`.
+
+Nếu phiếu còn dịch vụ CLS khác, hệ thống tự chuyển sang phòng kế tiếp và ghi event `cls_transfer_to_next_service`. Nếu tất cả dịch vụ đã có kết quả, hệ thống tự tạo `phieu_tong_hop_ket_qua`, trả bệnh nhân về hàng đợi khám lâm sàng bằng nguồn `service_return`, đồng thời ghi event `tong_hop_cls` vào MongoDB."
+
+---
+
+## Phần 5: Defense in Depth
+
+**Người nói:**
+"Bên cạnh phân tách database, hệ thống có hai tầng bảo vệ.
+
+Tầng backend kiểm tra RBAC, data scope, vai trò nhân sự và trạng thái nghiệp vụ trước khi ghi dữ liệu.
+
+Tầng database dùng khóa ngoại, constraint, trigger và stored procedure để đảm bảo dữ liệu vẫn an toàn nếu có lỗi từ tầng ứng dụng. Ví dụ: kho thuốc không được âm, thông tin cha mẹ bệnh nhân phải hợp lệ, và các thao tác đặt lịch cần tránh race condition."
+
+---
+
+## Phần 6: Kết luận
+
+**Người nói:**
+"Tóm lại, HealthCare+ không chọn một database duy nhất cho mọi bài toán. MySQL đảm bảo tính đúng đắn cho luồng vận hành, còn MongoDB giúp lưu lịch sử y khoa linh hoạt, dễ mở rộng và phù hợp cho phân tích dữ liệu.
+
+Đây là cách triển khai thực tế của Polyglot Persistence: MySQL là operational gold source, MongoDB là clinical history/read model. Hai bên đồng bộ một chiều từ MySQL sang MongoDB, giúp hệ thống vừa chính xác, vừa mở rộng tốt."
+
+---
+
+## Q&A nhanh
+
+**Hỏi: Tại sao không dùng cột JSON trong MySQL cho tất cả dữ liệu y khoa?**
+
+**Trả lời:** "MySQL JSON vẫn nằm trong database vận hành nên sẽ làm nặng hệ thống giao dịch. MongoDB phù hợp hơn cho lịch sử y khoa vì schema linh hoạt, dễ thêm event mới, và hỗ trợ aggregation tốt hơn cho phân tích."
+
+**Hỏi: Dữ liệu MySQL và MongoDB có thể lệch nhau không?**
+
+**Trả lời:** "Có thể có eventual consistency vì đây là one-way sync. Tuy nhiên MySQL là nguồn dữ liệu pháp lý chính. MongoDB là read/history model, nếu mất hoặc thiếu event có thể tái tạo từ MySQL."
+
+**Hỏi: Nếu MongoDB lỗi thì hệ thống có dừng không?**
+
+**Trả lời:** "Không. Backend bắt lỗi dual-write MongoDB và vẫn hoàn tất transaction MySQL. Điều này đảm bảo hệ thống khám chữa bệnh không bị dừng vì lỗi read/history store."

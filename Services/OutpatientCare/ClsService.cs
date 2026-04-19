@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using HealthCare.Datas;
 using HealthCare.DTOs;
 using HealthCare.Entities;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using HealthCare.Realtime;
 using HealthCare.Services.UserInteraction;
@@ -15,6 +17,7 @@ using HealthCare.Services.MedicationBilling;
 using Microsoft.Extensions.Hosting;
 using HealthCare.Infrastructure.Repositories;
 using MongoDB.Bson;
+using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 
 namespace HealthCare.Services.OutpatientCare
@@ -33,6 +36,7 @@ namespace HealthCare.Services.OutpatientCare
         private readonly IHistoryService _history;
         private readonly IBillingService _billing;
         private readonly IMongoHistoryRepository _mongoHistory;
+        private readonly IWebHostEnvironment _webHostEnvironment;
 
         public ClsService(
             DataContext db,
@@ -43,7 +47,8 @@ namespace HealthCare.Services.OutpatientCare
             IQueueService queue,
             IHistoryService history,
             IBillingService billing,
-            IMongoHistoryRepository mongoHistory)
+            IMongoHistoryRepository mongoHistory,
+            IWebHostEnvironment webHostEnvironment)
         {
             _db = db;
             _realtime = realtime;
@@ -54,8 +59,14 @@ namespace HealthCare.Services.OutpatientCare
             _history = history;
             _billing = billing;
             _mongoHistory = mongoHistory;
+            _webHostEnvironment = webHostEnvironment;
         }
         // ================== HELPER ==================
+
+        private sealed record StoredAttachmentPayload(
+            string Id,
+            string Name,
+            string Url);
 
         private static string? BuildThongTinChiTiet(BenhNhan bn)
         {
@@ -96,6 +107,304 @@ namespace HealthCare.Services.OutpatientCare
         private static bool IsTechnicianRole(string? vaiTro, string? chucVu) =>
             string.Equals(vaiTro, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(chucVu, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase);
+
+        private static string NormalizeJsonArrayOrEmpty(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "[]";
+
+            var trimmed = value.Trim();
+            try
+            {
+                using var doc = JsonDocument.Parse(trimmed);
+                return doc.RootElement.ValueKind == JsonValueKind.Array
+                    ? trimmed
+                    : JsonSerializer.Serialize(new[] { trimmed });
+            }
+            catch (JsonException)
+            {
+                return JsonSerializer.Serialize(new[] { trimmed });
+            }
+        }
+
+        private static string? ReadJsonStringProperty(JsonElement element, params string[] names)
+        {
+            foreach (var name in names)
+            {
+                if (element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String)
+                {
+                    var text = value.GetString();
+                    if (!string.IsNullOrWhiteSpace(text))
+                        return text.Trim();
+                }
+            }
+
+            return null;
+        }
+
+        private static bool IsDataUrl(string? value) =>
+            !string.IsNullOrWhiteSpace(value) &&
+            value.StartsWith("data:", StringComparison.OrdinalIgnoreCase);
+
+        private static string BuildSafeFileName(string? value)
+        {
+            var source = string.IsNullOrWhiteSpace(value) ? "cls-file" : value.Trim();
+            var invalid = Path.GetInvalidFileNameChars();
+            var chars = source
+                .Select(ch => invalid.Contains(ch) ? '-' : ch)
+                .ToArray();
+            var cleaned = new string(chars).Trim().Trim('.');
+            return string.IsNullOrWhiteSpace(cleaned) ? "cls-file" : cleaned;
+        }
+
+        private static string ResolveFileExtension(string? mimeType, string? fileName)
+        {
+            var existing = Path.GetExtension(fileName ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(existing))
+                return existing;
+
+            return (mimeType ?? string.Empty).Trim().ToLowerInvariant() switch
+            {
+                "image/jpeg" => ".jpg",
+                "image/jpg" => ".jpg",
+                "image/png" => ".png",
+                "image/webp" => ".webp",
+                "image/gif" => ".gif",
+                "application/pdf" => ".pdf",
+                "text/plain" => ".txt",
+                _ => ".bin"
+            };
+        }
+
+        private async Task<string?> SaveDataUrlAttachmentAsync(string dataUrl, string? fileNameHint)
+        {
+            var marker = ";base64,";
+            var markerIndex = dataUrl.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+            if (markerIndex <= 5)
+                return null;
+
+            var mimeType = dataUrl.Substring(5, markerIndex - 5);
+            var base64 = dataUrl[(markerIndex + marker.Length)..];
+            if (string.IsNullOrWhiteSpace(base64))
+                return null;
+
+            byte[] bytes;
+            try
+            {
+                bytes = Convert.FromBase64String(base64);
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
+
+            var root = string.IsNullOrWhiteSpace(_webHostEnvironment.WebRootPath)
+                ? Path.Combine(AppContext.BaseDirectory, "wwwroot")
+                : _webHostEnvironment.WebRootPath;
+
+            var folderPath = Path.Combine(root, "uploads", "cls");
+            Directory.CreateDirectory(folderPath);
+
+            var baseName = BuildSafeFileName(Path.GetFileNameWithoutExtension(fileNameHint));
+            var extension = ResolveFileExtension(mimeType, fileNameHint);
+            var suffix = Guid.NewGuid().ToString("N")[..8];
+            var fileName = $"{baseName}-{suffix}{extension}";
+            var filePath = Path.Combine(folderPath, fileName);
+
+            await File.WriteAllBytesAsync(filePath, bytes);
+            return $"/uploads/cls/{fileName}";
+        }
+
+        private StoredAttachmentPayload? BuildStoredAttachmentFromPlainString(string? raw, int index)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return null;
+
+            var trimmed = raw.Trim();
+            var name = Path.GetFileName(trimmed);
+            if (string.IsNullOrWhiteSpace(name))
+                name = $"Tệp {index}";
+
+            var url = trimmed.StartsWith("/", StringComparison.Ordinal) ||
+                      trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                      trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                ? trimmed
+                : string.Empty;
+
+            return new StoredAttachmentPayload($"file-{index}", name, url);
+        }
+
+        private async Task<StoredAttachmentPayload?> NormalizeAttachmentElementAsync(JsonElement element, int index)
+        {
+            if (element.ValueKind == JsonValueKind.String)
+                return BuildStoredAttachmentFromPlainString(element.GetString(), index);
+
+            if (element.ValueKind != JsonValueKind.Object)
+                return null;
+
+            var id = ReadJsonStringProperty(element, "id") ?? $"file-{index}";
+            var name = ReadJsonStringProperty(element, "name", "fileName", "filename");
+            var url = ReadJsonStringProperty(element, "url", "href", "path");
+
+            if (IsDataUrl(url))
+            {
+                url = await SaveDataUrlAttachmentAsync(url!, name);
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = !string.IsNullOrWhiteSpace(url)
+                    ? Path.GetFileName(url)
+                    : $"Tệp {index}";
+            }
+
+            return new StoredAttachmentPayload(id, name!, url ?? string.Empty);
+        }
+
+        private async Task<string> NormalizeAttachmentsForStorageAsync(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "[]";
+
+            var trimmed = value.Trim();
+
+            try
+            {
+                using var doc = JsonDocument.Parse(trimmed);
+                var root = doc.RootElement;
+                var stored = new List<StoredAttachmentPayload>();
+
+                if (root.ValueKind == JsonValueKind.Array)
+                {
+                    var index = 1;
+                    foreach (var item in root.EnumerateArray())
+                    {
+                        var normalized = await NormalizeAttachmentElementAsync(item, index++);
+                        if (normalized is not null)
+                            stored.Add(normalized);
+                    }
+                }
+                else if (root.ValueKind == JsonValueKind.Object || root.ValueKind == JsonValueKind.String)
+                {
+                    var normalized = await NormalizeAttachmentElementAsync(root, 1);
+                    if (normalized is not null)
+                        stored.Add(normalized);
+                }
+
+                return JsonSerializer.Serialize(stored);
+            }
+            catch (JsonException)
+            {
+                var single = BuildStoredAttachmentFromPlainString(trimmed, 1);
+                return JsonSerializer.Serialize(single is null ? Array.Empty<StoredAttachmentPayload>() : new[] { single });
+            }
+        }
+
+        private static string InferClsResultType(string? serviceType)
+        {
+            var normalized = (serviceType ?? string.Empty).Trim().ToLowerInvariant();
+            return normalized.Contains("hinh_anh") ||
+                   normalized.Contains("chan_doan") ||
+                   normalized.Contains("x_quang") ||
+                   normalized.Contains("sieu_am")
+                ? "chan_doan_hinh_anh"
+                : "xet_nghiem";
+        }
+
+        private static bool IsFinalClsResultStatus(string? status)
+        {
+            var normalized = (status ?? string.Empty).Trim().ToLowerInvariant();
+            return normalized is "da_co_ket_qua" or "da_chot" or "hoan_tat";
+        }
+
+        private static BsonValue BsonOrNull(string? value) =>
+            string.IsNullOrWhiteSpace(value) ? BsonNull.Value : value.Trim();
+
+        private static BsonValue BsonDateOrNull(DateTime? value) =>
+            value.HasValue ? new BsonDateTime(value.Value.ToUniversalTime()) : BsonNull.Value;
+
+        private async Task LogMedicalEventSafeAsync(
+            string? maBenhNhan,
+            string eventType,
+            BsonDocument payload,
+            string? maNhanSu = null)
+        {
+            if (string.IsNullOrWhiteSpace(maBenhNhan))
+                return;
+
+            try
+            {
+                await _mongoHistory.LogEventAsync(maBenhNhan, eventType, payload, maNhanSu);
+            }
+            catch (Exception)
+            {
+                // MongoDB is a read/history store. Operational MySQL flow must remain successful.
+            }
+        }
+
+        private static BsonDocument BuildClsItemPayload(ClsItemDto item) => new()
+        {
+            { "ma_chi_tiet_dv", item.MaChiTietDv },
+            { "ma_phieu_kham_cls", item.MaPhieuKhamCls },
+            { "ma_dich_vu", item.MaDichVu },
+            { "ten_dich_vu", item.TenDichVu },
+            { "loai_dich_vu", BsonOrNull(item.LoaiDichVu) },
+            { "ma_phong", BsonOrNull(item.MaPhong) },
+            { "ten_phong", BsonOrNull(item.TenPhong) },
+            { "ma_ky_thuat_vien", BsonOrNull(item.MaKyThuatVienThucHien ?? item.MaNhanSuThucHien) },
+            { "ten_ky_thuat_vien", BsonOrNull(item.TenKyThuatVienThucHien ?? item.TenNhanSuThucHien) },
+            { "trang_thai", BsonOrNull(item.TrangThai) },
+            { "ghi_chu", BsonOrNull(item.GhiChu) }
+        };
+
+        private static JsonElement BsonDocumentToJsonElement(BsonDocument document)
+        {
+            var json = document.ToJson(new JsonWriterSettings
+            {
+                OutputMode = JsonOutputMode.RelaxedExtendedJson
+            });
+
+            using var parsed = JsonDocument.Parse(json);
+            return parsed.RootElement.Clone();
+        }
+
+        private static bool IsMongoEventForCls(BsonDocument document, string maPhieuKhamCls)
+        {
+            if (!document.TryGetValue("data", out var dataValue) || !dataValue.IsBsonDocument)
+                return false;
+
+            var data = dataValue.AsBsonDocument;
+            return data.TryGetValue("ma_phieu_kham_cls", out var clsValue) &&
+                   clsValue.IsString &&
+                   string.Equals(clsValue.AsString, maPhieuKhamCls, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<IReadOnlyList<JsonElement>> GetMongoClsEventsForSnapshotAsync(
+            string maBenhNhan,
+            string maPhieuKhamCls)
+        {
+            try
+            {
+                var events = await _mongoHistory.GetPatientHistoryAsync(
+                    maBenhNhan,
+                    eventType: null,
+                    fromDate: null,
+                    toDate: null,
+                    limit: 500);
+
+                return events
+                    .Where(e => IsMongoEventForCls(e, maPhieuKhamCls))
+                    .OrderBy(e => e.TryGetValue("event_date", out var date) && date.IsBsonDateTime
+                        ? date.ToUniversalTime()
+                        : DateTime.MinValue)
+                    .Select(BsonDocumentToJsonElement)
+                    .ToList();
+            }
+            catch (Exception)
+            {
+                return Array.Empty<JsonElement>();
+            }
+        }
 
         private static LichTruc? SelectBestDuty(IEnumerable<LichTruc> schedules, DateTime at)
         {
@@ -505,6 +814,23 @@ namespace HealthCare.Services.OutpatientCare
                       ?? throw new InvalidOperationException("Không build được DTO CLS");
 
             // Realtime: phiếu CLS mới
+            await LogMedicalEventSafeAsync(
+                phieuLs.MaBenhNhan,
+                "cls_order_created",
+                new BsonDocument
+                {
+                    { "ma_phieu_kham_cls", phieuCls.MaPhieuKhamCls },
+                    { "ma_phieu_kham_ls", phieuCls.MaPhieuKhamLs },
+                    { "ma_benh_nhan", phieuLs.MaBenhNhan },
+                    { "ma_nguoi_lap", request.MaNguoiLap },
+                    { "ngay_gio_lap", BsonDateOrNull(phieuCls.NgayGioLap) },
+                    { "trang_thai", phieuCls.TrangThai },
+                    { "auto_publish_enabled", phieuCls.AutoPublishEnabled },
+                    { "ghi_chu", BsonOrNull(phieuCls.GhiChu) },
+                    { "items", new BsonArray(dto.ListItemDV.Select(BuildClsItemPayload)) }
+                },
+                request.MaNguoiLap);
+
             await _realtime.BroadcastClsOrderCreatedAsync(dto);
 
             // Thông báo: chỉ định CLS mới
@@ -649,6 +975,20 @@ namespace HealthCare.Services.OutpatientCare
                         });
                     }
 
+                    await LogMedicalEventSafeAsync(
+                        dto.MaBenhNhan,
+                        "cls_order_status_changed",
+                        new BsonDocument
+                        {
+                            { "ma_phieu_kham_cls", dto.MaPhieuKhamCls },
+                            { "ma_phieu_kham_ls", dto.MaPhieuKhamLs },
+                            { "ma_benh_nhan", dto.MaBenhNhan },
+                            { "trang_thai", dto.TrangThai },
+                            { "ma_nguoi_lap", BsonOrNull(dto.MaNguoiLap) },
+                            { "items", new BsonArray(dto.ListItemDV.Select(BuildClsItemPayload)) }
+                        },
+                        dto.MaNguoiLap);
+
                     await _realtime.BroadcastClsOrderStatusUpdatedAsync(dto);
                     var dashboard = await _dashboard.LayDashboardHomNayAsync();
                     await _realtime.BroadcastDashboardTodayAsync(dashboard);
@@ -698,7 +1038,8 @@ namespace HealthCare.Services.OutpatientCare
             int page,
             int pageSize,
             string? originMaKhoaScope = null,
-            string? serviceMaKhoaScope = null)
+            string? serviceMaKhoaScope = null,
+            string? serviceMaPhongScope = null)
         {
             page = page <= 0 ? 1 : page;
             pageSize = pageSize <= 0 ? 50 : pageSize; // ✅ Chuẩn hóa: 50 items mặc định
@@ -733,6 +1074,14 @@ namespace HealthCare.Services.OutpatientCare
                     _db.ChiTietDichVus.Any(ct =>
                         ct.MaPhieuKhamCls == x.cls.MaPhieuKhamCls &&
                         ct.DichVuYTe.PhongThucHien.MaKhoa == serviceMaKhoaScope));
+            }
+
+            if (!string.IsNullOrWhiteSpace(serviceMaPhongScope))
+            {
+                query = query.Where(x =>
+                    _db.ChiTietDichVus.Any(ct =>
+                        ct.MaPhieuKhamCls == x.cls.MaPhieuKhamCls &&
+                        ct.DichVuYTe.MaPhongThucHien == serviceMaPhongScope));
             }
 
             if (fromDate.HasValue)
@@ -913,6 +1262,12 @@ namespace HealthCare.Services.OutpatientCare
                 .FirstOrDefaultAsync(k => k.MaChiTietDv == request.MaChiTietDv);
 
             var now = DateTime.Now;
+            var tepDinhKemJson = await NormalizeAttachmentsForStorageAsync(request.TepDinhKem);
+            var ketLuanChuyen = string.IsNullOrWhiteSpace(request.KetLuanChuyen)
+                ? request.NoiDungKetQua
+                : request.KetLuanChuyen;
+            var thoiGianChot = IsFinalClsResultStatus(request.TrangThaiChot) ? now : (DateTime?)null;
+            var loaiKetQua = InferClsResultType(chiTiet.DichVuYTe?.LoaiDichVu ?? chiTiet.DichVuYTe?.TenDichVu);
 
             if (ketQua is null)
             {
@@ -920,20 +1275,26 @@ namespace HealthCare.Services.OutpatientCare
                 {
                     MaKetQua = $"KQ-{Guid.NewGuid():N}",
                     MaChiTietDv = chiTiet.MaChiTietDv,
+                    LoaiKetQua = loaiKetQua,
+                    KetLuanChuyen = ketLuanChuyen,
+                    GhiChu = request.GhiChu,
                     TrangThaiChot = request.TrangThaiChot,
                     MaNguoiTao = request.MaNhanSuThucHien,
                     ThoiGianTao = now,
-                    TepDinhKem = request.TepDinhKem
+                    ThoiGianChot = thoiGianChot,
+                    TepDinhKem = tepDinhKemJson
                 };
                 _db.KetQuaDichVus.Add(ketQua);
             }
             else
             {
+                ketQua.LoaiKetQua = loaiKetQua;
                 ketQua.TrangThaiChot = request.TrangThaiChot;
-                ketQua.KetLuanChuyen = request.KetLuanChuyen;
+                ketQua.KetLuanChuyen = ketLuanChuyen;
                 ketQua.GhiChu = request.GhiChu;
                 ketQua.MaNguoiTao = request.MaNhanSuThucHien;
-                ketQua.TepDinhKem = request.TepDinhKem;
+                ketQua.ThoiGianChot = thoiGianChot ?? ketQua.ThoiGianChot;
+                ketQua.TepDinhKem = tepDinhKemJson;
             }
 
             chiTiet.TrangThai = "da_co_ket_qua";
@@ -1025,6 +1386,23 @@ namespace HealthCare.Services.OutpatientCare
             };
 
             // Realtime: có kết quả CLS mới
+            await LogMedicalEventSafeAsync(
+                phieuCls?.PhieuKhamLamSang?.MaBenhNhan,
+                "cls_service_completed",
+                new BsonDocument
+                {
+                    { "ma_phieu_kham_cls", BsonOrNull(chiTiet.MaPhieuKhamCls) },
+                    { "ma_chi_tiet_dv", chiTiet.MaChiTietDv },
+                    { "ma_dich_vu", BsonOrNull(chiTiet.MaDichVu) },
+                    { "ten_dich_vu", BsonOrNull(chiTiet.DichVuYTe?.TenDichVu) },
+                    { "ma_phong", BsonOrNull(chiTiet.DichVuYTe?.MaPhongThucHien) },
+                    { "ma_ket_qua", ketQua.MaKetQua },
+                    { "ma_ky_thuat_vien", BsonOrNull(ketQua.MaNguoiTao) },
+                    { "trang_thai_chot", BsonOrNull(ketQua.TrangThaiChot) },
+                    { "thoi_gian_chot", BsonDateOrNull(ketQua.ThoiGianChot ?? ketQua.ThoiGianTao) }
+                },
+                request.MaNhanSuThucHien);
+
             await _realtime.BroadcastClsResultCreatedAsync(dto);
 
             // Targeted broadcast: gửi notification cho bác sĩ chỉ định
@@ -1065,6 +1443,20 @@ namespace HealthCare.Services.OutpatientCare
                 await _queue.CapNhatTrangThaiHangDoiAsync(
                     hangDoi.MaHangDoi,
                     new QueueStatusUpdateRequest { TrangThai = "da_phuc_vu" });
+
+                await LogMedicalEventSafeAsync(
+                    phieuCls?.PhieuKhamLamSang?.MaBenhNhan,
+                    "cls_queue_completed",
+                    new BsonDocument
+                    {
+                        { "ma_phieu_kham_cls", BsonOrNull(chiTiet.MaPhieuKhamCls) },
+                        { "ma_chi_tiet_dv", chiTiet.MaChiTietDv },
+                        { "ma_hang_doi", hangDoi.MaHangDoi },
+                        { "ma_phong", BsonOrNull(hangDoi.MaPhong) },
+                        { "trang_thai", "da_phuc_vu" },
+                        { "thoi_gian", BsonDateOrNull(now) }
+                    },
+                    request.MaNhanSuThucHien);
 
                 // 3) Cập nhật trạng thái lượt khám CLS gắn với hàng đợi (nếu có)
                 var luot = await _db.LuotKhamBenhs.FirstOrDefaultAsync(l => l.MaHangDoi == hangDoi.MaHangDoi);
@@ -1126,6 +1518,21 @@ namespace HealthCare.Services.OutpatientCare
                         DoUuTien = 0,
                         CapCuu = false
                     });
+
+                    await LogMedicalEventSafeAsync(
+                        maBenhNhan,
+                        "cls_transfer_to_next_service",
+                        new BsonDocument
+                        {
+                            { "ma_phieu_kham_cls", BsonOrNull(next.MaPhieuKhamCls) },
+                            { "from_ma_chi_tiet_dv", chiTiet.MaChiTietDv },
+                            { "to_ma_chi_tiet_dv", next.MaChiTietDv },
+                            { "to_ma_dich_vu", BsonOrNull(next.MaDichVu) },
+                            { "to_ten_dich_vu", BsonOrNull(next.DichVuYTe?.TenDichVu) },
+                            { "to_ma_phong", BsonOrNull(maPhongNext) },
+                            { "trang_thai_benh_nhan", "cho_kham_dv" }
+                        },
+                        request.MaNhanSuThucHien);
                 }
             }
             else
@@ -1137,6 +1544,17 @@ namespace HealthCare.Services.OutpatientCare
                         maBenhNhan,
                         new PatientStatusUpdateRequest { TrangThaiHomNay = "cho_xu_ly_dv" });
                 }
+
+                await LogMedicalEventSafeAsync(
+                    maBenhNhan,
+                    "cls_all_services_completed",
+                    new BsonDocument
+                    {
+                        { "ma_phieu_kham_cls", BsonOrNull(chiTiet.MaPhieuKhamCls) },
+                        { "completed_item_count", allDv.Count },
+                        { "trang_thai_benh_nhan", "cho_xu_ly_dv" }
+                    },
+                    request.MaNhanSuThucHien);
             }
 
             // 5) AUTO PUBLISH: nếu DV cuối cùng đã xong thì tự lập phiếu tổng hợp
@@ -1192,6 +1610,7 @@ namespace HealthCare.Services.OutpatientCare
 
             var bn = phieuLs.BenhNhan;
             var clsResults = await LayKetQuaTheoPhieuClsAsync(maPhieuKhamCls);
+            var mongoClinicalEvents = await GetMongoClsEventsForSnapshotAsync(bn.MaBenhNhan, maPhieuKhamCls);
 
             var snapshotObj = new
             {
@@ -1212,11 +1631,18 @@ namespace HealthCare.Services.OutpatientCare
                     bn.DienThoai,
                     bn.DiaChi
                 },
-                KetQua = clsResults
+                KetQua = clsResults,
+                MongoClinicalEvents = mongoClinicalEvents
             };
 
             var snapshotJson = JsonSerializer.Serialize(snapshotObj);
             var now = DateTime.Now;
+            var maNhanSuXuLy = clsResults
+                .OrderByDescending(r => r.ThoiGianTao)
+                .Select(r => r.MaNhanSuThucHien)
+                .FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))
+                ?? phieuLs.MaBacSiKham
+                ?? phieuLs.MaNguoiLap;
 
             var summary = await _db.PhieuTongHopKetQuas
                 .FirstOrDefaultAsync(s => s.MaPhieuKhamCls == maPhieuKhamCls);
@@ -1230,6 +1656,7 @@ namespace HealthCare.Services.OutpatientCare
                     MaPhieuTongHop = $"THKQ-{Guid.NewGuid():N}",
                     MaPhieuKhamCls = maPhieuKhamCls,
                     LoaiPhieu = "tong_hop_cls",
+                    MaNhanSuXuLy = maNhanSuXuLy,
                     TrangThai = "cho_xu_ly",
                     ThoiGianXuLy = now,
                     SnapshotJson = snapshotJson
@@ -1239,6 +1666,7 @@ namespace HealthCare.Services.OutpatientCare
             else
             {
                 summary.SnapshotJson = snapshotJson;
+                summary.MaNhanSuXuLy = maNhanSuXuLy;
                 summary.ThoiGianXuLy = now;
             }
 
@@ -1246,58 +1674,11 @@ namespace HealthCare.Services.OutpatientCare
             phieuLs.MaPhieuKqKhamCls = summary.MaPhieuTongHop;
             await _db.SaveChangesAsync();
 
-            // ===== Tạo lại hàng chờ cho phiếu LS để quay lại khám =====
-            // Tìm hàng chờ hiện có của phiếu LS
-            var queueExisting = await _db.HangDois
-                .Include(h => h.PhieuKhamLamSang)
-                    .ThenInclude(p => p.DichVuKham)
-                .FirstOrDefaultAsync(h => h.MaPhieuKham == phieuLs.MaPhieuKham);
-
-            var maPhongKham = phieuLs.DichVuKham?.MaPhongThucHien;
-            
-            if (queueExisting is not null && !string.IsNullOrWhiteSpace(maPhongKham))
-            {
-                // Cập nhật hàng chờ hiện có: chuyển về "cho_goi", Nguon = "service_return"
-                // Cập nhật hàng chờ hiện có: chuyển về "cho_goi", Nguon = "service_return"
-                // CapNhatThongTinHangDoiAsync đã tự động set TrangThai = "cho_goi"
-                await _queue.CapNhatThongTinHangDoiAsync(queueExisting.MaHangDoi, new QueueEnqueueRequest
-                {
-                    MaBenhNhan = phieuLs.MaBenhNhan,
-                    MaPhong = maPhongKham,
-                    LoaiHangDoi = "kham_lam_sang",
-                    Nguon = "service_return",
-                    Nhan = null,
-                    CapCuu = false,
-                    DoUuTien = 0, // QueueService sẽ tự tính độ ưu tiên cho service_return
-                    ThoiGianLichHen = null,
-                    MaPhieuKham = phieuLs.MaPhieuKham,
-                    MaChiTietDv = null,
-                    PhanLoaiDen = null
-                });
-            }
-            else if (!string.IsNullOrWhiteSpace(maPhongKham))
-            {
-                // Tạo hàng chờ mới nếu chưa có (trường hợp hiếm - hàng chờ bị xóa)
-                await _queue.ThemVaoHangDoiAsync(new QueueEnqueueRequest
-                {
-                    MaBenhNhan = phieuLs.MaBenhNhan,
-                    MaPhong = maPhongKham,
-                    LoaiHangDoi = "kham_lam_sang",
-                    Nguon = "service_return",
-                    Nhan = null,
-                    CapCuu = false,
-                    DoUuTien = 0,
-                    ThoiGianLichHen = null,
-                    MaPhieuKham = phieuLs.MaPhieuKham,
-                    MaChiTietDv = null,
-                    PhanLoaiDen = null
-                });
-            }
-
-            // Cập nhật trạng thái bệnh nhân → cho_kham (chờ khám lại)
+            // CLS xong chi tao tong hop va cho y ta hanh chinh xu ly.
+            // Queue service_return chi duoc mo khi y ta hanh chinh lap tiep nhan lai.
             await _patients.CapNhatTrangThaiBenhNhanAsync(
                 phieuLs.MaBenhNhan,
-                new PatientStatusUpdateRequest { TrangThaiHomNay = "cho_kham" });
+                new PatientStatusUpdateRequest { TrangThaiHomNay = "cho_xu_ly_dv" });
 
             var dto = new ClsSummaryDto
             {
@@ -1310,6 +1691,26 @@ namespace HealthCare.Services.OutpatientCare
                 TrangThai = summary.TrangThai,
                 SnapshotJson = summary.SnapshotJson
             };
+
+            await LogMedicalEventSafeAsync(
+                bn.MaBenhNhan,
+                "tong_hop_cls",
+                new BsonDocument
+                {
+                    { "ma_phieu_tong_hop", summary.MaPhieuTongHop },
+                    { "ma_phieu_kham_cls", summary.MaPhieuKhamCls },
+                    { "ma_phieu_kham_ls", phieuCls.MaPhieuKhamLs },
+                    { "ma_benh_nhan", bn.MaBenhNhan },
+                    { "trang_thai", summary.TrangThai },
+                    { "ma_nhan_su_xu_ly", BsonOrNull(summary.MaNhanSuXuLy) },
+                    { "so_luong_ket_qua", clsResults.Count },
+                    { "mongo_event_count", mongoClinicalEvents.Count },
+                    { "buoc_tiep_theo", "cho_y_ta_hanh_chinh_xu_ly" },
+                    { "nguon_queue_tra_ve", BsonNull.Value },
+                    { "trang_thai_benh_nhan", "cho_xu_ly_dv" },
+                    { "thoi_gian_xu_ly", BsonDateOrNull(summary.ThoiGianXuLy) }
+                },
+                summary.MaNhanSuXuLy);
 
             if (isNew)
             {
@@ -1328,7 +1729,8 @@ namespace HealthCare.Services.OutpatientCare
         public async Task<PagedResult<ClsSummaryDto>> LayTongHopKetQuaChoLapPhieuKhamAsync(
             ClsSummaryFilter filter,
             string? originMaKhoaScope = null,
-            string? serviceMaKhoaScope = null)
+            string? serviceMaKhoaScope = null,
+            string? serviceMaPhongScope = null)
         {
             if (string.IsNullOrWhiteSpace(filter.MaBenhNhan))
                 throw new ArgumentException("MaBenhNhan là bắt buộc trong filter");
@@ -1360,6 +1762,14 @@ namespace HealthCare.Services.OutpatientCare
                     _db.ChiTietDichVus.Any(ct =>
                         ct.MaPhieuKhamCls == x.cls.MaPhieuKhamCls &&
                         ct.DichVuYTe.PhongThucHien.MaKhoa == serviceMaKhoaScope));
+            }
+
+            if (!string.IsNullOrWhiteSpace(serviceMaPhongScope))
+            {
+                query = query.Where(x =>
+                    _db.ChiTietDichVus.Any(ct =>
+                        ct.MaPhieuKhamCls == x.cls.MaPhieuKhamCls &&
+                        ct.DichVuYTe.MaPhongThucHien == serviceMaPhongScope));
             }
 
             if (filter.FromDate.HasValue)
@@ -1527,7 +1937,7 @@ namespace HealthCare.Services.OutpatientCare
             var conChuaHoanTat = await _db.ChiTietDichVus
                 .AnyAsync(c =>
                     c.MaPhieuKhamCls == maPhieuKhamCls &&
-                    !string.Equals(c.TrangThai, "da_co_ket_qua", StringComparison.OrdinalIgnoreCase));
+                    (c.TrangThai == null || c.TrangThai != "da_co_ket_qua"));
 
             if (conChuaHoanTat)
                 return;

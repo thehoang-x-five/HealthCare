@@ -107,6 +107,9 @@ namespace HealthCare.Controllers
             var scope = User.GetUserScope();
             if (!scope.IsGlobal && string.IsNullOrWhiteSpace(scope.DepartmentScope))
                 return Forbid();
+            var serviceRoomScope = await GetServiceRoomScopeAsync(scope);
+            if (scope.IsTechnician && string.IsNullOrWhiteSpace(serviceRoomScope))
+                return Forbid();
 
             var result = await _service.TimKiemPhieuClsAsync(
                 maBenhNhan,
@@ -117,7 +120,8 @@ namespace HealthCare.Controllers
                 page,
                 pageSize,
                 GetOriginDepartmentScope(scope),
-                GetServiceDepartmentScope(scope));
+                GetServiceDepartmentScope(scope),
+                serviceRoomScope);
 
             return Ok(result);
         }
@@ -209,6 +213,9 @@ namespace HealthCare.Controllers
             var scope = User.GetUserScope();
             if (!scope.IsGlobal && string.IsNullOrWhiteSpace(scope.DepartmentScope))
                 return Forbid();
+            var serviceRoomScope = await GetServiceRoomScopeAsync(scope);
+            if (scope.IsTechnician && string.IsNullOrWhiteSpace(serviceRoomScope))
+                return Forbid();
 
             var filter = new ClsSummaryFilter
             {
@@ -223,7 +230,8 @@ namespace HealthCare.Controllers
             var result = await _service.LayTongHopKetQuaChoLapPhieuKhamAsync(
                 filter,
                 GetOriginDepartmentScope(scope),
-                GetServiceDepartmentScope(scope));
+                GetServiceDepartmentScope(scope),
+                serviceRoomScope);
 
             return Ok(result);
         }
@@ -289,6 +297,18 @@ namespace HealthCare.Controllers
             return !scope.IsGlobal && scope.IsClsRole ? scope.DepartmentScope : null;
         }
 
+        private async Task<string?> GetServiceRoomScopeAsync(UserScopeContext scope)
+        {
+            if (!scope.IsTechnician || string.IsNullOrWhiteSpace(scope.MaNhanSu))
+                return null;
+
+            return await _db.Phongs
+                .AsNoTracking()
+                .Where(p => p.MaKTVPhuTrach == scope.MaNhanSu)
+                .Select(p => p.MaPhong)
+                .FirstOrDefaultAsync();
+        }
+
         private async Task<bool> CanAccessOrderAsync(string maPhieuKhamCls)
         {
             var scope = User.GetUserScope();
@@ -307,6 +327,15 @@ namespace HealthCare.Controllers
 
             if (scope.IsClsRole)
             {
+                var roomScope = await GetServiceRoomScopeAsync(scope);
+                if (scope.IsTechnician)
+                {
+                    if (string.IsNullOrWhiteSpace(roomScope)) return false;
+                    return await baseQuery
+                        .ApplyClsServiceRoomScope(roomScope)
+                        .AnyAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls);
+                }
+
                 return await baseQuery
                     .ApplyClsServiceDepartmentScope(scope.DepartmentScope)
                     .AnyAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls);
@@ -333,6 +362,15 @@ namespace HealthCare.Controllers
 
             if (scope.IsClsRole)
             {
+                var roomScope = await GetServiceRoomScopeAsync(scope);
+                if (scope.IsTechnician)
+                {
+                    if (string.IsNullOrWhiteSpace(roomScope)) return false;
+                    return await baseQuery
+                        .ApplyClsSummaryServiceRoomScope(roomScope)
+                        .AnyAsync(p => p.MaPhieuTongHop == maPhieuTongHop);
+                }
+
                 return await baseQuery
                     .ApplyClsSummaryServiceDepartmentScope(scope.DepartmentScope)
                     .AnyAsync(p => p.MaPhieuTongHop == maPhieuTongHop);
@@ -351,6 +389,17 @@ namespace HealthCare.Controllers
 
             if (scope.IsClsRole)
             {
+                var roomScope = await GetServiceRoomScopeAsync(scope);
+                if (scope.IsTechnician)
+                {
+                    if (string.IsNullOrWhiteSpace(roomScope)) return false;
+                    return await _db.ChiTietDichVus
+                        .AsNoTracking()
+                        .AnyAsync(ct =>
+                            ct.MaChiTietDv == maChiTietDv &&
+                            ct.DichVuYTe.MaPhongThucHien == roomScope);
+                }
+
                 return await _db.ChiTietDichVus
                     .AsNoTracking()
                     .AnyAsync(ct =>

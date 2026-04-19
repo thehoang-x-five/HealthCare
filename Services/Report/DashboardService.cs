@@ -19,7 +19,7 @@ namespace HealthCare.Services.Report
             _db = db;
         }
 
-        public async Task<DashboardTodayDto> LayDashboardHomNayAsync(string? maKhoa = null)
+        public async Task<DashboardTodayDto> LayDashboardHomNayAsync(string? maKhoa = null, string? maPhong = null)
         {
             var today = DateTime.Today;
             var tomorrow = today.AddDays(1);
@@ -27,7 +27,11 @@ namespace HealthCare.Services.Report
             // ===== 1. KPI: BỆNH NHÂN TRONG NGÀY (THEO PHIẾU LS) =====
             // Nếu maKhoa != null, lấy danh sách MaPhong thuộc khoa đó
             List<string>? scopeRooms = null;
-            if (!string.IsNullOrWhiteSpace(maKhoa))
+            if (!string.IsNullOrWhiteSpace(maPhong))
+            {
+                scopeRooms = new List<string> { maPhong.Trim() };
+            }
+            else if (!string.IsNullOrWhiteSpace(maKhoa))
             {
                 scopeRooms = await _db.Phongs
                     .Where(p => p.MaKhoa == maKhoa)

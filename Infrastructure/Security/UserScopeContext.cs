@@ -27,7 +27,7 @@ namespace HealthCare.Infrastructure.Security
         public bool IsDoctor => VaiTro == "bacsi";
         public bool IsClinicalNurse => VaiTro == "yta" && LoaiYTa is "ls" or "lamsang" or "phongkham";
         public bool IsClsNurse => VaiTro == "yta" && LoaiYTa is "cls" or "canlamsang";
-        public bool IsTechnician => VaiTro == "kythuatvien";
+        public bool IsTechnician => VaiTro is "kythuatvien" or "ktv" or "technician";
 
         public bool IsClinicalCareRole => IsDoctor || IsClinicalNurse;
         public bool IsClsRole => IsTechnician || IsClsNurse;

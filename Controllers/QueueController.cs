@@ -168,12 +168,22 @@ namespace HealthCare.Controllers
             var nhanSu = await _db.NhanVienYTes
                 .AsNoTracking()
                 .Include(n => n.PhongsPhuTrach)
+                .Include(n => n.PhongClsPhuTrach)
                 .FirstOrDefaultAsync(n => n.MaNhanVien == scope.MaNhanSu);
 
             if (nhanSu == null)
                 return result;
 
-            if (scope.IsClinicalNurse || scope.IsClsNurse || scope.IsTechnician)
+            if (scope.IsTechnician)
+            {
+                var fixedClsRoom = nhanSu.PhongClsPhuTrach?.MaPhong;
+                if (!string.IsNullOrWhiteSpace(fixedClsRoom))
+                    result.Add(fixedClsRoom);
+
+                return result;
+            }
+
+            if (scope.IsClinicalNurse || scope.IsClsNurse)
             {
                 var now = System.DateTime.Now;
                 var roomIds = await _db.LichTrucs
@@ -195,7 +205,7 @@ namespace HealthCare.Controllers
                 }
             }
 
-            if (scope.IsDoctor || scope.IsClinicalNurse || scope.IsClsNurse || scope.IsTechnician)
+            if (scope.IsDoctor || scope.IsClinicalNurse || scope.IsClsNurse)
             {
                 var fallbackRoom = nhanSu.PhongsPhuTrach?.MaPhong;
                 if (!string.IsNullOrWhiteSpace(fallbackRoom))

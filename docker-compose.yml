@@ -1,0 +1,92 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: healthcare-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: Abc@1234
+      MYSQL_DATABASE: HealthCareDB
+      TZ: Asia/Bangkok
+    ports:
+      - target: 3306
+        published: "3307"
+        protocol: tcp
+        app_protocol: mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+07:00
+      - --max_connections=250
+    volumes:
+      - healthcare_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 35s
+
+  backend:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    container_name: healthcare-api
+    restart: unless-stopped
+    working_dir: /src
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: https://+:7146
+      ASPNETCORE_HTTPS_PORTS: 7146
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/localhost.pem
+      ASPNETCORE_Kestrel__Certificates__Default__KeyPath: /https/localhost-key.pem
+      TZ: Asia/Bangkok
+    ports:
+      - target: 7146
+        published: "7146"
+        protocol: tcp
+        app_protocol: https
+    volumes:
+      - ./:/src
+      - ../my-patients/certs:/https:ro
+      - healthcare_nuget_cache:/root/.nuget/packages
+      - healthcare_backend_bin:/src/bin
+      - healthcare_backend_obj:/src/obj
+      - healthcare_backend_keys:/root/.aspnet/DataProtection-Keys
+    command: >
+      sh -c "cp /https/localhost.pem /usr/local/share/ca-certificates/localhost.crt
+      && update-ca-certificates
+      && dotnet restore
+      && dotnet run --no-launch-profile --urls 'https://0.0.0.0:7146'"
+
+  frontend:
+    image: node:20-alpine
+    container_name: healthcare-fe
+    restart: unless-stopped
+    working_dir: /app
+    depends_on:
+      - backend
+    environment:
+      VITE_API_BASE: https://localhost:7146/api
+      VITE_SIGNALR_BASE: https://localhost:7146
+      VITE_USE_MOCK: "0"
+      TZ: Asia/Bangkok
+    ports:
+      - target: 5173
+        published: "5173"
+        protocol: tcp
+        app_protocol: https
+    volumes:
+      - ../my-patients:/app
+      - healthcare_fe_node_modules:/app/node_modules
+    command: >
+      sh -c "npm ci
+      && npm run dev -- --host 0.0.0.0 --port 5173"
+
+volumes:
+  healthcare_mysql_data:
+  healthcare_nuget_cache:
+  healthcare_fe_node_modules:
+  healthcare_backend_bin:
+  healthcare_backend_obj:
+  healthcare_backend_keys:

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using HealthCare.Datas;
 using HealthCare.DTOs;
@@ -30,6 +31,88 @@ namespace HealthCare.Services.OutpatientCare
         private static bool IsTechnicianRole(string? vaiTro, string? chucVu) =>
             string.Equals(vaiTro, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(chucVu, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase);
+
+        private static IReadOnlyList<QueueServiceResultFileDto> ParseResultFiles(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return [];
+
+            try
+            {
+                var files = JsonSerializer.Deserialize<List<QueueServiceResultFileDto>>(raw);
+                if (files is not null)
+                    return files;
+            }
+            catch
+            {
+                // Fall back to treating the value as a single attachment reference.
+            }
+
+            try
+            {
+                var names = JsonSerializer.Deserialize<List<string>>(raw);
+                if (names is not null)
+                {
+                    return names
+                        .Where(name => !string.IsNullOrWhiteSpace(name))
+                        .Select((name, index) => new QueueServiceResultFileDto
+                        {
+                            Id = $"file-{index + 1}",
+                            Name = name,
+                            Url = name
+                        })
+                        .ToList();
+                }
+            }
+            catch
+            {
+                // Fall through.
+            }
+
+            var trimmed = raw.Trim();
+            if (trimmed.StartsWith("[", StringComparison.Ordinal) ||
+                trimmed.StartsWith("{", StringComparison.Ordinal))
+            {
+                return [];
+            }
+
+            return
+            [
+                new QueueServiceResultFileDto
+                {
+                    Id = raw,
+                    Name = raw,
+                    Url = raw
+                }
+            ];
+        }
+
+        private async Task<IReadOnlyList<QueueServiceResultDto>> LayKetQuaClsTraVeAsync(string? maPhieuKhamCls)
+        {
+            if (string.IsNullOrWhiteSpace(maPhieuKhamCls))
+                return [];
+
+            var results = await _db.KetQuaDichVus
+                .AsNoTracking()
+                .Include(k => k.ChiTietDichVu)
+                    .ThenInclude(ct => ct.DichVuYTe)
+                .Include(k => k.NhanVienYTes)
+                .Where(k => k.ChiTietDichVu.MaPhieuKhamCls == maPhieuKhamCls)
+                .OrderBy(k => k.ThoiGianTao)
+                .ToListAsync();
+
+            return results.Select(k => new QueueServiceResultDto
+            {
+                Id = k.MaKetQua,
+                ServiceName = k.ChiTietDichVu?.DichVuYTe?.TenDichVu ?? k.MaChiTietDv,
+                Note = k.GhiChu ?? k.ChiTietDichVu?.GhiChu,
+                Result = k.KetLuanChuyen,
+                Status = k.TrangThaiChot,
+                StaffName = k.NhanVienYTes?.HoTen,
+                CreatedAt = k.ThoiGianTao,
+                Files = ParseResultFiles(k.TepDinhKem)
+            }).ToList();
+        }
 
         private static LichTruc? SelectBestDuty(IEnumerable<LichTruc> schedules, DateTime at)
         {
@@ -497,6 +580,7 @@ namespace HealthCare.Services.OutpatientCare
             {
                 var nhanSu = await _db.NhanVienYTes
                     .Include(n => n.PhongsPhuTrach)
+                    .Include(n => n.PhongClsPhuTrach)
                     .FirstOrDefaultAsync(n => n.MaNhanVien == filter.MaNhanSu);
 
                 if (nhanSu is null)
@@ -526,9 +610,28 @@ namespace HealthCare.Services.OutpatientCare
                 {
                     // Y tá hành chính: xem tất cả phòng, không filter
                 }
-                else if (isYta || isTechnician)
+                else if (isTechnician)
                 {
-                    // Y tá LS/CLS và KTV: luôn scope theo ca trực hiện tại trên màn khám bệnh.
+                    var maPhongKtv = nhanSu.PhongClsPhuTrach?.MaPhong;
+                    if (string.IsNullOrWhiteSpace(maPhongKtv))
+                    {
+                        var pageEmpty = filter.Page <= 0 ? 1 : filter.Page;
+                        var pageSizeEmpty = filter.PageSize <= 0 ? 50 : filter.PageSize;
+
+                        return new PagedResult<QueueItemDto>
+                        {
+                            Items = new List<QueueItemDto>(),
+                            TotalItems = 0,
+                            Page = pageEmpty,
+                            PageSize = pageSizeEmpty
+                        };
+                    }
+
+                    query = query.Where(h => h.MaPhong == maPhongKtv);
+                }
+                else if (isYta)
+                {
+                    // Y tá LS/CLS: scope theo ca trực hiện tại trên màn khám bệnh.
                     // Không dùng filter.FromTime (thường là 00:00 hôm nay) vì sẽ lệch ca trực thật.
                     var targetTime = DateTime.Now;
                     var lich = await _db.LichTrucs
@@ -741,6 +844,7 @@ namespace HealthCare.Services.OutpatientCare
                     .AsNoTracking()
                     .Include(p => p.BenhNhan)
                     .Include(p => p.BacSiKham)
+                    .Include(p => p.PhieuTongHopKetQua)
                     .Include(p => p.DichVuKham)
                         .ThenInclude(dv => dv.PhongThucHien)
                             .ThenInclude(p => p.KhoaChuyenMon)
@@ -787,6 +891,14 @@ namespace HealthCare.Services.OutpatientCare
                     catch
                     {
                         // ignore
+                    }
+
+                    if (string.Equals(h.Nguon, "service_return", StringComparison.OrdinalIgnoreCase) &&
+                        !string.IsNullOrWhiteSpace(pk.MaPhieuKqKhamCls))
+                    {
+                        dto.MaPhieuTongHopCls = pk.MaPhieuKqKhamCls;
+                        dto.SnapshotKqKhamCls = pk.PhieuTongHopKetQua?.SnapshotJson;
+                        dto.ServiceResults = await LayKetQuaClsTraVeAsync(pk.PhieuTongHopKetQua?.MaPhieuKhamCls);
                     }
                 }
             }
