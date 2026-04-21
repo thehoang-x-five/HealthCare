@@ -423,6 +423,13 @@ namespace HealthCare.Services.OutpatientCare
             else
                 query = query.Where(h => h.TrangThai != "da_huy" && h.TrangThai != "huy");
 
+            query = query.Where(h =>
+                h.LoaiHangDoi != "kham_lam_sang" ||
+                h.PhieuKhamLamSang == null ||
+                (h.PhieuKhamLamSang.TrangThai != "da_lap_chan_doan" &&
+                 h.PhieuKhamLamSang.TrangThai != "da_hoan_tat" &&
+                 h.PhieuKhamLamSang.TrangThai != "da_huy"));
+
             var list = await query.ToListAsync();
 
             var ordered = list
@@ -698,6 +705,13 @@ namespace HealthCare.Services.OutpatientCare
                 query = query.Where(h => h.TrangThai == filter.TrangThai);
             else
                 query = query.Where(h => h.TrangThai != "da_huy" && h.TrangThai != "huy");
+
+            query = query.Where(h =>
+                h.LoaiHangDoi != "kham_lam_sang" ||
+                h.PhieuKhamLamSang == null ||
+                (h.PhieuKhamLamSang.TrangThai != "da_lap_chan_doan" &&
+                 h.PhieuKhamLamSang.TrangThai != "da_hoan_tat" &&
+                 h.PhieuKhamLamSang.TrangThai != "da_huy"));
 
             // ✅ Filter theo Nguon
             if (!string.IsNullOrWhiteSpace(filter.Nguon))

@@ -207,6 +207,7 @@ namespace HealthCare.Services.MedicationBilling
                 .ToDictionaryAsync(k => k.MaThuoc, k => k);
 
             var today = DateTime.Today;
+            var drugStatusCalculator = new DrugStatusCalculator();
             foreach (var item in request.Items)
             {
                 if (item.SoLuong <= 0)
@@ -215,8 +216,17 @@ namespace HealthCare.Services.MedicationBilling
                 if (!stockMap.TryGetValue(item.MaThuoc, out var stock))
                     throw new ArgumentException($"Thuốc {item.MaThuoc} không tồn tại trong kho");
 
+                var effectiveStatus = drugStatusCalculator.CalculateStatus(stock);
+
+                if (string.Equals(effectiveStatus, DrugStatuses.TamDung, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"Thuốc {item.MaThuoc} ({stock.TenThuoc}) đang tạm dừng, không thể kê đơn");
+
+                if (stock.SoLuongTon <= 0)
+                    throw new InvalidOperationException($"Thuốc {item.MaThuoc} ({stock.TenThuoc}) đã hết tồn, không thể kê đơn");
+
                 // Kiểm tra hạn sử dụng (không cho phép thuốc hết hạn)
-                if (stock.HanSuDung.Date < today)
+                if (stock.HanSuDung.Date < today ||
+                    string.Equals(effectiveStatus, DrugStatuses.HetHan, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException($"Thuốc {item.MaThuoc} ({stock.TenThuoc}) đã hết hạn ({stock.HanSuDung:dd/MM/yyyy}), không thể kê đơn");
 
                 // Kiểm tra tồn kho đủ

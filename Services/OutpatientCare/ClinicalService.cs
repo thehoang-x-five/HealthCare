@@ -539,6 +539,18 @@ namespace HealthCare.Services.OutpatientCare
                 var hangDoi = phieu.HangDois;
                 var luot = hangDoi?.LuotKhamBenh;
                 var maBenhNhan = phieu.MaBenhNhan;
+                var huongXuTriRaw = request.HuongXuTri?.Trim() ?? string.Empty;
+                var huongXuTriLower = huongXuTriRaw.ToLowerInvariant();
+                var hasPrescriptionItems = request.DonThuoc is not null && request.DonThuoc.Count > 0;
+                var allowsTakeHomePrescription =
+                    huongXuTriLower.Contains("cho thuốc về") ||
+                    huongXuTriLower.Contains("cho thuoc ve");
+
+                if (hasPrescriptionItems && !allowsTakeHomePrescription)
+                    throw new InvalidOperationException("Chỉ được kê thuốc khi hướng xử trí có 'Cho thuốc về'.");
+
+                if (allowsTakeHomePrescription && !hasPrescriptionItems)
+                    throw new InvalidOperationException("Đã chọn 'Cho thuốc về' nhưng chưa có đơn thuốc.");
 
                 var chanDoan = await _db.PhieuChanDoanCuois
                     .FirstOrDefaultAsync(c => c.MaPhieuKham == request.MaPhieuKham);
@@ -562,8 +574,8 @@ namespace HealthCare.Services.OutpatientCare
                 chanDoan.LoiKhuyen = request.LoiKhuyen;
                 chanDoan.PhatDoDieuTri = request.PhatDoDieuTri;
 
-                // ===== CHỈ LƯU CHẨN ĐOÁN, KHÔNG ĐÓNG PHIẾU =====
-                // Chuyển phiếu khám sang trạng thái "da_lap_chan_doan" (đã lập chẩn đoán, chờ xử lý)
+                // ===== LƯU CHẨN ĐOÁN VÀ KẾT THÚC CA TRÊN MÀN KHÁM =====
+                // Phiếu khám chuyển sang trạng thái "da_lap_chan_doan" để chờ bước xử lý tiếp theo.
                 await CapNhatTrangThaiPhieuKhamAsync(
                     phieu.MaPhieuKham,
                     new ClinicalExamStatusUpdateRequest { TrangThai = "da_lap_chan_doan" });
@@ -571,9 +583,18 @@ namespace HealthCare.Services.OutpatientCare
                 // Cập nhật trạng thái bệnh nhân → cho_xu_ly (chờ xử lý chẩn đoán)
                 phieu.BenhNhan.TrangThaiHomNay = "cho_xu_ly";
 
-                // KHÔNG đóng lượt khám, hàng đợi ở đây
-                // Lượt khám vẫn: dang_kham
-                // Hàng đợi vẫn: dang_thuc_hien
+                // Ca khám đã rời khỏi phòng bác sĩ nên cần chốt lượt/hàng đợi của màn khám ngay.
+                if (luot is not null)
+                {
+                    luot.TrangThai = "hoan_tat";
+                    luot.ThoiGianKetThuc ??= DateTime.Now;
+                }
+
+                if (hangDoi is not null)
+                {
+                    hangDoi.TrangThai = "da_phuc_vu";
+                    hangDoi.NgayCapNhat = DateTime.Now;
+                }
 
                 await _db.SaveChangesAsync();
 
