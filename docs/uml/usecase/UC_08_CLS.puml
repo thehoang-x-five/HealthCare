@@ -1,3 +1,4 @@
+
 @startuml UC_08_CLS
 ' ===========================
 ' UC_08: CAN LAM SANG (XET NGHIEM / CDHA)
@@ -6,7 +7,14 @@ skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 11
 hide circle
-
+skinparam linetype ortho
+skinparam padding 2
+skinparam margin 5
+skinparam nodesep 10
+skinparam ranksep 15
+skinparam usecase {
+  Padding 4
+}
 skinparam usecase {
   BackgroundColor #EEF2FF
   BorderColor #4F46E5
@@ -88,6 +96,8 @@ rectangle "Nhap & Tra Ket qua" as ReturnResult #F5F3FF {
   usecase "UC64.6 - Gui Ket qua\nve Bac si" as UC64_6
   usecase "UC64.7 - Push Notification\n(SignalR)" as UC64_7
   usecase "UC64.8 - Cap nhat\n'Da co ket qua'" as UC64_8
+  usecase "UC64.9 - Huy phieu CLS\nkhi moi da_lap" as UC64_9
+  usecase "UC64.10 - Ghi event CLS\nvao MongoDB" as UC64_10
 }
 
 ' ===========================
@@ -136,6 +146,7 @@ BS --> UC65_1
 BS --> UC65_2
 BS --> UC65_4
 BS --> UC65_8
+BS --> UC64_9
 
 ' ===========================
 ' INCLUDE / EXTEND
@@ -168,6 +179,7 @@ UC64_1 ..> UC64_3 : <<extend>>
 UC64_4 ..> UC64_5 : <<include>>
 UC64_6 ..> UC64_7 : <<include>>
 UC64_6 ..> UC64_8 : <<include>>
+UC64_6 ..> UC64_10 : <<include>>
 
 UC65_2 ..> UC65_3 : <<extend>>
 UC65_4 ..> UC65_5 : <<extend>>
@@ -185,6 +197,13 @@ end note
 note right of UC64_7
   SignalR WebSocket
   Real-time notification
+end note
+
+note bottom of ReturnResult
+  Source sync:
+  HuyPhieuClsAsync chi cho huy khi PhieuCLS = da_tao/da_lap,
+  cap nhat phieu + chi_tiet_dich_vu = da_huy.
+  Ket qua chi tiet luu Mongo medical_histories.
 end note
 
 @enduml

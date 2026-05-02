@@ -38,10 +38,9 @@ entity "Phong" as Phong #DBEAFE {
   --
   # MaKhoa : VARCHAR(20) <<FK>> <<NOT NULL>>
   # MaBacSiPhuTrach : VARCHAR(20) <<FK>> <<NULLABLE>>
-  # MaKTVPhuTrach : VARCHAR(20) <<FK>> <<NULLABLE>>
   --
   TenPhong : NVARCHAR(100) <<NOT NULL>>
-  LoaiPhong : ENUM(PhongKhamLS,PhongCLS) <<NOT NULL>>
+  LoaiPhong : ENUM(PhongKham,PhongDichVu) <<NOT NULL>>
   SucChua : INT <<DEFAULT 1>>
   ViTri : NVARCHAR(100)
   Email : VARCHAR(100)
@@ -148,7 +147,6 @@ entity "DichVu" as DichVu #FCE7F3 {
 Khoa ||--|{ Phong : "1 Khoa co nhieu Phong"
 Khoa ||--|{ NhanSu : "1 Khoa co nhieu Nhan su"
 Phong |o--o| NhanSu : "Bac si phu trach"
-Phong |o--o| NhanSu : "KTV phu trach CLS"
 Phong ||--o{ LichTruc : "1 Phong co nhieu Lich truc"
 NhanSu ||--o{ LichTruc : "1 Y ta co nhieu Lich truc"
 NhanSu ||--o{ RefreshToken : "1 Nhan vien co nhieu Token"
@@ -165,16 +163,6 @@ note right of NhanSu
   - YTaLamSang: Ho tro Bac si
   - YTaCanLamSang: Lay mau, tiep nhan CLS
   - KyThuatVien: Thuc hien XN/CDHA
-end note
-
-note right of Phong
-  Phong kham LS:
-  - dung MaBacSiPhuTrach
-  - MaKTVPhuTrach = NULL
-
-  Phong CLS:
-  - dung MaKTVPhuTrach
-  - MaBacSiPhuTrach = NULL
 end note
 
 note bottom of DichVu

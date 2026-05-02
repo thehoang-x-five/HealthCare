@@ -6,8 +6,13 @@ skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 10
 skinparam linetype ortho
-
-left to right direction
+skinparam padding 10
+skinparam margin 20
+skinparam nodesep 15
+skinparam ranksep 100
+skinparam usecase {
+  Padding 4
+}
 title ERD_02: Benh nhan & Tiep nhan
 
 ' ===========================

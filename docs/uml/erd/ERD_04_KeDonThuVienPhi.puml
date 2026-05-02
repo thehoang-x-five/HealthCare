@@ -1,3 +1,4 @@
+
 @startuml ERD_04_KeDonThuVienPhi
 ' ===========================
 ' ERD_04: KE DON & THU VIEN PHI
@@ -6,7 +7,15 @@ skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 10
 skinparam linetype ortho
-
+skinparam linetype ortho
+skinparam linetype ortho
+skinparam padding 5
+skinparam margin 20
+skinparam nodesep 10
+skinparam ranksep 100
+skinparam usecase {
+  Padding 4
+}
 left to right direction
 title ERD_04: Ke don & Thu vien phi
 
@@ -54,7 +63,7 @@ entity "DonThuoc" as DonThuoc #D1FAE5 {
   TongTienDon : DECIMAL(12,0) <<DEFAULT 0>>
   GhiChu : NVARCHAR(500)
   --
-  TrangThai : ENUM(DaKe,ChoPhat,DaPhat,DaHuy) <<DEFAULT 'DaKe'>>
+   TrangThai : ENUM(DaKe,ChoPhat,DaPhat,DaHuy) <<DEFAULT 'DaKe'>>
   --
   ThoiGianThanhToan : DATETIME <<NULLABLE>>
   ThoiGianPhat : DATETIME <<NULLABLE>>
@@ -107,7 +116,7 @@ entity "HoaDon" as HoaDon #FCE7F3 {
   MaGiaoDich : VARCHAR(50) <<NULLABLE>>
   --
   ThoiGian : DATETIME <<NOT NULL>>
-  TrangThai : ENUM(ChuaThu,DaThu,DaHuy) <<DEFAULT 'ChuaThu'>>
+  TrangThai : ENUM(ChuaThu,BaoLuu,DaThu,DaHuy) <<DEFAULT 'ChuaThu'>>
   --
   LyDoHuy : NVARCHAR(200) <<NULLABLE>>
   ThoiGianHuy : DATETIME <<NULLABLE>>
@@ -168,6 +177,16 @@ note right of HoaDon
   - Account No
   - Amount
   - Content = MaHoaDon
+
+  Status source:
+  - chua_thu: hoa don moi
+  - bao_luu: Thu sau / cong no
+  - da_thu: da xac nhan thanh toan
+  - da_huy: huy khi chua_thu
+  
+  Transition:
+  chua_thu -> da_thu/da_huy/bao_luu
+  bao_luu -> da_thu/da_huy
   
   INDEX idx_benhnhan ON MaBenhNhan
   INDEX idx_thoigian ON ThoiGian

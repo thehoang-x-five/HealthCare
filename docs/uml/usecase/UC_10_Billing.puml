@@ -57,18 +57,15 @@ rectangle "Lap Hoa don" as CreateInvoice #D1FAE5 {
 ' 3) THANH TOAN
 ' ===========================
 rectangle "Thanh toan" as Payment #FEF3C7 {
-  usecase "UC82.1 - Chon Phuong thuc\nThanh toan" as UC82_1
+  usecase "UC82.1 - PaymentWizard\nReview -> Method -> Confirm -> Done" as UC82_1
   usecase "UC82.2 - Thu tien\nMat" as UC82_2
-  usecase "UC82.3 - Nhap So tien\nKhach dua" as UC82_3
-  usecase "UC82.4 - Tinh Tien thua\n(auto-calc)" as UC82_4
-  usecase "UC82.5 - Thanh toan\nQR" as UC82_5
-  usecase "UC82.6 - Tao ma\nVietQR" as UC82_6
-  usecase "UC82.7 - Nhung So tien\nvao QR" as UC82_7
-  usecase "UC82.8 - Nhung Noi dung\n(Ma HD)" as UC82_8
-  usecase "UC82.9 - Hien thi QR\ncho BN quet" as UC82_9
-  usecase "UC82.10 - Xac nhan\nThanh toan thanh cong" as UC82_10
-  usecase "UC82.11 - Ghi nhan\nThoi gian thanh toan" as UC82_11
-  usecase "UC82.12 - Ghi nhan\nMa giao dich" as UC82_12
+  usecase "UC82.3 - Thanh toan\nVietQR" as UC82_3
+  usecase "UC82.4 - Tao ma\nVietQR" as UC82_4
+  usecase "UC82.5 - Hien thi QR\ncho BN quet" as UC82_5
+  usecase "UC82.6 - Xac nhan\nDa nhan tien" as UC82_6
+  usecase "UC82.7 - Thu sau\nbao_luu/cong no" as UC82_7
+  usecase "UC82.8 - Confirm API\nchua_thu/bao_luu -> da_thu" as UC82_8
+  usecase "UC82.9 - Ghi event\nthanh_toan Mongo" as UC82_9
 }
 
 ' ===========================
@@ -92,7 +89,7 @@ rectangle "Quan ly Giao dich" as Transaction #F5F3FF {
   usecase "UC84.4 - Loc theo\nTrang thai" as UC84_4
   usecase "UC84.5 - Tim kiem\nGiao dich" as UC84_5
   usecase "UC84.6 - Xem Chi tiet\nHoa don" as UC84_6
-  usecase "UC84.7 - Huy\nHoa don" as UC84_7
+  usecase "UC84.7 - Huy Hoa don\n(admin only /cancel)" as UC84_7
   usecase "UC84.8 - Nhap\nLy do huy" as UC84_8
   usecase "UC84.9 - Hoan lai Ton kho\n(neu da phat thuoc)" as UC84_9
   usecase "UC84.10 - Tong ket\nDoanh thu ca" as UC84_10
@@ -114,7 +111,6 @@ YTHC --> UC81_1
 YTHC --> UC82_1
 YTHC --> UC83_1
 YTHC --> UC84_1
-YTHC --> UC84_7
 
 Admin --> UC84_1
 Admin --> UC84_7
@@ -137,21 +133,20 @@ UC81_1 ..> UC81_5 : <<include>>
 UC81_1 ..> UC81_6 : <<include>>
 
 UC82_1 --> UC82_2
-UC82_1 --> UC82_5
-UC82_2 ..> UC82_3 : <<include>>
-UC82_2 ..> UC82_4 : <<include>>
-UC82_5 ..> UC82_6 : <<include>>
-UC82_6 ..> UC82_7 : <<include>>
+UC82_1 --> UC82_3
+UC82_1 --> UC82_7
+UC82_3 ..> UC82_4 : <<include>>
+UC82_3 ..> UC82_5 : <<include>>
+UC82_2 ..> UC82_6 : <<include>>
+UC82_3 ..> UC82_6 : <<include>>
 UC82_6 ..> UC82_8 : <<include>>
-UC82_5 ..> UC82_9 : <<include>>
-UC82_5 ..> UC82_10 : <<include>>
-UC82_10 ..> UC82_11 : <<include>>
-UC82_10 ..> UC82_12 : <<include>>
+UC82_8 ..> UC82_9 : <<include>>
+UC82_7 ..> UC84_1 : <<extend>>
 
 UC83_1 ..> UC83_2 : <<include>>
 UC83_1 ..> UC83_3 : <<extend>>
 UC83_1 ..> UC83_4 : <<include>>
-UC82_10 ..> UC83_5 : <<extend>>
+UC82_8 ..> UC83_5 : <<extend>>
 
 UC84_1 ..> UC84_2 : <<extend>>
 UC84_1 ..> UC84_3 : <<extend>>
@@ -164,15 +159,25 @@ UC84_7 ..> UC84_9 : <<extend>>
 ' NOTES
 ' ===========================
 note right of UC82_6
-  VietQR Format
-  API tao ma QR dong
-  theo chuan Napas
+  ConfirmPayment:
+  - chua_thu -> da_thu
+  - bao_luu -> da_thu
+  - cap nhat phuong thuc
+  - optional ma_giao_dich
 end note
 
 note right of UC84_7
-  Chi Admin hoac
-  Y ta HC co quyen
-  huy hoa don
+  Source sync:
+  PUT /api/billing/invoices/{id}/cancel
+  chi Admin/quan_tri_vien.
+  YTHC dung PaymentWizard/status update.
+  Huy chi hop le khi chua_thu.
+end note
+
+note bottom of UC82_7
+  Thu sau trong FE goi update status = bao_luu.
+  Overdue cleanup co the bao_luu hoa don da_thu khi workflow qua han,
+  va huy hoa don chua_thu qua han.
 end note
 
 @enduml

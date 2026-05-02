@@ -42,7 +42,7 @@ package "01_DuLieuNen" as P01 #E0F2FE {
     # MaKTVPhuTrach : VARCHAR(20) <<FK>> <<NULLABLE>>
     --
     TenPhong : NVARCHAR(100) <<NOT NULL>>
-    LoaiPhong : ENUM(PhongKhamLS,PhongCLS)
+    LoaiPhong : ENUM(PhongKham,PhongDichVu)
     SucChua : INT
     ViTri : NVARCHAR(100)
     Email : VARCHAR(100)
@@ -64,7 +64,8 @@ package "01_DuLieuNen" as P01 #E0F2FE {
     TenDangNhap : VARCHAR(50) <<UNIQUE>>
     MatKhauHash : VARCHAR(255)
     HoTen : NVARCHAR(100) <<NOT NULL>>
-    VaiTro : ENUM(Admin,BacSi,YTaHC,YTaLS,YTaCLS,KTV)
+    VaiTro : ENUM(admin,bac_si,y_ta,ky_thuat_vien)
+    LoaiYTa : ENUM(hanhchinh,ls,cls) <<NULLABLE>>
     ChucVu : NVARCHAR(50)
     ChuyenMon : NVARCHAR(100)
     HocVi : NVARCHAR(50)
@@ -289,7 +290,7 @@ package "03_HangDoiVaKham" as P03 #FEF3C7 {
     ThoiGianGoiGanNhat : DATETIME <<NULLABLE>>
     SoLanGoi : INT
     --
-    TrangThai : ENUM(ChoGoi,...,VangMat)
+    TrangThai : ENUM(ChoGoi,DangGoi,DangThucHien,DaPhucVu,DaHuy/Huy)
     GhiChu : NVARCHAR(500)
   }
 
@@ -306,7 +307,7 @@ package "03_HangDoiVaKham" as P03 #FEF3C7 {
     ThoiGianKetThuc : DATETIME <<NULLABLE>>
     ThoiGianThucTe : INT <<NULLABLE>>
     --
-    TrangThai : ENUM(DangThucHien,HoanTat)
+    TrangThai : ENUM(DangThucHien,HoanTat,DaHuy)
     --
     SinhHieuTruocKham : JSON
     GhiChu : NVARCHAR(500)
@@ -439,7 +440,7 @@ package "04_KeDonVaThuVienPhi" as P04 #FCE7F3 {
     MaGiaoDich : VARCHAR(50) <<NULLABLE>>
     --
     ThoiGian : DATETIME
-    TrangThai : ENUM(ChuaThu,DaThu,DaHuy)
+    TrangThai : ENUM(ChuaThu,BaoLuu,DaThu,DaHuy)
     --
     LyDoHuy : NVARCHAR(200) <<NULLABLE>>
     ThoiGianHuy : DATETIME <<NULLABLE>>
@@ -569,7 +570,7 @@ Khoa      ||--|{ Phong
 Khoa      ||--|{ NhanSu
 
 Phong     |o--o| NhanSu          : BsPhuTrach
-Phong     |o--o| NhanSu          : KtvPhuTrachCls
+Phong     |o--o| NhanSu          : KTVPhuTrach
 Phong     ||--o{ LichTruc
 NhanSu    ||--o{ LichTruc        : YTaTruc
 NhanSu    ||--o{ RefreshToken
@@ -646,7 +647,7 @@ BenhNhan .. AuditLog  : "actor_id"
 note as PolyglotNote #E8F5E9
   **POLYGLOT PERSISTENCE**
   ==
-  **MySQL** (5 Domain, 22 Table):
+  **MySQL** (5 Domain, 24 Table):
   ACID, FK, Transaction
   
   **MongoDB** (2 Collection):
@@ -655,6 +656,11 @@ note as PolyglotNote #E8F5E9
   **Hybrid Data Flow:**
   MySQL = Metadata + Workflow
   MongoDB = Clinical Content + Audit
+
+  **RBAC SOURCE**
+  NhanVienYTe = staff = user.
+  Khong co UserAccount rieng.
+  JWT claims: VaiTro, loai_y_ta, ma_khoa.
 end note
 
 note as StatsNote #FFF3E0
@@ -667,17 +673,20 @@ note as StatsNote #FFF3E0
   05_ThongBao:     3 tables
   06_MongoDB:      2 collections
   --
-  **Tong: 22 tables + 2 collections**
+  **Tong: 24 tables + 2 collections**
 end note
 
-note right of Phong
-  LS room:
-  - MaBacSiPhuTrach used
-  - MaKTVPhuTrach = NULL
+note bottom of HoaDon #FFF7ED
+  Payment status source:
+  chua_thu -> da_thu / da_huy / bao_luu
+  bao_luu -> da_thu / da_huy
+  "Thu sau" tren FE map thanh bao_luu/cong no.
+end note
 
-  CLS room:
-  - MaKTVPhuTrach used
-  - MaBacSiPhuTrach = NULL
+note bottom of LuotKham #FEE2E2
+  History/Activity can phan biet:
+  - hoan_tat: luot kham da xong
+  - da_huy/huy: BN bo ve, huy giua chung, qua han cleanup
 end note
 
 @enduml

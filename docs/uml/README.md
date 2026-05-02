@@ -41,7 +41,7 @@ To chuc theo **FLOW/MODULE**, moi file liet ke tat ca actors tham gia.
 
 | File | Mo ta | So UC |
 |------|-------|-------|
-| `UC_00_Overview.puml` | Tong quan he thong (11 module) | 11 |
+| `UC_00_Overview.puml` | Tong quan he thong (12 module) | 12 |
 | `UC_01_Auth.puml` | Xac thuc & Quan ly phien | 23 |
 | `UC_02_Dashboard.puml` | Dashboard & Thong bao | 20 |
 | `UC_03_Master.puml` | Quan ly Danh muc (User/Khoa/Phong/DV/Thuoc/Lich truc) | 52 |
@@ -53,8 +53,9 @@ To chuc theo **FLOW/MODULE**, moi file liet ke tat ca actors tham gia.
 | `UC_09_Prescription.puml` | Ke don & Phat thuoc (Ke don/Xem/Phat/Ton kho) | 35 |
 | `UC_10_Billing.puml` | Thanh toan Vien phi (Chi phi/Hoa don/Thu tien/Giao dich) | 37 |
 | `UC_11_Report.puml` | Bao cao & Thong ke (Doanh thu/Luot kham/Nhan vien/Thuoc) | 30 |
+| `UC_12_RBAC.puml` | RBAC/RBCA cho 6 vai tro, route guard, backend guard, data scope | Matrix |
 
-**Tong cong: ~376 Use Cases**
+**Tong cong: ~377+ Use Cases**
 
 ### 3. ERD - Entity Relationship Diagram (Thu muc: `erd/`)
 To chuc theo **DOMAIN**, chi tiet tung truong, kieu du lieu, rang buoc, index.
@@ -69,9 +70,9 @@ To chuc theo **DOMAIN**, chi tiet tung truong, kieu du lieu, rang buoc, index.
 | `ERD_05_ThongBao.puml` | Thong bao, Nguoi nhan, Mau thong bao | 3 |
 | `ERD_06_MongoDB.puml` | Document schemas (medical_histories, audit_logs) | 6 event types |
 | `ERD_Diff_NewAttributes.puml` | Cac thuoc tinh/Entity moi them vao so voi ERD cu | **Diff** |
-| `ERD_Full_Unified.puml` | **TONG HOP tat ca ERD** trong 1 file (22 tables + 2 collections) | **ALL** |
+| `ERD_Full_Unified.puml` | **TONG HOP tat ca ERD** trong 1 file (24 tables + 2 collections) | **ALL** |
 
-**Tong: 22 Tables (MySQL) + 2 Collections (MongoDB)**
+**Tong: 24 Tables (MySQL) + 2 Collections (MongoDB)**
 
 ### 4. Workflow — Activity Diagram (Thu muc: `workflow/`)
 To chuc theo **GIAI DOAN**, moi file bao gom **Happy Path + Cancellation/Error**.
@@ -83,8 +84,10 @@ To chuc theo **GIAI DOAN**, moi file bao gom **Happy Path + Cancellation/Error**
 | `WF_02_Examination.puml` | Kham benh (Lam sang) | Sinh hieu, Kham, Chi dinh CLS, Ke don, Huy phieu, Het thuoc |
 | `WF_03_CLS.puml` | Can lam sang (XN/CDHA) | Lay mau, Ket qua, Bat thuong, PhieuTongHop, Quay lai BS |
 | `WF_04_Pharmacy.puml` | Duoc & Cap phat thuoc | SERIALIZABLE transaction, Rollback kho, Huy don, LichSuXuatKho |
-| `WF_05_Billing.puml` | Thanh toan & VietQR | chua_thu→da_thu, QR Webhook, Huy hoa don, Ket thuc luot kham |
+| `WF_05_Billing.puml` | Thanh toan & VietQR | chua_thu/bao_luu→da_thu, xac nhan VietQR, Huy hoa don, Ket thuc luot kham |
 | `WF_FULL_STANDARD_UPGRADED.puml` | **Toan trinh** (0→6) | Ket hop tat ca WF thanh 1 flow lien tuc |
+
+> Source sync 2026-05-02: PaymentWizard thuc te ho tro `tien_mat`, `vietqr`, va `Thu sau` (`bao_luu`). Huy/bo ve ghi `da_huy`; History/Activity dung MongoDB medical history + visit status de phan biet luot da xong va luot huy giua chung.
 
 ### 5. Sequence Diagram (Thu muc: `sequence/`)
 To chuc theo **MODULE**, chi tiet API calls, SQL queries, SignalR events.
@@ -109,6 +112,14 @@ To chuc theo **MODULE**, chi tiet API calls, SQL queries, SignalR events.
 | Y ta Can lam sang | #Gold | Tiep nhan chi dinh, Lay mau, Ho tro KTV |
 | Bac si | #Lavender | Kham benh, Chan doan, Chi dinh CLS, Ke don |
 | Ky thuat vien | #PeachPuff | Thuc hien XN/CDHA, Nhap ket qua, Upload file |
+
+---
+
+## RBAC Source of Truth
+- Backend: `Attributes/RequireRoleAttribute.cs`, `Attributes/RequireNurseTypeAttribute.cs`, `Infrastructure/Security/UserScopeContext.cs`.
+- Frontend: `my-patients/src/utils/permissions.js`, `ProtectedRoute.jsx`, `Sidebar.jsx`.
+- Staff = user: auth fields nam tren `NhanVienYTe`, khong co bang `UserAccount` rieng.
+- Scope global: Admin va Y ta hanh chinh. Scope theo khoa: Bac si, Y ta LS, Y ta CLS, KTV.
 
 ---
 

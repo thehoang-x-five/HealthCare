@@ -11,7 +11,14 @@ skinparam usecase {
   BackgroundColor #EEF2FF
   BorderColor #4F46E5
 }
-
+skinparam linetype ortho
+skinparam padding 2
+skinparam margin 5
+skinparam nodesep 10
+skinparam ranksep 15
+skinparam usecase {
+  Padding 4
+}
 left to right direction
 title UC_04: Quan ly Benh nhan
 
@@ -20,7 +27,9 @@ title UC_04: Quan ly Benh nhan
 ' ===========================
 actor "Y ta Hanh chinh" as YTHC #LightBlue
 actor "Y ta Lam sang" as YTLS #LightGreen
+actor "Y ta CLS" as YTCLS #Gold
 actor "Bac si" as BS #Lavender
+actor "Ky thuat vien" as KTV #PeachPuff
 
 ' ===========================
 ' 1) TIM KIEM BENH NHAN
@@ -61,8 +70,11 @@ rectangle "Xem/Cap nhat Ho so" as ViewPatient #FEF3C7 {
   usecase "UC22.3 - Tab: Lich su\nKham benh" as UC22_3
   usecase "UC22.4 - Tab: Lich su\nGiao dich" as UC22_4
   usecase "UC22.5 - Tab: Pha he\nDi truyen" as UC22_5
-  usecase "UC22.6 - Cap nhat\nThong tin BN" as UC22_6
-  usecase "UC22.7 - Cap nhat\nThong tin lien lac" as UC22_7
+  usecase "UC22.6 - Tab: Hoat dong\n(Mongo + luot da_huy)" as UC22_6
+  usecase "UC22.7 - Cap nhat\nThong tin BN" as UC22_7
+  usecase "UC22.8 - Cap nhat\nThong tin lien lac" as UC22_8
+  usecase "UC22.9 - Cap nhat TrangThaiHomNay" as UC22_9
+  usecase "UC22.10 - Ghi nhan BN bo ve\ncleanup workflow" as UC22_10
 }
 
 ' ===========================
@@ -115,16 +127,24 @@ History -[hidden]-> TransactionHistory
 YTHC --> UC20_1
 YTHC --> UC21_1
 YTHC --> UC22_1
-YTHC --> UC22_6
+YTHC --> UC22_7
+YTHC --> UC22_9
+YTHC --> UC22_10
 YTHC --> UC25_1
 
 YTLS --> UC20_1
 YTLS --> UC22_1
 
+YTCLS --> UC20_1
+YTCLS --> UC22_1
+
 BS --> UC20_1
 BS --> UC22_1
 BS --> UC23_1
 BS --> UC24_1
+
+KTV --> UC20_1
+KTV --> UC22_1
 
 ' ===========================
 ' INCLUDE / EXTEND
@@ -151,9 +171,11 @@ UC22_1 ..> UC22_2 : <<include>>
 UC22_1 ..> UC22_3 : <<extend>>
 UC22_1 ..> UC22_4 : <<extend>>
 UC22_1 ..> UC22_5 : <<extend>>
-UC22_6 ..> UC22_7 : <<include>>
+UC22_1 ..> UC22_6 : <<extend>>
+UC22_7 ..> UC22_8 : <<include>>
+UC22_10 ..> UC22_9 : <<include>>
 
-UC22_4 ...> UC25_1 : <<include>>
+
 
 UC23_1 ..> UC23_4 : <<include>>
 UC23_1 ..> UC23_5 : <<extend>>
@@ -185,9 +207,18 @@ note right of UC24_1
   ho tro nhieu loai event
 end note
 
+note right of UC22_6
+  Tab Hoat dong source FE:
+  PatientViewMode.jsx
+  - Mongo medical_histories
+  - Luot kham da_huy/qua han
+  Dung de phan biet:
+  da_hoan_tat vs huy giua chung
+end note
+
 note bottom of RegisterPatient
-  Y ta HC: Dang ky moi
-  YTLS, BS: Chi xem
+  Y ta HC: tao/sua/cap nhat trang thai
+  Role khac: xem theo scope
 end note
 
 @enduml

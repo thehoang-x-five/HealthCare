@@ -44,7 +44,7 @@ entity "HangDoi" as HangDoi #FEF3C7 {
   ThoiGianGoiGanNhat : DATETIME <<NULLABLE>>
   SoLanGoi : INT <<DEFAULT 0>>
   --
-  TrangThai : ENUM(ChoGoi,DangGoi,DaGoi,DangPhucVu,DaPhucVu,VangMat) <<DEFAULT 'ChoGoi'>>
+  TrangThai : ENUM(ChoGoi,DangGoi,DangThucHien,DaPhucVu,DaHuy/Huy) <<DEFAULT 'ChoGoi'>>
   GhiChu : NVARCHAR(500)
 }
 
@@ -64,7 +64,8 @@ entity "LuotKham" as LuotKham #D1FAE5 {
   ThoiGianKetThuc : DATETIME <<NULLABLE>>
   ThoiGianThucTe : INT <<NULLABLE>>
   --
-  TrangThai : ENUM(DangThucHien,HoanTat) <<DEFAULT 'DangThucHien'>>
+   TrangThai : ENUM(DangThucHien,HoanTat,DaHuy) <<DEFAULT 'DangThucHien'>>
+  
   --
   SinhHieuTruocKham : JSON
   GhiChu : NVARCHAR(500)
@@ -145,6 +146,13 @@ note right of LuotKham
     "chieu_cao": 170,
     "bmi": 22.5
   }
+end note
+
+note bottom of LuotKham
+  History tab loc statusScope:
+  - completed: hoan_tat / da_hoan_tat
+  - cancelled: da_huy / huy
+  Dung de tach luot kham da xong va huy giua chung.
 end note
 
 note right of PhieuTongHop

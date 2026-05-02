@@ -1,3 +1,4 @@
+
 @startuml ERD_06_MongoDB
 ' ===========================
 ' ERD_06: MONGODB DOCUMENT SCHEMAS
@@ -7,7 +8,15 @@ skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 10
 skinparam linetype ortho
 skinparam shadowing false
-
+skinparam linetype ortho
+skinparam shadowing false
+skinparam padding 5
+skinparam margin 20
+skinparam nodesep 10
+skinparam ranksep 100
+skinparam usecase {
+  Padding 4
+}
 title ERD_06: MongoDB Document Schemas (Schema Evolution)
 
 ' ===========================
@@ -52,6 +61,12 @@ object "event: thanh_toan" as EventPayment #CFFAFE {
   data       : Object
 }
 
+object "event: activity_cancelled" as EventCancelled #FFE4E6 {
+  virtual_event : "da_huy/qua_han"
+  source        : SQL luot_kham_benh
+  data          : Object
+}
+
 ' ===========================
 ' COLLECTION: AUDIT_LOGS
 ' ===========================
@@ -82,6 +97,7 @@ MedicalHistories --> EventLab
 MedicalHistories --> EventImaging
 MedicalHistories --> EventPrescription
 MedicalHistories --> EventPayment
+MedicalHistories ..> EventCancelled : FE merges for Activity tab
 
 ' ===========================
 ' NOTES: JSON-LIKE SCHEMAS (Put in notes to avoid syntax errors)
@@ -213,6 +229,13 @@ note right of EventPayment
     "ma_giao_dich": "String",
     "nhan_su_thu": "String"
   }</pre>
+end note
+
+note right of EventCancelled
+  Tab Hoat dong tren FE khong chi doc Mongo.
+  FE ghep them luot kham bi huy/qua han tu SQL visits
+  de hien ro workflow da bi huy giua chung,
+  khong nham voi luot kham hoan tat.
 end note
 
 note right of AuditLogs

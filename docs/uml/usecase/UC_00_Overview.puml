@@ -6,12 +6,17 @@ skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 12
 hide circle
-
+skinparam linetype ortho
+skinparam padding 5
+skinparam margin 5
+skinparam nodesep 10
+skinparam ranksep 15
 skinparam package {
   BackgroundColor #F8FAFC
   BorderColor #94A3B8
 }
 
+left to right direction
 top to bottom direction
 title HealthCare+ - So do Use Case Tong quan
 
@@ -72,6 +77,10 @@ package "UC_11: Bao cao" as P11 #ECFCCB {
   usecase "Bao cao & Thong ke" as M11
 }
 
+package "UC_12: RBAC" as P12 #FFE4E6 {
+  usecase "Phan quyen 6 vai tro\nMenu/API/Data scope" as M12
+}
+
 ' ===========================
 ' ACTOR -> MODULE
 ' ===========================
@@ -79,6 +88,7 @@ Admin --> M01
 Admin --> M02
 Admin --> M03
 Admin --> M11
+Admin --> M12
 
 YTHC --> M01
 YTHC --> M02
@@ -87,16 +97,19 @@ YTHC --> M05
 YTHC --> M06
 YTHC --> M09
 YTHC --> M10
+YTHC --> M12
 
 YTLS --> M01
 YTLS --> M02
 YTLS --> M06
 YTLS --> M07
+YTLS --> M12
 
 YTCLS --> M01
 YTCLS --> M02
 YTCLS --> M06
 YTCLS --> M08
+YTCLS --> M12
 
 BS --> M01
 BS --> M02
@@ -104,11 +117,13 @@ BS --> M04
 BS --> M07
 BS --> M08
 BS --> M09
+BS --> M12
 
 KTV --> M01
 KTV --> M02
 KTV --> M06
 KTV --> M08
+KTV --> M12
 
 ' ===========================
 ' FLOW RELATIONSHIPS
@@ -120,6 +135,10 @@ M08 --> M07 : Tra ket qua
 M07 --> M09 : Ke don
 M09 --> M10 : Thanh toan
 M10 --> M09 : Phat thuoc
+M12 ..> M01 : JWT claims
+M12 ..> M02 : Scope dashboard
+M12 ..> M04 : Scope benh nhan
+M12 ..> M10 : Payment guard
 
 ' ===========================
 ' NOTES
@@ -132,6 +151,13 @@ end note
 note right of M08
   SignalR Real-time
   MongoDB Storage
+end note
+
+note bottom of M12
+  Source thuc te:
+  - FE permissions.js
+  - BE RequireRole/RequireNurseType
+  - DataScope theo MaKhoa
 end note
 
 @enduml

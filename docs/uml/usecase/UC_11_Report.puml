@@ -1,3 +1,4 @@
+
 @startuml UC_11_Report
 ' ===========================
 ' UC_11: BAO CAO & THONG KE
@@ -6,7 +7,14 @@ skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 11
 hide circle
-
+skinparam linetype ortho
+skinparam padding 2
+skinparam margin 5
+skinparam nodesep 10
+skinparam ranksep 15
+skinparam usecase {
+  Padding 4
+}
 skinparam usecase {
   BackgroundColor #EEF2FF
   BorderColor #4F46E5

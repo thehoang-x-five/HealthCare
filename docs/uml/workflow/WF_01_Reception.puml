@@ -73,15 +73,18 @@ if (BN bo ve / khong den?) then (BN bo ve)
   
   |He Thong (System)|
   :Cap nhat BenhNhan.TrangThaiHomNay = da_huy;
-  :Cap nhat HangDoi.TrangThai = da_phuc_vu;
+  :Cap nhat HangDoi.TrangThai = da_huy;
   :Cap nhat LuotKham.TrangThai = da_huy;
-  :Huy HoaDon (chua_thu → da_huy);
+  :HoaDon chua_thu -> da_huy;
+  :HoaDon da_thu -> bao_luu;
+  :Activity tab hien luot da_huy;
   note right
-    **Rollback chain:**
-    1. BenhNhan → da_huy
-    2. HangDoi → da_phuc_vu (giai phong slot)
-    3. LuotKham → da_huy
-    4. HoaDon → da_huy (neu chua thu)
+    **Cleanup chain source:**
+    - BenhNhan -> da_huy
+    - HangDoi/LuotKham -> da_huy
+    - Workflow pending -> da_huy
+    - HoaDon chua_thu -> da_huy
+    - HoaDon da_thu -> bao_luu
   end note
   :Broadcast "QueueUpdated" (SignalR);
   stop

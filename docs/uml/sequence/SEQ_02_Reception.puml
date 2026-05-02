@@ -115,9 +115,10 @@ group #FFE4E1 LUONG HUY: BN bo ve
   activate SVC
   
   SVC -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'da_huy'
-  SVC -> SQL: UPDATE hang_doi\nSET TrangThai = 'da_phuc_vu'
+  SVC -> SQL: UPDATE hang_doi\nSET TrangThai = 'da_huy'
   SVC -> SQL: UPDATE luot_kham_benh\nSET TrangThai = 'da_huy'
   SVC -> SQL: UPDATE hoa_don_thanh_toan\nSET TrangThai = 'da_huy'\nWHERE TrangThai = 'chua_thu'
+  SVC -> SQL: UPDATE hoa_don_thanh_toan\nSET TrangThai = 'bao_luu'\nWHERE TrangThai = 'da_thu'
   
   SVC -> Hub: Broadcast "QueueUpdated"
   SVC --> FE: 200 OK

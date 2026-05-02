@@ -1,0 +1,160 @@
+@startuml UC_12_RBAC
+' ===========================
+' UC_12: RBAC / RBCA MATRIX
+' Source sync: backend RequireRole/RequireNurseType + frontend permissions.js
+' ===========================
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 10
+skinparam shadowing false
+skinparam linetype ortho
+hide circle
+
+title UC_12: Phan quyen RBAC cho 6 vai tro
+
+left to right direction
+
+actor "Admin\n(admin)" as Admin #LightCoral
+actor "Y ta Hanh chinh\n(y_ta + hanhchinh)" as YTHC #LightBlue
+actor "Y ta CLS\n(y_ta + cls/can_lam_sang)" as YTCLS #Gold
+actor "Y ta LS\n(y_ta + ls/phong_kham)" as YTLS #LightGreen
+actor "Bac si\n(bac_si)" as BS #Lavender
+actor "Ky thuat vien\n(ky_thuat_vien)" as KTV #PeachPuff
+
+rectangle "Auth/RBAC Core" as Core #E0F2FE {
+  usecase "Dang nhap / Refresh / Logout" as Auth
+  usecase "Doi mat khau bang OTP" as ChangePw
+  usecase "JWT claims:\nVaiTro, loai_y_ta, ma_khoa" as Claims
+  usecase "Route/Menu guard\nTAB_VISIBILITY" as MenuGuard
+  usecase "Backend guard\n[RequireRole]\n[RequireNurseType]" as BackendGuard
+  usecase "Data scope\nGlobal hoac theo MaKhoa" as DataScope
+}
+
+rectangle "Global / Admin" as AdminBox #FEE2E2 {
+  usecase "Quan ly user/staff\ncreate/update/lock/reset" as AdminUsers
+  usecase "Quan ly khoa/phong/dich vu\nlich truc/mau thong bao" as MasterAdmin
+  usecase "Huy hoa don\nendpoint /cancel" as CancelInvoice
+}
+
+rectangle "Tiep nhan - Thu ngan" as ReceptionBox #DBEAFE {
+  usecase "Quan ly lich hen\ncreate/edit/confirm/cancel/check-in" as Appointments
+  usecase "Tao/cap nhat ho so BN" as PatientCrud
+  usecase "Lap phieu kham LS\nxep hang doi" as CreateExam
+  usecase "Cap nhat BN bo ve\nda_huy + cleanup workflow" as PatientLeave
+  usecase "PaymentWizard\ncash/VietQR/Thu sau" as PaymentWizard
+  usecase "Quan ly hoa don chua_thu/bao_luu" as UnpaidInvoices
+  usecase "Phat thuoc / sua kho" as DispenseStock
+}
+
+rectangle "Lam sang" as ClinicalBox #D1FAE5 {
+  usecase "Xem/goi hang doi LS" as ClinicalQueue
+  usecase "Nhap sinh hieu/du lieu kham" as ExamData
+  usecase "Huy luot kham / ca cho kham" as CancelVisit
+}
+
+rectangle "Bac si" as DoctorBox #F5F3FF {
+  usecase "Kham va chan doan" as Diagnosis
+  usecase "Chi dinh CLS" as OrderCls
+  usecase "Ke don thuoc" as Prescribe
+  usecase "Xem ho so, timeline,\npha he va lich su" as ClinicalHistory
+}
+
+rectangle "Can lam sang" as ClsBox #FEF3C7 {
+  usecase "Xem/goi hang doi CLS" as ClsQueue
+  usecase "Nhap ket qua CLS" as EnterClsResult
+  usecase "Tao/chot tong hop ket qua" as ClsSummary
+}
+
+rectangle "Read / Reporting" as ReadBox #ECFCCB {
+  usecase "Dashboard theo scope" as Dashboard
+  usecase "Bao cao theo quyen\nrevenue/visit/medical" as Reports
+  usecase "History visits/transactions\nphan biet hoan tat va da_huy" as History
+  usecase "Notifications inbox" as Inbox
+}
+
+Admin --> Auth
+YTHC --> Auth
+YTCLS --> Auth
+YTLS --> Auth
+BS --> Auth
+KTV --> Auth
+
+Auth ..> Claims : <<include>>
+Claims ..> MenuGuard : <<include>>
+Claims ..> BackendGuard : <<include>>
+Claims ..> DataScope : <<include>>
+
+Admin --> AdminUsers
+Admin --> MasterAdmin
+Admin --> CancelInvoice
+Admin --> Dashboard
+Admin --> Reports
+Admin --> History
+Admin --> Inbox
+
+YTHC --> Appointments
+YTHC --> PatientCrud
+YTHC --> CreateExam
+YTHC --> PatientLeave
+YTHC --> PaymentWizard
+YTHC --> UnpaidInvoices
+YTHC --> DispenseStock
+YTHC --> Dashboard
+YTHC --> Reports
+YTHC --> History
+YTHC --> Inbox
+
+YTLS --> ClinicalQueue
+YTLS --> ExamData
+YTLS --> CancelVisit
+YTLS --> Dashboard
+YTLS --> History
+YTLS --> Inbox
+
+BS --> ClinicalQueue
+BS --> Diagnosis
+BS --> OrderCls
+BS --> Prescribe
+BS --> ClinicalHistory
+BS --> CancelVisit
+BS --> Dashboard
+BS --> Reports
+BS --> History
+BS --> Inbox
+
+YTCLS --> ClsQueue
+YTCLS --> EnterClsResult
+YTCLS --> ClsSummary
+YTCLS --> Dashboard
+YTCLS --> History
+YTCLS --> Inbox
+
+KTV --> ClsQueue
+KTV --> EnterClsResult
+KTV --> ClsSummary
+KTV --> Dashboard
+KTV --> History
+KTV --> Inbox
+
+note right of DataScope
+  Global scope:
+  - admin / quan_tri_vien
+  - y_ta hanhchinh
+
+  Department scope:
+  - bac_si
+  - y_ta ls
+  - y_ta cls
+  - ky_thuat_vien
+end note
+
+note bottom of PaymentWizard
+  PaymentWizard source:
+  REVIEW -> METHOD -> CONFIRM -> DONE
+  Method:
+  - tien_mat
+  - chuyen_khoan / the / vietqr
+  - Thu sau => status bao_luu
+end note
+
+@enduml

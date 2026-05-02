@@ -29,6 +29,7 @@ title UC_05: Quan ly Lich hen
 ' ACTORS
 ' ===========================
 actor "Y ta Hanh chinh" as YTHC #LightBlue
+actor "Admin" as Admin #LightCoral
 actor "Bac si" as BS #Lavender
 
 ' ===========================
@@ -89,6 +90,14 @@ rectangle "Check-in Benh nhan" as CheckIn #FCE7F3 {
   usecase "UC33.6 - In\nPhieu kham" as UC33_6
 }
 
+rectangle "Trang thai hop le" as StatusFlow #EEF2FF {
+  usecase "dang_cho -> da_xac_nhan" as ST1
+  usecase "dang_cho -> da_huy" as ST2
+  usecase "da_xac_nhan -> da_checkin" as ST3
+  usecase "da_xac_nhan -> da_huy" as ST4
+  usecase "da_checkin/da_huy\nla terminal" as ST5
+}
+
 ' ===========================
 ' LAYOUT
 ' ===========================
@@ -105,6 +114,9 @@ YTHC --> UC32_1
 YTHC --> UC32_6
 YTHC --> UC33_1
 YTHC --> UC33_3
+
+Admin --> UC30_1
+Admin --> UC30_8
 
 BS --> UC30_1
 BS --> UC30_8
@@ -141,6 +153,9 @@ UC33_1 ..> UC33_2 : <<extend>>
 UC33_3 ..> UC33_4 : <<include>>
 UC33_3 ..> UC33_5 : <<include>>
 UC33_3 ..> UC33_6 : <<extend>>
+UC32_6 ..> ST2 : <<include>>
+UC32_6 ..> ST4 : <<include>>
+UC33_3 ..> ST3 : <<include>>
 
 ' ===========================
 ' NOTES
@@ -151,8 +166,10 @@ note right of UC31_7
 end note
 
 note bottom of ViewAppt
-  Y ta HC: Full CRUD
-  Bac si: Chi xem
+  Source sync:
+  - FE: appointments chi YTHC thao tac
+  - BE: create/update/status/check-in RequireRole y_ta + hanhchinh
+  - Admin xem qua search/detail, khong thao tac nghiep vu
 end note
 
 @enduml

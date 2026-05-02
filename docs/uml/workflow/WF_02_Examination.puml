@@ -55,8 +55,10 @@ if (BN bo ve giua chung?) then (BN bo ve)
   |He Thong (System)|
   :Cap nhat PhieuKham.TrangThai = da_huy;
   :Cap nhat BenhNhan.TrangThaiHomNay = da_huy;
-  :Cap nhat HangDoi.TrangThai = da_phuc_vu;
-  :Ghi ly do huy;
+  :Cap nhat HangDoi/LuotKham = da_huy;
+  :HoaDon chua_thu -> da_huy;
+  :HoaDon da_thu -> bao_luu;
+  :Activity tab se hien luot da_huy;
   :Broadcast "QueueUpdated";
   stop
 else (Tiep tuc kham)
@@ -126,6 +128,15 @@ endif
 :Cap nhat HangDoi.TrangThai = da_phuc_vu;
 :Broadcast "ExamFinished" (SignalR);
 :Goi BN tiep theo (tao HangDoi.TrangThai = dang_goi);
+
+|Y ta Hanh chinh|
+:Mo PaymentWizard neu con hoa don chua_thu/bao_luu;
+note right
+  Payment guard FE:
+  canManageReception = Admin hoac Y ta HC.
+  Backend confirm yeu cau y_ta hanhchinh
+  hoac admin/quan_tri_vien.
+end note
 
 stop
 

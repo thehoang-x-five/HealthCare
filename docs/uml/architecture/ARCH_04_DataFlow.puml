@@ -1,187 +1,145 @@
 @startuml ARCH_04_DataFlow
 ' ===========================
 ' ARCH_04: DATA FLOW DIAGRAM
+' Source sync: 2026-05-02
 ' ===========================
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 10
 skinparam linetype ortho
+skinparam padding 8
+skinparam margin 12
+skinparam nodesep 30
+skinparam ranksep 35
 
-title ARCH_04: Data Flow - Luong Du lieu Chinh
+left to right direction
 
-' ===========================
-' ACTORS
-' ===========================
+title ARCH_04: Data Flow - Luong du lieu thuc te theo source
+
 actor "Y ta HC" as YTHC #LightBlue
 actor "Y ta LS" as YTLS #LightGreen
 actor "Bac si" as BS #Lavender
+actor "Y ta CLS" as YTCLS #Gold
 actor "KTV" as KTV #PeachPuff
+actor "Admin" as Admin #LightCoral
 
-' ===========================
-' FRONTEND
-' ===========================
-rectangle "Frontend (React)" as FE #E0F2FE {
-  usecase "1. Tiep nhan BN" as UC1
-  usecase "2. Dat lich hen" as UC2
-  usecase "3. Check-in" as UC3
-  usecase "4. Quan ly Hang doi" as UC4
-  usecase "5. Kham LS" as UC5
-  usecase "6. Chi dinh CLS" as UC6
-  usecase "7. Thuc hien CLS" as UC7
-  usecase "8. Ke don" as UC8
-  usecase "9. Thanh toan" as UC9
-  usecase "10. Phat thuoc" as UC10
+rectangle "Frontend my-patients" as FE #E0F2FE {
+  usecase "Appointments" as FEAppt
+  usecase "Patients\nView + Activity + Genealogy" as FEPatients
+  usecase "Examination" as FEExam
+  usecase "Prescriptions" as FEPresc
+  usecase "PaymentWizard\ncash/VietQR/Thu sau" as FEPay
+  usecase "UnpaidInvoices" as FEUnpaid
+  usecase "History/Reports/Dashboard" as FERead
+  usecase "Staff/Departments/Admin" as FEAdmin
 }
 
-' ===========================
-' API
-' ===========================
-rectangle "API Gateway" as API #DBEAFE {
-  usecase "PatientController" as APIPatient
-  usecase "AppointmentController" as APIAppt
-  usecase "QueueController" as APIQueue
-  usecase "ExamController" as APIExam
-  usecase "CLSController" as APICLS
-  usecase "PrescriptionController" as APIPresc
-  usecase "BillingController" as APIBill
-  usecase "SignalR Hub" as APISignalR
+rectangle "API Controllers" as API #DBEAFE {
+  usecase "Auth/Otp/Admin" as APIAuth
+  usecase "Appointments/Patients/Genealogy/History" as APIPatient
+  usecase "Queue/Clinical/CLS" as APIClinical
+  usecase "Pharmacy/Billing" as APIBilling
+  usecase "Dashboard/Reports/Analytics/Notifications" as APIRead
+  usecase "MasterData" as APIMaster
 }
 
-' ===========================
-' SERVICES
-' ===========================
 rectangle "Business Services" as BL #D1FAE5 {
-  usecase "PatientService" as SvcPatient
-  usecase "AppointmentService" as SvcAppt
-  usecase "QueueService" as SvcQueue
-  usecase "ClinicalService" as SvcClin
-  usecase "CLSService" as SvcCLS
-  usecase "PrescriptionService" as SvcPresc
-  usecase "BillingService" as SvcBill
-  usecase "NotificationService" as SvcNotif
+  usecase "AppointmentService\nsp_BookAppointment" as SvcAppt
+  usecase "Patient/Genealogy/HistoryService" as SvcPatient
+  usecase "Queue/Clinical/ClsService" as SvcClinical
+  usecase "Pharmacy/Billing/VietQRService" as SvcBilling
+  usecase "Dashboard/Report/Analytics" as SvcReport
+  usecase "Admin/Master/Notification" as SvcAdmin
+  usecase "OverdueWorkflowCleanup" as Cleanup
 }
 
-' ===========================
-' DATABASES
-' ===========================
 database "MySQL" as MySQL #FEF3C7 {
-  usecase "benh_nhan" as TblBN
-  usecase "lich_hen" as TblLH
-  usecase "hang_doi" as TblHD
-  usecase "phieu_kham" as TblPK
-  usecase "chi_tiet_dv" as TblCTDV
-  usecase "don_thuoc" as TblDT
-  usecase "hoa_don" as TblHD2
-  usecase "kho_thuoc" as TblKT
+  usecase "nhan_vien_y_te\nstaff=user" as TblStaff
+  usecase "benh_nhan/lich_hen" as TblPatient
+  usecase "hang_doi/luot_kham\nphieu LS/CLS" as TblVisit
+  usecase "don_thuoc/kho/lich_su_xuat" as TblRx
+  usecase "hoa_don_thanh_toan\nchua_thu/bao_luu/da_thu/da_huy" as TblInvoice
 }
 
 database "MongoDB" as MongoDB #CFFAFE {
-  usecase "medical_histories" as CollMedHist
-  usecase "ket_qua_cls" as CollKetQua
+  usecase "medical_histories\nclinical/payment events" as CollMed
+  usecase "audit_logs\nmutation audit" as CollAudit
 }
 
-' ===========================
-' EXTERNAL
-' ===========================
-cloud "External" as Ext #FCE7F3 {
-  usecase "VietQR" as ExtQR
-  usecase "SignalR Push" as ExtSignalR
+cloud "External/Realtime" as Ext #FCE7F3 {
+  usecase "SignalR RealtimeHub" as SignalR
+  usecase "VietQR image URL" as VietQR
 }
 
-' ===========================
-' FLOW 1: TIEP NHAN & DAT LICH
-' ===========================
-YTHC --> UC1 : "Nhap thong tin BN"
-UC1 --> APIPatient
+YTHC --> FEAppt
+YTHC --> FEPatients
+YTHC --> FEPay
+YTHC --> FEPresc
+YTHC --> FERead
+BS --> FEExam
+BS --> FEPresc
+YTLS --> FEExam
+YTCLS --> FEExam
+KTV --> FEExam
+Admin --> FEAdmin
+Admin --> FEUnpaid
+Admin --> FERead
+
+FEAppt --> APIPatient
+FEPatients --> APIPatient
+FEExam --> APIClinical
+FEPresc --> APIBilling
+FEPay --> APIBilling
+FEUnpaid --> APIBilling
+FERead --> APIRead
+FEAdmin --> APIAuth
+FEAdmin --> APIMaster
+
+APIPatient --> SvcAppt
 APIPatient --> SvcPatient
-SvcPatient --> TblBN : "INSERT benh_nhan"
-SvcPatient --> CollMedHist : "INSERT event: dang_ky"
+APIClinical --> SvcClinical
+APIBilling --> SvcBilling
+APIRead --> SvcReport
+APIAuth --> SvcAdmin
+APIMaster --> SvcAdmin
 
-YTHC --> UC2 : "Dat lich hen"
-UC2 --> APIAppt
-APIAppt --> SvcAppt
-SvcAppt --> TblLH : "INSERT lich_hen\n(SERIALIZABLE)"
+SvcAppt --> TblPatient : lich_hen\nSERIALIZABLE procedure
+SvcPatient --> TblPatient : patient + genealogy MaCha/MaMe
+SvcClinical --> TblVisit : queue/visit/exam/cls/status
+SvcClinical --> CollMed : kham_lam_sang/xet_nghiem events
+SvcBilling --> TblRx : prescribe/dispense/stock log
+SvcBilling --> TblInvoice : invoice create/status/confirm
+SvcBilling --> CollMed : event thanh_toan
+SvcBilling --> VietQR : generate QR
+SvcReport --> TblVisit
+SvcReport --> TblInvoice
+SvcReport --> CollMed : analytics aggregation
+SvcAdmin --> TblStaff
+Cleanup --> TblVisit : stale workflow -> da_huy
+Cleanup --> TblInvoice : chua_thu -> da_huy\nda_thu -> bao_luu
 
-' ===========================
-' FLOW 2: CHECK-IN & HANG DOI
-' ===========================
-YTHC --> UC3 : "Check-in BN"
-UC3 --> APIQueue
-APIQueue --> SvcQueue
-SvcQueue --> TblLH : "UPDATE trang_thai"
-SvcQueue --> TblHD : "INSERT hang_doi"
-SvcQueue --> SvcNotif : "Push thong bao"
-SvcNotif --> ExtSignalR : "WebSocket"
+SvcClinical --> SignalR : QueueUpdated/ResultAvailable
+SvcBilling --> SignalR : InvoiceChanged/DashboardToday
+SvcAdmin --> SignalR : notifications
 
-' ===========================
-' FLOW 3: KHAM LAM SANG
-' ===========================
-YTLS --> UC4 : "Goi BN"
-UC4 --> APISignalR : "SignalR"
-APISignalR --> ExtSignalR
+APIAuth ..> CollAudit : AuditLogMiddleware
+APIPatient ..> CollAudit
+APIClinical ..> CollAudit
+APIBilling ..> CollAudit
+APIMaster ..> CollAudit
 
-BS --> UC5 : "Kham & Chan doan"
-UC5 --> APIExam
-APIExam --> SvcClin
-SvcClin --> TblPK : "INSERT phieu_kham"
-SvcClin --> CollMedHist : "INSERT event: kham_ls"
-
-' ===========================
-' FLOW 4: CAN LAM SANG
-' ===========================
-BS --> UC6 : "Chi dinh XN/CDHA"
-UC6 --> APICLS
-APICLS --> SvcCLS
-SvcCLS --> TblCTDV : "INSERT chi_tiet_dv"
-
-KTV --> UC7 : "Thuc hien & Nhap KQ"
-UC7 --> APICLS
-APICLS --> SvcCLS
-SvcCLS --> TblCTDV : "UPDATE trang_thai"
-SvcCLS --> CollKetQua : "INSERT ket_qua"
-SvcCLS --> SvcNotif : "Push ket qua"
-SvcNotif --> ExtSignalR
-
-' ===========================
-' FLOW 5: KE DON & THANH TOAN
-' ===========================
-BS --> UC8 : "Ke don thuoc"
-UC8 --> APIPresc
-APIPresc --> SvcPresc
-SvcPresc --> TblDT : "INSERT don_thuoc"
-SvcPresc --> CollMedHist : "INSERT event: don_thuoc"
-
-YTHC --> UC9 : "Thanh toan"
-UC9 --> APIBill
-APIBill --> SvcBill
-SvcBill --> TblHD2 : "INSERT hoa_don"
-SvcBill --> ExtQR : "Generate QR"
-
-YTHC --> UC10 : "Phat thuoc"
-UC10 --> APIPresc
-APIPresc --> SvcPresc
-SvcPresc --> TblDT : "UPDATE trang_thai"
-SvcPresc --> TblKT : "UPDATE so_luong_ton\n(Transaction)"
-
-' ===========================
-' NOTES
-' ===========================
-note right of TblLH
-  SERIALIZABLE Transaction
-  dam bao khong trung lich
+note bottom of FEPay
+  PaymentWizard:
+  REVIEW -> METHOD -> CONFIRM -> DONE
+  Method: tien_mat, vietqr, Thu sau.
+  Thu sau = bao_luu/cong no.
 end note
 
-note right of TblKT
-  Transaction:
-  BEGIN
-  UPDATE kho_thuoc SET so_luong_ton = so_luong_ton - @qty
-  INSERT lich_su_xuat
-  COMMIT
-end note
-
-note right of CollMedHist
-  Schema Evolution
-  Moi event co data khac nhau
+note bottom of FEPatients
+  Tab Hoat dong:
+  - Mongo medical_histories
+  - SQL visits da_huy/qua han
+  de phan biet completed vs cancelled.
 end note
 
 @enduml

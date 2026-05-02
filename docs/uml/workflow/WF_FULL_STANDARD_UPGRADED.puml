@@ -101,8 +101,12 @@ partition "1. TIEP DON & PHAN LUONG (UI: Patients.jsx)" {
 |Y ta Hanh chinh|
 if (BN bo ve?) then (Bo ve)
   |He Thong (System)|
-  :Rollback: BN→da_huy, HangDoi→da_phuc_vu,
-  LuotKham→da_huy, HoaDon→da_huy;
+  :Cleanup workflow: BN -> da_huy;
+  :HangDoi/LuotKham -> da_huy;
+  :Phieu LS/CLS/Don chua xong -> da_huy;
+  :HoaDon chua_thu -> da_huy;
+  :HoaDon da_thu -> bao_luu;
+  :Activity tab hien luot da_huy;
   stop
 else (Co mat)
 endif
@@ -243,31 +247,42 @@ endif
 ' ===== PHASE 6: THANH TOAN =====
 |Y ta Hanh chinh|
 partition "6. THANH TOAN (UI: Billing)" {
-  :Xem HoaDon chua_thu;
-  :Hien thi Tong (Kham + CLS + Thuoc);
-  :Chon Phuong thuc Thanh toan;
+  :Xem HoaDon chua_thu/bao_luu;
+  :PaymentWizard Step 1: Review chi tiet;
+  :PaymentWizard Step 2: Chon phuong thuc;
   
-  if (QR Code?) then (Co)
+  if (Thu sau?) then (Co)
+    |He Thong (System)|
+    :Cap nhat HoaDon = bao_luu;
+    :Giu cong no de thu sau;
+    stop
+  elseif (QR Code?) then (Co)
     |He Thong (System)|
     :Goi VietQR → Tao QR Dong;
     
     |Benh Nhan|
     :Quet QR & Thanh toan;
+
+    |Y ta Hanh chinh|
+    :Xac nhan da nhan chuyen khoan;
     
     |He Thong (System)|
-    :Nhan Webhook → HoaDon = da_thu;
+    :PUT /confirm PhuongThuc = vietqr;
+    :HoaDon = da_thu;
   else (Tien mat)
     |Y ta Hanh chinh|
     :Thu tien & Xac nhan;
     |He Thong (System)|
+    :PUT /confirm PhuongThuc = tien_mat;
     :HoaDon = da_thu;
   endif
   
   |He Thong (System)|
-  :Ghi Audit Log (MongoDB);
+  :Ghi event thanh_toan vao MongoDB;
+  :Audit middleware ghi mutation vao audit_logs;
   :Cap nhat Dashboard (Realtime);
   
-  if (Con HoaDon chua_thu?) then (Con)
+  if (Con HoaDon chua_thu/bao_luu?) then (Con)
     :Thu tiep;
     detach
   else (Het)

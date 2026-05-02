@@ -144,7 +144,7 @@ group #EEF2FF PHASE 1: RECEPTION & QUEUE (TIEP DON)
   API -> SQL: INSERT hang_doi (cho_goi)
   API -> SQL: INSERT hoa_don_thanh_toan\n(LoaiDotThu='kham_lam_sang', TrangThai='chua_thu')
   API -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'cho_tiep_nhan'
-  API -> NoSQL: Log Event "RegisterExam"
+  API -> NoSQL: Log Event "RegisterExam" / audit mutation
 
   API -> Hub: Broadcast "QueueUpdated"
   activate Hub
@@ -322,46 +322,45 @@ end
 
 group #FEF3C7 PHASE 5: BILLING (THANH TOAN)
   HC -> FE: Mo trang Thanh toan (Billing)
-  FE -> API: POST /api/billing/invoices/search\n{ MaBN, TrangThai: "chua_thu" }
-  API -> SQL: SELECT * FROM hoa_don_thanh_toan\nWHERE MaBN AND TrangThai = 'chua_thu'
-  API --> FE: List invoices (kham + CLS + thuoc)
+  FE -> API: POST /api/billing/invoices/search\n{ MaBN, TrangThai: "chua_thu/bao_luu" }
+  API -> SQL: SELECT * FROM hoa_don_thanh_toan\nWHERE MaBN AND TrangThai IN ('chua_thu','bao_luu')
+  API --> FE: PaymentWizard Review\n(kham + CLS + thuoc)
 
-  alt QR Payment
+  alt Thu sau / Bao luu
+    HC -> FE: Chon "Thu sau"
+    FE -> API: PUT /api/billing/invoices/{id}/status\n{ TrangThai: "bao_luu" }
+    API -> SQL: UPDATE hoa_don\nSET TrangThai = 'bao_luu'
+    API -> Hub: Broadcast "InvoiceChanged"
+  else QR Payment
     HC -> FE: Chon VietQR
-    FE -> API: POST /api/billing/{id}/generate-qr
-    API -> QR: POST /api/generate
-    QR --> API: QR String
-    API --> FE: QR Image
+    FE -> API: POST /api/billing/invoices/{id}/generate-qr
+    API -> QR: Generate VietQR image URL
+    QR --> API: QR String/Image
+    API --> FE: QR Image inline
     BN -> FE: Scan QR & Pay
-    QR -> API: Webhook Success
-
-    note right API
-      **Automation:**
-      Auto-Confirm Invoice
-      upon Webhook
-    end note
-
-    API -> SQL: UPDATE hoa_don SET TrangThai = 'da_thu',\nPhuongThuc = 'chuyen_khoan'
+    HC -> FE: Xac nhan da nhan chuyen khoan
+    FE -> API: PUT /api/billing/invoices/{id}/confirm\n{ PhuongThucThanhToan: "vietqr" }
+    API -> SQL: UPDATE hoa_don SET TrangThai = 'da_thu',\nPhuongThuc = 'vietqr'
     API -> Hub: Broadcast "PaymentSuccess"
   else Cash
     HC -> FE: Xac nhan Thu tien mat
-    FE -> API: PUT /api/billing/invoices/{id}/status\n{ TrangThai: "da_thu" }
+    FE -> API: PUT /api/billing/invoices/{id}/confirm\n{ PhuongThucThanhToan: "tien_mat" }
 
     note right API
       **Transition validation:**
-      chua_thu → da_thu ✔
-      chua_thu → da_huy ✔
-      da_thu → * ✘ (final)
+      chua_thu -> da_thu / da_huy / bao_luu
+      bao_luu -> da_thu / da_huy
+      da_thu, da_huy = final
     end note
 
     API -> SQL: UPDATE hoa_don SET TrangThai = 'da_thu',\nPhuongThuc = 'tien_mat'
   end
 
-  API -> NoSQL: Push event "thanh_toan" (Audit)
-  API -> NoSQL: Update Revenue Analytics
+  API -> NoSQL: Push medical_history event "thanh_toan"
+  API -> NoSQL: AuditLogMiddleware writes mutation
 
   ' --- Kiem tra con HD chua thu ---
-  FE -> API: GET remaining chua_thu count
+  FE -> API: Search remaining chua_thu/bao_luu invoices
   alt Da thanh toan het
     API -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'da_hoan_tat'
     API -> SQL: UPDATE luot_kham_benh\nSET TrangThai = 'hoan_tat'

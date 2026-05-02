@@ -42,11 +42,18 @@ package "04_KeDonVaThuVienPhi" as P04 #FCE7F3 {
   entity "ChiTietDonThuoc" as ChiTietDon
   entity "KhoThuoc" as KhoThuoc
   entity "HoaDon" as HoaDon
+  entity "LichSuXuatKho" as LichSuXuatKho
 }
 
 package "05_ThongBao" as P05 #F5F3FF {
   entity "ThongBao" as ThongBao
   entity "ThongBaoNguoiNhan" as TbNguoiNhan
+  entity "ThongBaoMau" as ThongBaoMau
+}
+
+package "06_MongoDB" as P06 #FFF7ED {
+  entity "medical_histories" as MedicalHistories
+  entity "audit_logs" as AuditLogs
 }
 
 ' ===========================
@@ -73,9 +80,13 @@ PhieuChanDoan ||--o| DonThuoc
 
 DonThuoc ||--|{ ChiTietDon
 KhoThuoc ||--o{ ChiTietDon
+KhoThuoc ||--o{ LichSuXuatKho
+DonThuoc ||--o{ LichSuXuatKho
 BenhNhan ||--o{ HoaDon
 
 ThongBao ||--|{ TbNguoiNhan
+BenhNhan .. MedicalHistories : patient_id
+NhanSu .. AuditLogs : actor_id
 
 ' ===========================
 ' NOTES
@@ -100,6 +111,12 @@ end note
 note bottom of P04
   Don thuoc, Kho thuoc
   Hoa don, Thanh toan
+  TrangThai hoa don: chua_thu, bao_luu, da_thu, da_huy
+end note
+
+note bottom of P06
+  MongoDB luu event clinical/payment va audit logs.
+  Tab Activity doc medical_histories + visit cancelled.
 end note
 
 @enduml

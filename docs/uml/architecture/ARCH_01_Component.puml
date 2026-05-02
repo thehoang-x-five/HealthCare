@@ -1,248 +1,103 @@
-
 @startuml ARCH_01_Component
 ' ===========================
-' ARCH_01: SO DO THANH PHAN CHI TIET
+' ARCH_01: SO DO THANH PHAN 
 ' ===========================
 skinparam backgroundColor #FFFFFF
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 10
-skinparam linetype ortho
-skinparam componentStyle rectangle
-skinparam linetype ortho
 skinparam shadowing false
-skinparam padding 5
-skinparam margin 10
-skinparam nodesep 10
-skinparam ranksep 10
-skinparam usecase {
-  Padding 4
-}
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam padding 8
+skinparam margin 12
+skinparam nodesep 30
+skinparam ranksep 35
 
 left to right direction
-title ARCH_01: So do Thanh phan Chi tiet
+
+title ARCH_01: So do Thanh phan
 
 ' ===========================
 ' PRESENTATION LAYER
 ' ===========================
 package "Presentation Layer" as PL #E0F2FE {
-  package "React SPA (Vite)" {
-    [App.jsx] as App
-    
-    package "Pages" {
-      [LoginPage] as LoginPage
-      [DashboardPage] as DashPage
-      [PatientPage] as PatientPage
-      [AppointmentPage] as ApptPage
-      [QueuePage] as QueuePage
-      [ExamPage] as ExamPage
-      [CLSPage] as CLSPage
-      [PrescriptionPage] as PrescPage
-      [BillingPage] as BillPage
-      [ReportPage] as ReportPage
-      [AdminPage] as AdminPage
-    }
-    
-    package "Components" {
-      [Header] as Header
-      [Sidebar] as Sidebar
-      [DataTable] as DataTable
-      [Form Components] as FormComp
-      [Modal] as Modal
-      [Toast] as Toast
-    }
-    
-    package "Hooks" {
-      [useAuth] as UseAuth
-      [useApi] as UseApi
-      [useSignalR] as UseSignalR
-      [useQueue] as UseQueue
-    }
-    
-    package "Services" {
-      [ApiService] as ApiSvc
-      [AuthService] as AuthClientSvc
-      [SignalRService] as SignalRSvc
-    }
-    
-    package "Store (Context/Redux)" {
-      [AuthContext] as AuthCtx
-      [QueueContext] as QueueCtx
-      [NotificationContext] as NotifCtx
-    }
-  }
+
+  component "React SPA (Vite)" as FE
+
+  component "Routes\n- Login/Overview\n- Patients + Activity\n- Appointments\n- Examination/CLS\n- Prescriptions\n- UnpaidInvoices\n- History/Reports\n- Staff/Departments\n- Notifications/Settings" as FE_Pages
+
+  component "UI Components\n- Sidebar/ProtectedRoute\n- PaymentWizard/VietQRDisplay\n- PatientTimeline/Activity\n- Tables/Forms/Toast" as FE_UI
+
+  component "Hooks/API clients\n- auth/admin/billing\n- patients/history/genealogy\n- queue/examination/cls\n- pharmacy/reports/notifications" as FE_Hooks
+
+  component "Frontend Guards\npermissions.js\nTAB_VISIBILITY\ncanManageReception\ncanEnterClsResult" as FE_Guards
+
+  component "Store\nZustand auth/UI\nReact Query cache\nSignalR subscriptions" as FE_Store
+
+  FE --> FE_Pages
+  FE --> FE_UI
+  FE --> FE_Hooks
+  FE --> FE_Guards
+  FE_Hooks --> FE_Store
 }
 
 ' ===========================
 ' API LAYER
 ' ===========================
 package "API Layer (ASP.NET Core)" as AL #DBEAFE {
-  package "Controllers" {
-    [AuthController] as AuthCtrl
-    [PatientController] as PatientCtrl
-    [AppointmentController] as ApptCtrl
-    [QueueController] as QueueCtrl
-    [ExamController] as ExamCtrl
-    [CLSController] as CLSCtrl
-    [PrescriptionController] as PrescCtrl
-    [BillingController] as BillCtrl
-    [ReportController] as ReportCtrl
-    [AdminController] as AdminCtrl
-  }
-  
-  package "Middleware" {
-    [JwtAuthMiddleware] as JwtMW
-    [ExceptionMiddleware] as ExcMW
-    [LoggingMiddleware] as LogMW
-    [CorsMiddleware] as CorsMW
-  }
-  
-  package "Hubs" {
-    [NotificationHub] as NotifHub
-    [QueueHub] as QueueHub
-  }
-  
-  package "DTOs" {
-    [Request DTOs] as ReqDTO
-    [Response DTOs] as ResDTO
-  }
+
+  component "Controllers\n- Auth/Otp/Admin\n- Patients/Genealogy/History\n- Appointments/Queue/Clinical/CLS\n- Pharmacy/Billing/VietQR\n- Dashboard/Reports/Analytics\n- Notifications/MasterData" as API_Ctrls
+
+  component "Middleware/Attributes\n- JwtAuth\n- AuditLogMiddleware\n- RequireRole\n- RequireNurseType\n- CORS" as API_MW
+
+  component "SignalR\nRealtimeHub\nRealtimeService" as API_Hubs
+
+  component "DTOs\n- Request DTOs\n- Response DTOs" as API_DTO
+
+  API_MW --> API_Ctrls
+  API_Ctrls --> API_DTO
 }
 
 ' ===========================
 ' BUSINESS LAYER
 ' ===========================
 package "Business Layer" as BL #D1FAE5 {
-  package "Services" {
-    [IAuthService] as IAuthSvc
-    [AuthService] as AuthSvcImpl
-    
-    [IPatientService] as IPatientSvc
-    [PatientService] as PatientSvcImpl
-    
-    [IAppointmentService] as IApptSvc
-    [AppointmentService] as ApptSvcImpl
-    
-    [IQueueService] as IQueueSvc
-    [QueueService] as QueueSvcImpl
-    
-    [IClinicalService] as IClinSvc
-    [ClinicalService] as ClinSvcImpl
-    
-    [ICLSService] as ICLSSvc
-    [CLSService] as CLSSvcImpl
-    
-    [IPrescriptionService] as IPrescSvc
-    [PrescriptionService] as PrescSvcImpl
-    
-    [IBillingService] as IBillSvc
-    [BillingService] as BillSvcImpl
-    
-    [INotificationService] as INotifSvc
-    [NotificationService] as NotifSvcImpl
-    
-    [IReportService] as IReportSvc
-    [ReportService] as ReportSvcImpl
-  }
-  
-  package "Validators" {
-    [PatientValidator] as PatientVal
-    [AppointmentValidator] as ApptVal
-    [PrescriptionValidator] as PrescVal
-  }
-  
-  package "Mappers" {
-    [AutoMapper Profiles] as Mapperrs
-  }
+
+  component "Service Interfaces\n- Auth/Patient/Appointment\n- Queue/Clinical/CLS\n- Pharmacy/Billing\n- Dashboard/Reports/Analytics\n- Admin/Notifications" as SVC_I
+
+  component "Service Implementations\n- AuthService/AdminService\n- Patient/Genealogy/History\n- Queue/Clinical/Cls\n- Pharmacy/Billing/VietQR\n- Dashboard/Analytics/Report\n- OverdueWorkflowCleanup" as SVC_Impl
+
+  component "Workflow Guards\n- status transitions\n- payment transitions\n- data scope by MaKhoa\n- overdue cleanup" as BL_Val
+
+  component "DTO Mapping\nmanual mappers\nFE contract adapters" as BL_Map
+
+  SVC_I <|.. SVC_Impl
+  SVC_Impl --> BL_Val
+  SVC_Impl --> BL_Map
 }
 
 ' ===========================
 ' DATA ACCESS LAYER
 ' ===========================
 package "Data Access Layer" as DAL #FEF3C7 {
-  package "EF Core (MySQL)" {
-    [DataContext] as DbCtx
-    
-    package "Entities" {
-      [NhanSu] as ENhanSu
-      [BenhNhan] as EBenhNhan
-      [LichHen] as ELichHen
-      [PhieuKham] as EPhieuKham
-      [DonThuoc] as EDonThuoc
-      [HoaDon] as EHoaDon
-      [KhoThuoc] as EKhoThuoc
-      [ThongBao] as EThongBao
-    }
-    
-    package "Repositories" {
-      [IRepository<T>] as IRepo
-      [Repository<T>] as RepoImpl
 
-    }
-    
-    package "Configurations" {
-      [Entity Configurations] as EntityConfig
-    }
-  }
-  
-  package "MongoDB Driver" {
-    [MongoContext] as MongoCtx
-    
-    package "Collections" {
-      [MedicalHistoryCollection] as MedHistColl
-      [AuditLogCollection] as AuditColl
-    }
-    
-    package "Documents" {
-      [MedicalHistoryDoc] as MedHistDoc
-      [AuditLogDoc] as AuditDoc
-    }
-  }
+  component "EF Core (MySQL)\n- DataContext\n- Repositories (IRepository<T>)\n- Entities/Configurations" as DAL_EF
+
+  component "MongoDB Driver\n- MongoDbContext\n- medical_histories\n- audit_logs\n- aggregation analytics" as DAL_Mongo
 }
 
 ' ===========================
-' CONNECTIONS
+' CONNECTIONS (clean & readable)
 ' ===========================
-App --> LoginPage
-App --> DashPage
-App --> PatientPage
+FE_Hooks --> API_Ctrls : REST/JSON
+FE_Store --> API_Hubs  : SignalR
+FE_Guards ..> API_MW : same RBAC contract
 
-ApiSvc --> AuthCtrl
-ApiSvc --> PatientCtrl
-SignalRSvc --> NotifHub
-SignalRSvc --> QueueHub
+API_Ctrls --> SVC_I
+API_Hubs  --> SVC_I
 
-AuthCtrl --> IAuthSvc
-PatientCtrl --> IPatientSvc
-ApptCtrl --> IApptSvc
-QueueCtrl --> IQueueSvc
-ExamCtrl --> IClinSvc
-CLSCtrl --> ICLSSvc
-PrescCtrl --> IPrescSvc
-BillCtrl --> IBillSvc
-ReportCtrl --> IReportSvc
-
-IAuthSvc <|.. AuthSvcImpl
-IPatientSvc <|.. PatientSvcImpl
-IApptSvc <|.. ApptSvcImpl
-IQueueSvc <|.. QueueSvcImpl
-IClinSvc <|.. ClinSvcImpl
-ICLSSvc <|.. CLSSvcImpl
-IPrescSvc <|.. PrescSvcImpl
-IBillSvc <|.. BillSvcImpl
-INotifSvc <|.. NotifSvcImpl
-IReportSvc <|.. ReportSvcImpl
-
-PatientSvcImpl --> IRepo
-PatientSvcImpl --> MongoCtx
-ApptSvcImpl --> IRepo
-ClinSvcImpl --> IRepo
-ClinSvcImpl --> MongoCtx
-
-IRepo --> DbCtx
-DbCtx --> ENhanSu
-DbCtx --> EBenhNhan
-DbCtx --> ELichHen
-
-MongoCtx --> MedHistColl
-MongoCtx --> AuditColl
+SVC_Impl --> DAL_EF
+SVC_Impl --> DAL_Mongo
 
 @enduml

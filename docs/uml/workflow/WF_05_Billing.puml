@@ -20,62 +20,73 @@ title WF_05: Quy trinh Thanh toan (Full Flow + Cancellation)
 |Y ta Hanh chinh|
 start
 :Tiep nhan BN thanh toan;
-:Xem danh sach Hoa Don chua_thu;
+:Xem danh sach Hoa Don chua_thu/bao_luu;
 note right
   **Cac loai HoaDon:**
   1. kham_lam_sang (phi kham)
   2. can_lam_sang (phi DV CLS)
   3. thuoc (tien thuoc)
-  → Tat ca TrangThai = chua_thu
+  TrangThai:
+  chua_thu = moi tao
+  bao_luu = thu sau/cong no
 end note
 
 :Chon HoaDon can thanh toan;
 
 |He Thong (System)|
-:Hien thi Chi tiet & Tong tien;
-:Kiem tra: HoaDon.TrangThai == chua_thu?;
+:PaymentWizard Step 1: Review chi tiet & Tong tien;
+:Kiem tra: HoaDon.TrangThai in (chua_thu, bao_luu)?;
 
-if (TrangThai != chua_thu?) then (Da thu / Da huy)
+if (TrangThai khong hop le?) then (Da thu / Da huy)
   :TU CHOI: Hoa don da xu ly;
   stop
-else (chua_thu — OK)
+else (OK)
 endif
 
 |Y ta Hanh chinh|
-if (BN yeu cau huy?) then (Huy hoa don)
+if (Can huy hoa don?) then (Admin huy)
+  |Admin|
+  :Mo UnpaidInvoices;
+  :Xac nhan huy hoa don;
   |He Thong (System)|
+  :PUT /api/billing/invoices/{id}/cancel;
+  :Chi hop le khi chua_thu;
   :Cap nhat HoaDon.TrangThai = da_huy;
-  :Ghi ly do huy + MaNhanSuThu;
-  :Ghi Audit Log (MongoDB);
+  :Ghi ThoiGianHuy + thong bao;
   note right
-    **Transition cho phep:**
-    chua_thu → da_huy ✔
-    chua_thu → da_thu ✔
-    da_thu → * ✘ (da thu = final)
-    da_huy → * ✘ (da huy = final)
+    Source sync:
+    Cancel endpoint chi Admin/quan_tri_vien.
+    Y ta HC khong goi endpoint /cancel.
   end note
   stop
 else (Thanh toan)
 endif
 
-:Xac nhan hinh thuc thanh toan;
+:PaymentWizard Step 2: Chon hinh thuc thanh toan;
 
-if (Hinh thuc?) then (Chuyen khoan / QR)
+if (Hinh thuc?) then (Thu sau)
   |He Thong (System)|
-  :Goi API VietQR;
+  :PUT /api/billing/invoices/{id}/status\n{ TrangThai = bao_luu };
+  :Giu hoa don de thu sau;
+  :Broadcast invoice/dashboard;
+  stop
+elseif (Hinh thuc?) then (VietQR)
+  |He Thong (System)|
+  :POST /generate-qr;
   :Tao ma QR dong (so tien + noi dung);
   :Hien thi QR Code tren man hinh;
-  :Bat dau lang nghe Webhook;
   
   |Benh Nhan|
   :Mo app Ngan hang;
   :Quet ma QR & Thanh toan;
   
+  |Y ta Hanh chinh|
+  :Xac nhan da nhan chuyen khoan;
+
   |He Thong (System)|
-  :Nhan Webhook tu Ngan hang;
-  :Xac minh so tien khop;
-  :TU DONG: Cap nhat HoaDon.TrangThai = da_thu;
-  :TU DONG: Ghi nhan PhuongThuc = chuyen_khoan;
+  :PUT /confirm\n{ PhuongThuc = vietqr };
+  :Cap nhat HoaDon.TrangThai = da_thu;
+  :Ghi MaGiaoDich neu co;
   
 else (Tien mat)
   |Y ta Hanh chinh|
@@ -83,18 +94,18 @@ else (Tien mat)
   :Bam "Xac nhan da thu";
   
   |He Thong (System)|
+  :PUT /confirm\n{ PhuongThuc = tien_mat };
   :Cap nhat HoaDon.TrangThai = da_thu;
-  :Ghi nhan PhuongThuc = tien_mat;
 endif
 
 |He Thong (System)|
-:Ghi Log Giao dich (Audit → MongoDB);
-:Sync event "thanh_toan" len MongoDB;
+:Sync event "thanh_toan" len MongoDB medical_histories;
+:Audit middleware ghi mutation vao audit_logs;
 :Cap nhat Dashboard Doanh thu (Realtime);
 :In Hoa don & Phieu thu;
 
 ' === Kiem tra da thanh toan het chua ===
-if (Con HoaDon chua_thu khac?) then (Con)
+if (Con HoaDon chua_thu/bao_luu khac?) then (Con)
   |Y ta Hanh chinh|
   :Tiep tuc thu cac HoaDon con lai;
   detach

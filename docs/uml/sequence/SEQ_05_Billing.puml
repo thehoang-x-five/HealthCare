@@ -1,5 +1,5 @@
 @startuml SEQ_05_Billing
-title SEQ_05: SEQUENCE — THANH TOAN & VIETQR
+title SEQ_05: SEQUENCE — PAYMENT WIZARD, VIETQR, THU SAU, HUY HOA DON
 
 skinparam backgroundColor #FFFFFF
 skinparam sequenceMessageAlign center
@@ -7,141 +7,109 @@ skinparam maxMessageSize 250
 
 actor "Benh Nhan" as BN
 actor "Y ta Hanh chinh" as HC
+actor "Admin" as Admin
 
-box "System Application" #F3F4F6
-  participant "Frontend\n(Billing UI)" as FE
-  participant "BillingService\n(BE)" as SVC
-  participant "SignalR Hub" as Hub
+box "Frontend my-patients" #F3F4F6
+  participant "PaymentWizard.jsx" as Wizard
+  participant "UnpaidInvoices.jsx" as Unpaid
+  participant "billing.js hooks" as BillingApi
 end box
 
-box "External" #FEF3C7
-  participant "VietQR API" as QR
-  participant "Ngan Hang\n(Webhook)" as Bank
+box "Backend HealthCare" #E0F2FE
+  participant "BillingController" as Controller
+  participant "BillingService" as Service
+  participant "VietQRService" as VietQR
+  participant "AuditLogMiddleware" as AuditMw
+  participant "SignalR Realtime" as Hub
 end box
 
 box "Data Persistence" #DBEAFE
-  database "MySQL" as SQL
-  database "MongoDB" as NoSQL
+  database "MySQL\nhoa_don_thanh_toan" as SQL
+  database "MongoDB\nmedical_histories/audit_logs" as Mongo
 end box
 
-' ===== XEM HOA DON =====
-group #EEF2FF BUOC 1: Xem danh sach Hoa don
-
-  HC -> FE: Mo trang Thanh toan
-  FE -> SVC: POST /api/billing/invoices/search\n{ MaBenhNhan, TrangThai: "chua_thu" }
-  SVC -> SQL: SELECT * FROM hoa_don_thanh_toan\nWHERE MaBenhNhan = id\nAND TrangThai = 'chua_thu'
-  SQL --> SVC: List invoices
-  SVC --> FE: PagedResult<InvoiceDto>
-  
-  note right FE
-    **3 loai hoa don:**
-    1. kham_lam_sang (phi kham)
-    2. can_lam_sang (phi DV CLS)
-    3. thuoc (tien thuoc)
-  end note
-  
-  FE --> HC: Hien thi danh sach HoaDon
+group #EEF2FF Step 1: Review invoice
+  HC -> Wizard: Mo wizard tu Patients/Examination/UnpaidInvoices
+  Wizard -> BillingApi: searchInvoices({ patient, loaiDotThu, TrangThai: chua_thu })
+  BillingApi -> Controller: POST /api/billing/invoices/search
+  Controller -> Service: TimKiemHoaDonAsync(filter, scope)
+  Service -> SQL: SELECT invoices theo scope\nTrangThai = chua_thu/bao_luu neu filter
+  SQL --> Service: invoices
+  Service --> Controller: PagedResult
+  Controller --> BillingApi: 200 OK
+  BillingApi --> Wizard: invoice hoac fallback items
 end
 
-' ===== THANH TOAN TIEN MAT =====
-group #ECFDF5 BUOC 2a: Thanh toan Tien mat
-
-  HC -> FE: Chon HoaDon + "Tien mat"
+group #ECFDF5 Step 2a: Tien mat / ConfirmPayment
+  HC -> Wizard: Chon "Tien mat"
   HC -> BN: Thu tien
-  HC -> FE: Click "Xac nhan da thu"
-  
-  FE -> SVC: PUT /api/billing/invoices/{id}/status\n{ TrangThai: "da_thu" }
-  activate SVC
-  
-  note right SVC
-    **Transition validation:**
-    chua_thu → da_thu ✔
-    chua_thu → da_huy ✔
-    da_thu → * ✘ (final)
-    da_huy → * ✘ (final)
-  end note
-  
-  SVC -> SQL: UPDATE hoa_don_thanh_toan\nSET TrangThai = 'da_thu',\nPhuongThucThanhToan = 'tien_mat'
-  
-  SVC -> NoSQL: Push event "thanh_toan"\n{ ma_hd, so_tien, phuong_thuc }
-  SVC -> Hub: Broadcast "PaymentSuccess"
-  SVC --> FE: 200 OK
-  deactivate SVC
+  HC -> Wizard: Xac nhan thanh toan
+  Wizard -> BillingApi: confirmInvoice({ PhuongThucThanhToan: tien_mat })
+  BillingApi -> Controller: PUT /api/billing/invoices/{id}/confirm
+  Controller -> Service: XacNhanThanhToanAsync(id, request)
+  Service -> SQL: validate TrangThai in (chua_thu, bao_luu)
+  Service -> SQL: UPDATE TrangThai=da_thu,\nPhuongThuc=tien_mat, SoTienPhaiTra=SoTien
+  Service -> Mongo: LogEvent(patient, "thanh_toan", payload)
+  AuditMw -> Mongo: audit_logs mutation
+  Service -> Hub: BroadcastInvoiceChanged + DashboardToday
+  Controller --> BillingApi: 200 InvoiceDto
+  BillingApi --> Wizard: DONE paid
 end
 
-' ===== THANH TOAN QR =====
-group #F3E8FF BUOC 2b: Thanh toan QR (VietQR)
-
-  HC -> FE: Chon HoaDon + "Chuyen khoan"
-  FE -> SVC: POST /api/billing/{id}/generate-qr
-  activate SVC
-  
-  SVC -> QR: POST /api/generate\n{ amount, description, bank_info }
-  QR --> SVC: QR String + Image URL
-  SVC --> FE: QR Code Data
-  deactivate SVC
-  
-  FE --> HC: Hien thi QR tren man hinh
-  
-  BN -> BN: Mo app Ngan hang
-  BN -> FE: Quet QR & Chuyen khoan
-  
-  Bank -> SVC: Webhook /api/billing/webhook\n{ transaction_id, amount, status }
-  activate SVC
-  
-  SVC -> SVC: Verify amount & reference
-  SVC -> SQL: UPDATE hoa_don_thanh_toan\nSET TrangThai = 'da_thu',\nPhuongThucThanhToan = 'chuyen_khoan'
-  
-  SVC -> NoSQL: Push event "thanh_toan"
-  SVC -> Hub: Broadcast "PaymentSuccess"
-  Hub --> FE: Auto-update UI "Da thanh toan"
-  
-  SVC --> Bank: 200 OK
-  deactivate SVC
+group #F3E8FF Step 2b: VietQR / manual confirmation
+  HC -> Wizard: Chon "VietQR"
+  Wizard -> BillingApi: generateVietQR({ maHoaDon, SoTien, NoiDung })
+  BillingApi -> Controller: POST /api/billing/invoices/{id}/generate-qr
+  Controller -> Service: LayHoaDonAsync(id)
+  Service -> SQL: SELECT invoice
+  Controller -> VietQR: GenerateQR(maHoaDon, soTien, noiDung)
+  VietQR --> Controller: VietQR image URL/data
+  Controller --> BillingApi: VietQRResponse
+  BillingApi --> Wizard: Hien thi QR inline
+  BN -> Wizard: Quet QR bang app ngan hang
+  HC -> Wizard: Xac nhan da nhan chuyen khoan
+  Wizard -> BillingApi: confirmInvoice({ PhuongThucThanhToan: vietqr, MaGiaoDich? })
+  BillingApi -> Controller: PUT /api/billing/invoices/{id}/confirm
+  Controller -> Service: XacNhanThanhToanAsync
+  Service -> SQL: UPDATE TrangThai=da_thu,\nPhuongThuc=vietqr, MaGiaoDich?
+  Service -> Mongo: LogEvent "thanh_toan"
+  Service -> Hub: BroadcastInvoiceChanged + DashboardToday
+  Controller --> BillingApi: 200 InvoiceDto
 end
 
-' ===== HUY HOA DON =====
-group #FFE4E1 LUONG HUY: Huy Hoa don
-
-  HC -> FE: Click "Huy hoa don"
-  FE -> FE: Confirm Dialog
-  HC -> FE: Xac nhan + Nhap ly do
-  
-  FE -> SVC: PUT /api/billing/invoices/{id}/status\n{ TrangThai: "da_huy" }
-  activate SVC
-  
-  SVC -> SQL: SELECT TrangThai FROM hoa_don\nWHERE MaHoaDon = id
-  
-  alt TrangThai = chua_thu
-    SVC -> SQL: UPDATE hoa_don_thanh_toan\nSET TrangThai = 'da_huy'
-    SVC -> NoSQL: Log audit "Invoice cancelled"
-    SVC -> Hub: Broadcast "InvoiceCancelled"
-    SVC --> FE: 200 OK
-  else TrangThai = da_thu
-    SVC --> FE: 400 Bad Request\n"Da thu tien, khong the huy"
-  end
-  
-  deactivate SVC
+group #FEF3C7 Step 2c: Thu sau / Bao luu / Cong no
+  HC -> Wizard: Chon "Thu sau"
+  Wizard -> BillingApi: updateInvoiceStatus({ status: bao_luu })
+  BillingApi -> Controller: PUT /api/billing/invoices/{id}/status
+  Controller -> Service: CapNhatTrangThaiHoaDonAsync
+  Service -> SQL: validate chua_thu -> bao_luu\nor bao_luu -> da_thu/da_huy
+  Service -> SQL: UPDATE TrangThai=bao_luu
+  Service -> Hub: BroadcastInvoiceChanged + DashboardToday
+  Controller --> BillingApi: 200 InvoiceDto
+  BillingApi --> Wizard: DONE deferred
 end
 
-' ===== KET THUC LUOT KHAM =====
-group #E0F2FE BUOC 3: Ket thuc Luot kham
-
-  FE -> SVC: GET /api/billing/invoices/search\n{ MaBenhNhan, TrangThai: "chua_thu" }
-  SVC -> SQL: SELECT COUNT(*)\nWHERE TrangThai = 'chua_thu'
-  
-  alt Con HoaDon chua thu
-    SVC --> FE: remaining_count > 0
-    FE --> HC: "Con N hoa don chua thanh toan"
-  else Da thanh toan het
-    SVC --> FE: remaining_count = 0
-    
-    SVC -> SQL: UPDATE benh_nhan\nSET TrangThaiHomNay = 'da_hoan_tat'
-    SVC -> SQL: UPDATE luot_kham_benh\nSET TrangThai = 'hoan_tat'
-    
-    SVC -> Hub: Broadcast "VisitCompleted"
-    FE --> HC: "BN da hoan tat moi thu tuc"
+group #FFE4E1 Admin-only: Huy hoa don
+  Admin -> Unpaid: Click Huy hoa don
+  Unpaid -> BillingApi: cancelInvoice({ LyDo })
+  BillingApi -> Controller: PUT /api/billing/invoices/{id}/cancel
+  Controller -> Service: HuyHoaDonAsync(id, lyDo)
+  Service -> SQL: validate TrangThai == chua_thu
+  alt chua_thu
+    Service -> SQL: UPDATE TrangThai=da_huy,\nThoiGianHuy=now
+    AuditMw -> Mongo: audit_logs mutation
+    Service -> Hub: BroadcastInvoiceChanged + DashboardToday
+    Controller --> BillingApi: 200 OK
+  else da_thu / bao_luu / da_huy
+    Controller --> BillingApi: 400 Bad Request
   end
 end
+
+note right of Service
+  Source sync:
+  ConfirmPayment chap nhan chua_thu hoac bao_luu.
+  Cancel endpoint chi Admin/quan_tri_vien.
+  Y ta HC dung PaymentWizard de thu tien hoac bao_luu.
+end note
 
 @enduml

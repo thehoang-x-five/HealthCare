@@ -123,6 +123,7 @@ package "04_KeDonVaThuVienPhi" #FCE7F3 {
 
     + SoTienPhaiTra : DECIMAL
     + MaGiaoDich : VARCHAR(50)
+    + TrangThai bao_luu : ENUM
     + ThoiGianHuy : DATETIME
     + MaNhanSuHuy : VARCHAR(20)
   }
@@ -171,6 +172,12 @@ note right of Phong
   - them MaKTVPhuTrach
   - dung cho phong CLS co KTV co dinh 1-1
   - phong LS van dung MaBacSiPhuTrach
+end note
+
+note right of HoaDon
+  Source sync 2026-05:
+  PaymentWizard them "Thu sau" => bao_luu/cong no.
+  ConfirmPayment chap nhan chua_thu hoac bao_luu -> da_thu.
 end note
 
 note as RemovedFields #FEE2E2

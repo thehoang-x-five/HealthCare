@@ -111,8 +111,8 @@ package "③ TẦNG LƯU TRỮ (Polyglot Persistence)" as PL {
             <b>NhanSu</b> (6 vai trò RBAC)
             <b>RefreshToken</b> (JWT, IP tracking)
             ..
-            <i>Tách NhanSu/UserAccount (1:1)</i>
-            <i>→ Bảo mật, mở rộng RBAC</i>
+            <i>Staff = User, auth fields nam tren NhanSu</i>
+            <i>→ Khong tach bang auth rieng</i>
         }
 
         class "<b>D2: Patient & Reception</b>" as D2 #D1FAE5 {
@@ -229,7 +229,7 @@ note right of MYDB #EBF8FF
   ✅ Query JOINs → Xử lý Workflow phức tạp
 
   <b>Quyết định thiết kế nổi bật:</b>
-  • <b>NhanSu ↔ UserAccount (1:1)</b>: Bảo mật, mở rộng RBAC
+  • <b>NhanSu = User</b>: TenDangNhap/MatKhauHash/VaiTro/LoaiYTa nam truc tiep tren NhanSu
   • <b>HangDoi ≠ LuotKham</b>: Vòng đời khác (Logistics vs Clinical)
   • <b>PhieuKham ≠ PhieuChanDoan</b>: YTa lập vs BS lập
   • <b>HoaDon: Polymorphic FK × 3 đợt thu</b>

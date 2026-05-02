@@ -11,7 +11,14 @@ skinparam usecase {
   BackgroundColor #EEF2FF
   BorderColor #4F46E5
 }
-
+skinparam linetype ortho
+skinparam padding 2
+skinparam margin 5
+skinparam nodesep 10
+skinparam ranksep 15
+skinparam usecase {
+  Padding 4
+}
 left to right direction
 title UC_07: Kham Lam sang
 
@@ -19,6 +26,7 @@ title UC_07: Kham Lam sang
 ' ACTORS
 ' ===========================
 actor "Y ta Lam sang" as YTLS #LightGreen
+actor "Y ta Hanh chinh" as YTHC #LightBlue
 actor "Bac si" as BS #Lavender
 
 ' ===========================
@@ -90,6 +98,9 @@ rectangle "Hoan tat Phieu kham" as CompleteExam #F5F3FF {
   usecase "UC54.2 - Hoan tat\nPhieu kham" as UC54_2
   usecase "UC54.3 - Huong dan BN\nra Quay le tan" as UC54_3
   usecase "UC54.4 - In\nPhieu kham" as UC54_4
+  usecase "UC54.5 - PaymentWizard\nphi kham/thuoc" as UC54_5
+  usecase "UC54.6 - Huy luot kham\n/ huy ca cho kham" as UC54_6
+  usecase "UC54.7 - Ghi event\nkham_lam_sang Mongo" as UC54_7
 }
 
 ' ===========================
@@ -109,7 +120,7 @@ YTLS --> UC51_1
 YTLS --> UC51_6
 YTLS --> UC51_7
 YTLS --> UC54_1
-YTLS --> UC54_2
+YTLS --> UC54_6
 
 BS --> UC52_1
 BS --> UC52_3
@@ -119,6 +130,11 @@ BS --> UC53_2
 BS --> UC53_3
 BS --> UC53_7
 BS --> UC53_8
+BS --> UC54_6
+
+YTHC --> UC51_1
+YTHC --> UC54_2
+YTHC --> UC54_5
 
 ' ===========================
 ' INCLUDE / EXTEND
@@ -153,6 +169,8 @@ UC53_8 ..> UC53_10 : <<include>>
 
 UC54_2 ..> UC54_3 : <<include>>
 UC54_2 ..> UC54_4 : <<extend>>
+UC54_2 ..> UC54_5 : <<include>>
+UC54_2 ..> UC54_7 : <<include>>
 
 ' ===========================
 ' NOTES
@@ -165,6 +183,14 @@ end note
 note right of UC52_3
   MongoDB
   Medical Histories
+end note
+
+note bottom of CompleteExam
+  Source sync:
+  - Tao phieu: YTHC
+  - Chan doan: BS hoac Y ta LS
+  - Complete: endpoint cho BS/YTHC, FE payment guard YTHC
+  - Cancel visit/queue: BS hoac Y ta LS
 end note
 
 @enduml
