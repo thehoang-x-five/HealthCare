@@ -49,6 +49,9 @@ namespace HealthCare.Realtime
         private static readonly string NurseRoleGroupName =
             RealtimeHub.GetRoleGroupName("y_ta");
 
+        private static readonly string TechnicianRoleGroupName =
+            RealtimeHub.GetRoleGroupName("ky_thuat_vien");
+
         // Y tá hành chính (quản lý lịch, thu ngân, phát thuốc)
         private static readonly string AdminNurseGroupName =
             RealtimeHub.GetNurseTypeGroupName("hanhchinh");
@@ -443,7 +446,14 @@ namespace HealthCare.Realtime
                 return Task.CompletedTask;
 
             var groupName = RealtimeHub.GetRoomGroupName(item.MaPhong);
-            return _hub.Clients.Group(groupName).QueueItemChanged(item);
+            var tasks = new List<Task>
+            {
+                _hub.Clients.Group(groupName).QueueItemChanged(item),
+                _hub.Clients.Group(DoctorRoleGroupName).QueueItemChanged(item),
+                _hub.Clients.Group(NurseRoleGroupName).QueueItemChanged(item),
+                _hub.Clients.Group(TechnicianRoleGroupName).QueueItemChanged(item)
+            };
+            return Task.WhenAll(tasks);
         }
 
 

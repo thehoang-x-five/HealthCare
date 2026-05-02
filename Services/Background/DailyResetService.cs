@@ -18,6 +18,18 @@ namespace HealthCare.Services.Background
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<DailyResetService> _logger;
 
+        private static readonly string[] ExpiringPatientStatuses =
+        {
+            TrangThaiHomNay.ChoTiepNhan,
+            TrangThaiHomNay.ChoTiepNhanDv,
+            TrangThaiHomNay.ChoKham,
+            TrangThaiHomNay.ChoKhamDv,
+            TrangThaiHomNay.DangKham,
+            TrangThaiHomNay.DangKhamDv,
+            TrangThaiHomNay.ChoXuLy,
+            TrangThaiHomNay.ChoXuLyDv
+        };
+
         public DailyResetService(
             IServiceProvider serviceProvider,
             ILogger<DailyResetService> logger)
@@ -105,14 +117,16 @@ namespace HealthCare.Services.Background
                 _logger.LogInformation("Bắt đầu hủy phiếu khám chưa hoàn thành...");
 
                 var today = DateTime.Today;
-                var now = DateTime.Now;
+                var tomorrow = today.AddDays(1);
+                var expiringStatuses = ExpiringPatientStatuses;
 
                 // 1. Lấy danh sách bệnh nhân có trạng thái hôm nay khác hoàn thành
                 var unfinishedPatients = await db.BenhNhans
                     .Where(b =>
-                        !string.IsNullOrEmpty(b.TrangThaiHomNay) &&
-                        b.TrangThaiHomNay != TrangThaiHomNay.DaHoanTat &&
-                        b.NgayTrangThai == today)
+                        b.TrangThaiHomNay != null &&
+                        expiringStatuses.Contains(b.TrangThaiHomNay) &&
+                        b.NgayTrangThai >= today &&
+                        b.NgayTrangThai < tomorrow)
                     .Select(b => b.MaBenhNhan)
                     .ToListAsync();
 
@@ -174,6 +188,7 @@ namespace HealthCare.Services.Background
                 // 6. Hủy lịch hẹn khám chưa check-in
                 var canceledAppointments = await db.LichHenKhams
                     .Where(l =>
+                        l.MaBenhNhan != null &&
                         unfinishedPatients.Contains(l.MaBenhNhan) &&
                         l.NgayHen == today &&
                         l.TrangThai != TrangThaiLichHen.DaCheckin &&
@@ -203,6 +218,14 @@ namespace HealthCare.Services.Background
                         .SetProperty(l => l.TrangThai, TrangThaiLuotKham.HoanTat)
                         .SetProperty(l => l.ThoiGianKetThuc, DateTime.Now));
 
+                var canceledPatientStatuses = await db.BenhNhans
+                    .Where(b => unfinishedPatients.Contains(b.MaBenhNhan))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(b => b.TrangThaiHomNay, TrangThaiHomNay.DaHuy)
+                        .SetProperty(b => b.NgayTrangThai, today));
+
+                _logger.LogInformation("Da chuyen {Count} benh nhan sang trang thai da huy", canceledPatientStatuses);
+
                 _logger.LogInformation("Đã đóng {Count} lượt khám bệnh", canceledVisits);
 
                 _logger.LogInformation(
@@ -228,19 +251,20 @@ namespace HealthCare.Services.Background
             {
                 _logger.LogInformation("Bắt đầu reset trạng thái hôm nay...");
 
-                var yesterday = DateTime.Today.AddDays(-1);
+                var today = DateTime.Today;
+                var expiringStatuses = ExpiringPatientStatuses;
 
-                // Reset tất cả bệnh nhân có trạng thái của ngày hôm qua
+                // Chuyen cac trang thai dang xu ly qua ngay sang da huy.
                 var resetCount = await db.BenhNhans
                     .Where(b =>
-                        !string.IsNullOrEmpty(b.TrangThaiHomNay) &&
-                        b.NgayTrangThai == yesterday)
+                        b.TrangThaiHomNay != null &&
+                        expiringStatuses.Contains(b.TrangThaiHomNay) &&
+                        b.NgayTrangThai < today)
                     .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(b => b.TrangThaiHomNay, (string?)null)
-                        .SetProperty(b => b.NgayTrangThai, DateTime.Today));
+                        .SetProperty(b => b.TrangThaiHomNay, TrangThaiHomNay.DaHuy));
 
                 _logger.LogInformation(
-                    "Đã reset trạng thái hôm nay cho {Count} bệnh nhân",
+                    "Đã chuyển trạng thái quá ngày sang đã hủy cho {Count} bệnh nhân",
                     resetCount);
             }
             catch (Exception ex)

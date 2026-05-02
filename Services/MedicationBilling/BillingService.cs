@@ -9,17 +9,26 @@ using Microsoft.EntityFrameworkCore;
 using HealthCare.Services.UserInteraction;
 using HealthCare.Services.Report;
 using HealthCare.Infrastructure.Repositories;
+using HealthCare.Services.OutpatientCare;
+using HealthCare.Infrastructure.Security;
 using MongoDB.Bson;
 
 namespace HealthCare.Services.MedicationBilling
 {
-    public class BillingService(DataContext db, IRealtimeService realtime, IDashboardService dashboard, INotificationService notifications, IMongoHistoryRepository mongoHistory) : IBillingService
+    public class BillingService(
+        DataContext db,
+        IRealtimeService realtime,
+        IDashboardService dashboard,
+        INotificationService notifications,
+        IMongoHistoryRepository mongoHistory,
+        IOverdueWorkflowCleanupService overdueCleanup) : IBillingService
     {
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
         private readonly IDashboardService _dashboard = dashboard;
         private readonly INotificationService _notifications = notifications;
         private readonly IMongoHistoryRepository _mongoHistory = mongoHistory;
+        private readonly IOverdueWorkflowCleanupService _overdueCleanup = overdueCleanup;
 
         // ============================================================
         // =                  1. TẠO HÓA ĐƠN                        =
@@ -27,6 +36,8 @@ namespace HealthCare.Services.MedicationBilling
 
         public async Task<InvoiceDto> TaoHoaDonAsync(InvoiceCreateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             // ===== VALIDATION =====
             if (string.IsNullOrWhiteSpace(request.MaBenhNhan))
                 throw new ArgumentException("MaBenhNhan là bắt buộc");
@@ -141,11 +152,21 @@ namespace HealthCare.Services.MedicationBilling
         // =                2. LẤY CHI TIẾT HÓA ĐƠN                  =
         // ============================================================
 
-        public async Task<InvoiceDto?> LayHoaDonAsync(string maHoaDon)
+        public async Task<InvoiceDto?> LayHoaDonAsync(string maHoaDon, string? maKhoaScope = null)
         {
-            var h = await QueryHoaDon()
+            await _overdueCleanup.CleanupAsync();
+
+            var query = QueryHoaDon()
                 .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.MaHoaDon == maHoaDon);
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(maKhoaScope))
+            {
+                var scopedIds = _db.ScopedPatientIdsByDepartment(maKhoaScope);
+                query = query.Where(h => scopedIds.Contains(h.MaBenhNhan));
+            }
+
+            var h = await query.FirstOrDefaultAsync(x => x.MaHoaDon == maHoaDon);
 
             return h == null ? null : MapInvoice(h);
         }
@@ -155,10 +176,19 @@ namespace HealthCare.Services.MedicationBilling
         // ============================================================
 
         public async Task<PagedResult<InvoiceHistoryRecordDto>> TimKiemHoaDonAsync(
-            InvoiceSearchFilter filter)
+            InvoiceSearchFilter filter,
+            string? maKhoaScope = null)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var q = QueryHoaDon()
                 .AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(maKhoaScope))
+            {
+                var scopedIds = _db.ScopedPatientIdsByDepartment(maKhoaScope);
+                q = q.Where(h => scopedIds.Contains(h.MaBenhNhan));
+            }
 
             // ===== FILTER =====
             if (!string.IsNullOrWhiteSpace(filter.MaBenhNhan))
@@ -244,6 +274,8 @@ namespace HealthCare.Services.MedicationBilling
             string maHoaDon,
             InvoiceStatusUpdateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var entity = await QueryHoaDon()
                 .FirstOrDefaultAsync(h => h.MaHoaDon == maHoaDon);
 
@@ -254,18 +286,20 @@ namespace HealthCare.Services.MedicationBilling
             var oldStatus = entity.TrangThai;
             var newStatus = request.TrangThai;
 
-            // Terminal states: da_thu, da_huy, bao_luu — không chuyển sang trạng thái khác
-            var terminalStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "da_thu", "da_huy", "bao_luu" };
+            // Terminal states: đã thu / đã hủy không chuyển tiếp nữa.
+            // Bảo lưu vẫn được phép thu sau.
+            var terminalStates = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "da_thu", "da_huy" };
             if (terminalStates.Contains(oldStatus))
                 throw new InvalidOperationException(
                     $"Hóa đơn đang ở trạng thái '{oldStatus}' — không thể chuyển sang '{newStatus}'.");
 
-            // Chỉ cho phép: chua_thu → da_thu | da_huy
-            var allowedTransitions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "da_thu", "da_huy" };
-            if (string.Equals(oldStatus, "chua_thu", StringComparison.OrdinalIgnoreCase)
-                && !allowedTransitions.Contains(newStatus))
+            var allowedTransitions = string.Equals(oldStatus, "bao_luu", StringComparison.OrdinalIgnoreCase)
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "da_thu", "da_huy" }
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "da_thu", "da_huy", "bao_luu" };
+
+            if (!allowedTransitions.Contains(newStatus))
                 throw new InvalidOperationException(
-                    $"Trạng thái '{newStatus}' không hợp lệ. Chỉ cho phép: da_thu, da_huy.");
+                    $"Trạng thái '{newStatus}' không hợp lệ. Chỉ cho phép: {string.Join(", ", allowedTransitions)}.");
 
             entity.TrangThai = request.TrangThai;
             await _db.SaveChangesAsync();
@@ -408,6 +442,8 @@ namespace HealthCare.Services.MedicationBilling
 
         public async Task<InvoiceDto?> HuyHoaDonAsync(string maHoaDon, string? lyDo = null)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var entity = await QueryHoaDon()
                 .FirstOrDefaultAsync(h => h.MaHoaDon == maHoaDon);
 
@@ -521,16 +557,19 @@ namespace HealthCare.Services.MedicationBilling
 
         public async Task<InvoiceDto?> XacNhanThanhToanAsync(string maHoaDon, PaymentConfirmRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var entity = await QueryHoaDon()
                 .FirstOrDefaultAsync(h => h.MaHoaDon == maHoaDon);
 
             if (entity == null)
                 return null;
 
-            // Chỉ cho phép confirm khi trạng thái = chua_thu
-            if (!string.Equals(entity.TrangThai, "chua_thu", StringComparison.OrdinalIgnoreCase))
+            // Cho phép thu ngay từ hóa đơn chưa thu hoặc hóa đơn đã bảo lưu/công nợ.
+            if (!string.Equals(entity.TrangThai, "chua_thu", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(entity.TrangThai, "bao_luu", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException(
-                    $"Hóa đơn đang ở trạng thái '{entity.TrangThai}' — chỉ xác nhận thanh toán được khi 'chua_thu'.");
+                    $"Hóa đơn đang ở trạng thái '{entity.TrangThai}' — chỉ xác nhận thanh toán được khi 'chua_thu' hoặc 'bao_luu'.");
 
             // Cập nhật thông tin thanh toán
             entity.TrangThai = "da_thu";

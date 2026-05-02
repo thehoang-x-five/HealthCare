@@ -12,6 +12,7 @@ using HealthCare.Services.UserInteraction;
 using HealthCare.Services.Report;
 using HealthCare.Infrastructure.Repositories;
 using HealthCare.Infrastructure.Security;
+using HealthCare.Services.OutpatientCare;
 using MongoDB.Bson;
 
 namespace HealthCare.Services.MedicationBilling
@@ -21,13 +22,15 @@ namespace HealthCare.Services.MedicationBilling
      IRealtimeService realtime,
      INotificationService notifications,
      IDashboardService dashboard,
-     IMongoHistoryRepository mongoHistory) : IPharmacyService
+     IMongoHistoryRepository mongoHistory,
+     IOverdueWorkflowCleanupService overdueCleanup) : IPharmacyService
     {
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
         private readonly INotificationService _notifications = notifications;
         private readonly IDashboardService _dashboard = dashboard;
         private readonly IMongoHistoryRepository _mongoHistory = mongoHistory;
+        private readonly IOverdueWorkflowCleanupService _overdueCleanup = overdueCleanup;
         // ========= KHO THUỐC =========
 
         public async Task<DrugDto> TaoHoacCapNhatThuocAsync(DrugDto dto)
@@ -176,6 +179,8 @@ namespace HealthCare.Services.MedicationBilling
 
         public async Task<PrescriptionDto> TaoDonThuocAsync(PrescriptionCreateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(request.MaBenhNhan))
                 throw new ArgumentException("MaBenhNhan là bắt buộc");
             if (string.IsNullOrWhiteSpace(request.MaBacSiKeDon))
@@ -194,10 +199,14 @@ namespace HealthCare.Services.MedicationBilling
             PhieuChanDoanCuoi? pcdc = null;
             if (!string.IsNullOrWhiteSpace(request.MaPhieuChanDoanCuoi))
             {
-                pcdc = await _db.PhieuChanDoanCuois
+                pcdc = _db.PhieuChanDoanCuois.Local
+                    .FirstOrDefault(p => p.MaPhieuChanDoan == request.MaPhieuChanDoanCuoi);
+
+                pcdc ??= await _db.PhieuChanDoanCuois
                     .FirstOrDefaultAsync(p => p.MaPhieuChanDoan == request.MaPhieuChanDoanCuoi);
+
                 if (pcdc == null)
-                    throw new ArgumentException("Phiếu chẩn đoán cuối không tồn tại");
+                    throw new ArgumentException($"Phiếu chẩn đoán cuối {request.MaPhieuChanDoanCuoi} không tồn tại hoặc chưa được lưu.");
             }
 
             // ✅ Task 12.1: Validation tồn kho và hạn sử dụng trước khi tạo đơn
@@ -325,6 +334,8 @@ namespace HealthCare.Services.MedicationBilling
 
         public async Task<PrescriptionDto?> LayDonThuocAsync(string maDonThuoc)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var don = await QueryDonThuoc()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.MaDonThuoc == maDonThuoc);
@@ -338,6 +349,8 @@ namespace HealthCare.Services.MedicationBilling
             string maDonThuoc,
             PrescriptionStatusUpdateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             // ✅ Task 12.3: Sử dụng transaction để đảm bảo consistency khi trừ tồn kho
             using var transaction = await _db.Database.BeginTransactionAsync();
             try
@@ -486,6 +499,8 @@ namespace HealthCare.Services.MedicationBilling
             int pageSize,
             string? maKhoaScope = null)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var query = QueryDonThuoc().AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(maKhoaScope))
@@ -751,6 +766,8 @@ namespace HealthCare.Services.MedicationBilling
 
         public async Task HuyDonThuocAsync(string maDonThuoc)
         {
+            await _overdueCleanup.CleanupAsync();
+
             using var transaction = await _db.Database.BeginTransactionAsync();
 
             var don = await _db.DonThuocs

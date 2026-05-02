@@ -35,6 +35,9 @@ namespace HealthCare.DTOs
         /// <summary>Tóm tắt hiển thị list (FE: note).</summary>
         public string? GhiChu { get; set;}
 
+        /// <summary>Trạng thái lượt khám: hoan_tat / dang_thuc_hien / da_huy...</summary>
+        public string? TrangThai { get; set;}
+
         /// <summary>True nếu là khám dịch vụ (FE: isServiceVisit).</summary>
         public bool LaKhamDichVu { get; set;}
 
@@ -154,6 +157,11 @@ namespace HealthCare.DTOs
         /// true = chỉ "hôm nay" (scope = today), null/false = tất cả.
         /// </summary>
         public bool? OnlyToday { get; set;}
+
+        /// <summary>
+        /// "medical" = chỉ lịch sử y khoa, "cancelled" = hủy/bỏ về/quá hạn, "all" = tất cả.
+        /// </summary>
+        public string? StatusScope { get; set;} = "medical";
 
         public int Page { get; set;} = 1;
         public int PageSize { get; set;} = 50;

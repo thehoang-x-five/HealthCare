@@ -30,6 +30,15 @@ using HealthCare.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Dev/local runs should not write Windows EventLog. Non-admin Windows accounts
+// can fail startup with "Cannot open log for source '.NET Runtime'".
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
+var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Thiếu chuỗi kết nối DefaultConnection.");
+
 // Nếu đang dùng SQL Server -> giữ UseSqlServer + "DefaultConnection" (đồng bộ appsettings)
 //builder.Services.AddDbContext<DataContext>(opt =>
 //    opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -40,8 +49,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 
 builder.Services.AddDbContext<DataContext>(opt =>
-    opt.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
-        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))));
+    opt.UseMySql(
+        defaultConnection,
+        ServerVersion.AutoDetect(defaultConnection)));
 
 
 
@@ -103,6 +113,7 @@ builder.Services.AddScoped<IMasterDataService, MasterDataService>();
 builder.Services.AddScoped<IPharmacyService, PharmacyService>();
 builder.Services.AddScoped<IHistoryService, HistoryService>();
 builder.Services.AddScoped<IBillingService, BillingService>();
+builder.Services.AddScoped<IOverdueWorkflowCleanupService, OverdueWorkflowCleanupService>();
 builder.Services.AddScoped<IClinicalService, ClinicalService>();
 builder.Services.AddScoped<IClsService, ClsService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();

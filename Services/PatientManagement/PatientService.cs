@@ -5,28 +5,100 @@ using System.Threading.Tasks;
 using HealthCare.Datas;
 using HealthCare.DTOs;
 using HealthCare.Entities;
+using HealthCare.Enums;
 using HealthCare.Realtime;
 using HealthCare.RenderID;
 using Microsoft.EntityFrameworkCore;
 using HealthCare.Services.UserInteraction;
 using HealthCare.Infrastructure.Security;
+using HealthCare.Services.OutpatientCare;
 
 namespace HealthCare.Services.PatientManagement
 {
     public class PatientService(
      DataContext db,
      IRealtimeService realtime,
-     INotificationService notifications
+     INotificationService notifications,
+     IOverdueWorkflowCleanupService overdueCleanup
  ) : IPatientService
     {
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
         private readonly INotificationService _notifications = notifications;
+        private readonly IOverdueWorkflowCleanupService _overdueCleanup = overdueCleanup;
+
+        private static readonly string[] ExpiringTodayStatuses =
+        {
+            TrangThaiHomNay.ChoTiepNhan,
+            TrangThaiHomNay.ChoTiepNhanDv,
+            TrangThaiHomNay.ChoKham,
+            TrangThaiHomNay.ChoKhamDv,
+            TrangThaiHomNay.DangKham,
+            TrangThaiHomNay.DangKhamDv,
+            TrangThaiHomNay.ChoXuLy,
+            TrangThaiHomNay.ChoXuLyDv
+        };
 
         private static bool IsClsRoomType(string? loaiPhong)
         {
             var value = (loaiPhong ?? string.Empty).Trim().ToLowerInvariant();
             return value is "phong_dich_vu" or "phong_cls";
+        }
+
+        private static string NormalizeTodayStatusCode(string? status)
+        {
+            var value = (status ?? string.Empty).Trim().ToLowerInvariant();
+
+            return value switch
+            {
+                "huy" or "cancel" or "cancelled" => TrangThaiHomNay.DaHuy,
+                _ => value
+            };
+        }
+
+        private static bool IsCompletedTodayStatus(string? status)
+        {
+            var value = NormalizeTodayStatusCode(status);
+            return value is "hoan_tat" or "hoan_thanh" or "da_hoan_tat";
+        }
+
+        private static bool IsExpiringTodayStatus(string? status)
+        {
+            var value = NormalizeTodayStatusCode(status);
+            return ExpiringTodayStatuses.Contains(value);
+        }
+
+        private static string? GetEffectiveTodayStatus(BenhNhan b)
+        {
+            if (string.IsNullOrWhiteSpace(b.TrangThaiHomNay))
+                return null;
+
+            var status = NormalizeTodayStatusCode(b.TrangThaiHomNay);
+
+            if (b.NgayTrangThai != default &&
+                b.NgayTrangThai.Date < DateTime.Today &&
+                IsExpiringTodayStatus(status))
+            {
+                return TrangThaiHomNay.DaHuy;
+            }
+
+            return status;
+        }
+
+        private async Task ChuyenTrangThaiQuaNgaySangDaHuyAsync()
+        {
+            await _overdueCleanup.CleanupAsync();
+
+            var today = DateTime.Today;
+            var expiringStatuses = ExpiringTodayStatuses;
+
+            await _db.BenhNhans
+                .Where(b =>
+                    b.TrangThaiHomNay != null &&
+                    expiringStatuses.Contains(b.TrangThaiHomNay) &&
+                    b.NgayTrangThai < today)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(b => b.TrangThaiHomNay, TrangThaiHomNay.DaHuy));
         }
 
         // ============================================================
@@ -47,6 +119,8 @@ namespace HealthCare.Services.PatientManagement
 
             if (request.NgaySinh.Date > DateTime.Today)
                 throw new ArgumentException("NgaySinh không được lớn hơn ngày hiện tại");
+
+            await ChuyenTrangThaiQuaNgaySangDaHuyAsync();
 
             // Chuẩn hóa input để dùng lại
             var phoneNormalized = string.IsNullOrWhiteSpace(request.DienThoai)
@@ -171,7 +245,7 @@ namespace HealthCare.Services.PatientManagement
                 // Tài khoản đang hoạt động -> cho phép set trạng thái hôm nay nếu có truyền
                 if (!string.IsNullOrWhiteSpace(request.TrangThaiHomNay))
                 {
-                    entity.TrangThaiHomNay = request.TrangThaiHomNay;
+                    entity.TrangThaiHomNay = NormalizeTodayStatusCode(request.TrangThaiHomNay);
                     entity.NgayTrangThai = DateTime.Today;
                 }
 
@@ -248,6 +322,8 @@ namespace HealthCare.Services.PatientManagement
             if (string.IsNullOrWhiteSpace(maBenhNhan))
                 throw new ArgumentException("maBenhNhan là bắt buộc");
 
+            await ChuyenTrangThaiQuaNgaySangDaHuyAsync();
+
             var bn = await _db.BenhNhans
                 .AsNoTracking()
                 .FirstOrDefaultAsync(b => b.MaBenhNhan == maBenhNhan);
@@ -268,10 +344,7 @@ namespace HealthCare.Services.PatientManagement
                 ? DateTime.Today
                 : bn.NgayTrangThai;
 
-            // Chỉ coi là trạng thái "hôm nay" nếu đúng ngày hôm nay
-            //var trangThaiHomNay = ngayTrangThai.Date == DateTime.Today
-            //    ? bn.TrangThaiHomNay
-            //    : null;
+            var trangThaiHomNay = GetEffectiveTodayStatus(bn);
 
             var detail = new PatientDetailDto
             {
@@ -284,7 +357,7 @@ namespace HealthCare.Services.PatientManagement
                 DiaChi = bn.DiaChi,
 
                 TrangThaiTaiKhoan = trangThaiTaiKhoan,
-                TrangThaiHomNay = bn.TrangThaiHomNay,
+                TrangThaiHomNay = trangThaiHomNay,
                 NgayTrangThai = ngayTrangThai,
 
                 DiUng = bn.DiUng,
@@ -309,6 +382,8 @@ namespace HealthCare.Services.PatientManagement
 
         public async Task<PagedResult<PatientDto>> TimKiemBenhNhanAsync(PatientSearchFilter filter, string? maKhoaScope = null)
         {
+            await ChuyenTrangThaiQuaNgaySangDaHuyAsync();
+
             var query = _db.BenhNhans.AsNoTracking().AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(maKhoaScope))
@@ -328,9 +403,11 @@ namespace HealthCare.Services.PatientManagement
             if (filter.OnlyToday)
             {
                 var today = DateTime.Today;
+                var tomorrow = today.AddDays(1);
                 query = query.Where(b =>
                     !string.IsNullOrEmpty(b.TrangThaiHomNay) &&
-                    b.NgayTrangThai == today);
+                    b.NgayTrangThai >= today &&
+                    b.NgayTrangThai < tomorrow);
             }
 
             if (!string.IsNullOrWhiteSpace(filter.DienThoai))
@@ -351,7 +428,10 @@ namespace HealthCare.Services.PatientManagement
 
             if (!string.IsNullOrWhiteSpace(filter.TrangThaiHomNay))
             {
-                query = query.Where(b => b.TrangThaiHomNay == filter.TrangThaiHomNay);
+                var status = NormalizeTodayStatusCode(filter.TrangThaiHomNay);
+                query = status == TrangThaiHomNay.DaHuy
+                    ? query.Where(b => b.TrangThaiHomNay == TrangThaiHomNay.DaHuy || b.TrangThaiHomNay == "huy")
+                    : query.Where(b => b.TrangThaiHomNay == status);
             }
 
             if (!string.IsNullOrWhiteSpace(filter.Keyword))
@@ -445,6 +525,8 @@ namespace HealthCare.Services.PatientManagement
             if (string.IsNullOrWhiteSpace(request.TrangThaiHomNay))
                 throw new ArgumentException("TrangThaiHomNay là bắt buộc", nameof(request.TrangThaiHomNay));
 
+            await ChuyenTrangThaiQuaNgaySangDaHuyAsync();
+
             var entity = await _db.BenhNhans
                 .FirstOrDefaultAsync(b => b.MaBenhNhan == maBenhNhan);
 
@@ -459,24 +541,26 @@ namespace HealthCare.Services.PatientManagement
             }
 
             // ✅ Transition validation — block terminal states
-            var current = (entity.TrangThaiHomNay ?? "").ToLowerInvariant();
-            var target = (request.TrangThaiHomNay ?? "").ToLowerInvariant();
+            var today = DateTime.Today;
+            var current = NormalizeTodayStatusCode(entity.TrangThaiHomNay);
+            var target = NormalizeTodayStatusCode(request.TrangThaiHomNay);
+            var currentIsToday = entity.NgayTrangThai.Date == today;
 
-            if (current == "da_huy")
+            if (current == TrangThaiHomNay.DaHuy && currentIsToday)
                 throw new InvalidOperationException("Bệnh nhân đã hủy, không thể cập nhật trạng thái.");
 
-            if (current == "hoan_tat" && target == "da_huy")
+            if (IsCompletedTodayStatus(current) && target == TrangThaiHomNay.DaHuy && currentIsToday)
                 throw new InvalidOperationException("Bệnh nhân đã hoàn tất, không thể hủy.");
 
             using var transaction = await _db.Database.BeginTransactionAsync();
 
-            if (target == "da_huy")
+            if (target == TrangThaiHomNay.DaHuy)
             {
                 await DongBoHoSoDangXuLyKhiBoVeAsync(entity.MaBenhNhan);
             }
 
-            entity.TrangThaiHomNay = request.TrangThaiHomNay;
-            entity.NgayTrangThai = DateTime.Today;
+            entity.TrangThaiHomNay = target;
+            entity.NgayTrangThai = today;
 
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -484,7 +568,11 @@ namespace HealthCare.Services.PatientManagement
             var dto = MapToDto(entity);
 
             await _realtime.BroadcastPatientStatusUpdatedAsync(dto);
-            await TaoThongBaoCapNhatBenhNhanAsync(dto, laCapNhatTrangThai: true);
+            await TaoThongBaoCapNhatBenhNhanAsync(
+                dto,
+                laCapNhatTrangThai: true,
+                previousStatus: currentIsToday ? current : null,
+                newStatus: target);
 
             // 🔥 Trả về PatientDetailDto thay vì PatientDto
             var detail = await LayBenhNhanAsync(dto.MaBenhNhan);
@@ -674,7 +762,7 @@ namespace HealthCare.Services.PatientManagement
                 Email = b.Email,
                 DiaChi = b.DiaChi,
                 TrangThaiTaiKhoan= b.TrangThaiTaiKhoan,
-                TrangThaiHomNay = b.TrangThaiHomNay,
+                TrangThaiHomNay = GetEffectiveTodayStatus(b),
                 NgayTrangThai = b.NgayTrangThai
             };
         }
@@ -705,6 +793,7 @@ namespace HealthCare.Services.PatientManagement
                 Doctor = bs?.HoTen ?? string.Empty,
                 Note = note,
                 Type = loaiLuot,
+                TrangThai = luot.TrangThai,
                 By = bs?.HoTen ?? string.Empty,
                 Ref = phieuLs?.MaPhieuKham ?? phieuCls?.MaPhieuKhamCls ?? luot.MaLuotKham,
                 MaLuotKham = luot.MaLuotKham,
@@ -766,7 +855,9 @@ namespace HealthCare.Services.PatientManagement
 
         private async Task TaoThongBaoCapNhatBenhNhanAsync(
             PatientDto bn,
-            bool laCapNhatTrangThai = false)
+            bool laCapNhatTrangThai = false,
+            string? previousStatus = null,
+            string? newStatus = null)
         {
             if (bn == null) return;
 
@@ -774,9 +865,36 @@ namespace HealthCare.Services.PatientManagement
                 ? "Cập nhật trạng thái bệnh nhân"
                 : "Cập nhật thông tin bệnh nhân";
 
-            var body = laCapNhatTrangThai
-                ? $"Trạng thái trong ngày của bệnh nhân {bn.HoTen} (Mã: {bn.MaBenhNhan}) đã được cập nhật."
-                : $"Thông tin bệnh nhân {bn.HoTen} (Mã: {bn.MaBenhNhan}) đã được cập nhật.";
+            var effectiveStatus = newStatus ?? bn.TrangThaiHomNay;
+            var normalizedPrevious = NormalizeTodayStatusCode(previousStatus);
+            var normalizedNew = NormalizeTodayStatusCode(effectiveStatus);
+            var newStatusLabel = FormatTodayStatusLabel(normalizedNew);
+            var statusDate = bn.NgayTrangThai == default
+                ? DateTime.Today
+                : bn.NgayTrangThai.Date;
+
+            string body;
+            if (laCapNhatTrangThai)
+            {
+                var patientText = $"Bệnh nhân {bn.HoTen} (Mã: {bn.MaBenhNhan})";
+                if (!string.IsNullOrWhiteSpace(normalizedPrevious) &&
+                    !string.Equals(normalizedPrevious, normalizedNew, StringComparison.OrdinalIgnoreCase))
+                {
+                    body =
+                        $"{patientText} được chuyển từ {FormatTodayStatusLabel(normalizedPrevious)} " +
+                        $"sang {newStatusLabel} ngày {statusDate:dd/MM/yyyy}.";
+                }
+                else
+                {
+                    body =
+                        $"{patientText} được cập nhật trạng thái {newStatusLabel} " +
+                        $"ngày {statusDate:dd/MM/yyyy}.";
+                }
+            }
+            else
+            {
+                body = $"Thông tin bệnh nhân {bn.HoTen} (Mã: {bn.MaBenhNhan}) đã được cập nhật.";
+            }
 
             var request = new NotificationCreateRequest
             {
@@ -797,6 +915,28 @@ namespace HealthCare.Services.PatientManagement
             };
 
             await _notifications.TaoThongBaoAsync(request);
+        }
+
+        private static string FormatTodayStatusLabel(string? status)
+        {
+            var value = NormalizeTodayStatusCode(status);
+
+            return value switch
+            {
+                TrangThaiHomNay.ChoTiepNhan => "Chờ tiếp nhận",
+                TrangThaiHomNay.ChoTiepNhanDv => "Chờ tiếp nhận dịch vụ",
+                TrangThaiHomNay.ChoKham => "Chờ khám",
+                TrangThaiHomNay.ChoKhamDv => "Chờ khám dịch vụ",
+                TrangThaiHomNay.DangKham => "Đang khám",
+                TrangThaiHomNay.DangKhamDv => "Đang khám dịch vụ",
+                TrangThaiHomNay.ChoXuLy => "Chờ xử lý",
+                TrangThaiHomNay.ChoXuLyDv => "Chờ xử lý dịch vụ",
+                TrangThaiHomNay.DaHoanTat => "Đã hoàn tất",
+                "hoan_tat" or "hoan_thanh" => "Hoàn tất",
+                TrangThaiHomNay.DaHuy => "Đã hủy",
+                "" => "Chưa có trạng thái",
+                _ => value
+            };
         }
 
     }

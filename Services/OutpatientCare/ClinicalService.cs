@@ -15,6 +15,7 @@ using HealthCare.Services.MedicationBilling;
 using HealthCare.Infrastructure.Repositories;
 using HealthCare.Infrastructure.Security;
 using MongoDB.Bson;
+using MySqlConnector;
 
 namespace HealthCare.Services.OutpatientCare
 {
@@ -27,7 +28,8 @@ namespace HealthCare.Services.OutpatientCare
     IDashboardService dashboard,
     INotificationService notifications, IQueueService queue,
     IBillingService billing, IPatientService patients, IPharmacyService pharmacy,
-    IMongoHistoryRepository mongoHistory) : IClinicalService
+    IMongoHistoryRepository mongoHistory,
+    IOverdueWorkflowCleanupService overdueCleanup) : IClinicalService
     {
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
@@ -38,7 +40,19 @@ namespace HealthCare.Services.OutpatientCare
         private readonly IPatientService _patients = patients;
         private readonly IPharmacyService _pharmacy = pharmacy;
         private readonly IMongoHistoryRepository _mongoHistory = mongoHistory;
+        private readonly IOverdueWorkflowCleanupService _overdueCleanup = overdueCleanup;
         // ================== HELPER ==================
+
+        private static bool IsDeadlockException(Exception ex)
+        {
+            for (var current = ex; current is not null; current = current.InnerException!)
+            {
+                if (current is MySqlException mysqlEx && mysqlEx.Number == 1213)
+                    return true;
+            }
+
+            return false;
+        }
 
         private static string? BuildThongTinChiTiet(BenhNhan bn)
         {
@@ -120,6 +134,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<ClinicalExamDto> TaoPhieuKhamAsync(ClinicalExamCreateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             // Validate inputs
             if (string.IsNullOrWhiteSpace(request.MaBenhNhan))
                 throw new ArgumentException("MaBenhNhan là bắt buộc");
@@ -452,6 +468,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<ClinicalExamDto?> LayPhieuKhamAsync(string maPhieuKham)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maPhieuKham)) return null;
 
             var phieu = await _db.PhieuKhamLamSangs
@@ -475,29 +493,80 @@ namespace HealthCare.Services.OutpatientCare
             string maPhieuKham,
             ClinicalExamStatusUpdateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maPhieuKham)) return null;
             if (string.IsNullOrWhiteSpace(request.TrangThai))
                 throw new ArgumentException("TrangThai là bắt buộc");
 
+            var useRetryPath = true;
+            if (useRetryPath)
+            {
+                const int maxAttempts = 3;
+
+                for (var attempt = 1; attempt <= maxAttempts; attempt++)
+                {
+                    try
+                    {
+                        _db.ChangeTracker.Clear();
+
+                        var retryPhieu = await _db.PhieuKhamLamSangs
+                            .FirstOrDefaultAsync(p => p.MaPhieuKham == maPhieuKham);
+
+                        if (retryPhieu is null) return null;
+
+                        if (string.Equals(retryPhieu.TrangThai, request.TrangThai, StringComparison.OrdinalIgnoreCase))
+                            return await LayPhieuKhamAsync(maPhieuKham);
+
+                        retryPhieu.TrangThai = request.TrangThai;
+                        await _db.SaveChangesAsync();
+
+                        var retryDto = await LayPhieuKhamAsync(maPhieuKham);
+                        if (retryDto is null) return null;
+
+                        await _realtime.BroadcastClinicalExamUpdatedAsync(retryDto);
+
+                        var retryDashboard = await _dashboard.LayDashboardHomNayAsync();
+                        await _realtime.BroadcastDashboardTodayAsync(retryDashboard);
+
+                        return retryDto;
+                    }
+                    catch (Exception ex) when (IsDeadlockException(ex) && attempt < maxAttempts)
+                    {
+                        _db.ChangeTracker.Clear();
+                        await Task.Delay(TimeSpan.FromMilliseconds(100 * attempt));
+                    }
+                    catch (Exception ex)
+                    {
+                        if (IsDeadlockException(ex))
+                        {
+                            throw new InvalidOperationException(
+                                $"Phiếu khám {maPhieuKham} đang được cập nhật đồng thời. Vui lòng thử lại.",
+                                ex);
+                        }
+
+                        throw new InvalidOperationException($"Lỗi khi cập nhật trạng thái phiếu khám {maPhieuKham}", ex);
+                    }
+                }
+
+                throw new InvalidOperationException($"Không thể cập nhật trạng thái phiếu khám {maPhieuKham} sau nhiều lần thử.");
+            }
+
             try
             {
                 var phieu = await _db.PhieuKhamLamSangs
-                    .Include(p => p.BenhNhan)
-                    .Include(p => p.DichVuKham)
-                        .ThenInclude(d => d.PhongThucHien)
-                            .ThenInclude(p => p.KhoaChuyenMon)
-                    .Include(p => p.BacSiKham)
-                    .Include(p => p.NguoiLap)
-                    .Include(p => p.LichHenKham)
-                    .Include(p => p.PhieuTongHopKetQua)
                     .FirstOrDefaultAsync(p => p.MaPhieuKham == maPhieuKham);
 
                 if (phieu is null) return null;
 
+                if (string.Equals(phieu.TrangThai, request.TrangThai, StringComparison.OrdinalIgnoreCase))
+                    return await LayPhieuKhamAsync(maPhieuKham);
+
                 phieu.TrangThai = request.TrangThai;
                 await _db.SaveChangesAsync();
 
-                var dto = MapClinicalExam(phieu);
+                var dto = await LayPhieuKhamAsync(maPhieuKham);
+                if (dto is null) return null;
                 
                 // Broadcast after successful save
                 await _realtime.BroadcastClinicalExamUpdatedAsync(dto);
@@ -509,6 +578,13 @@ namespace HealthCare.Services.OutpatientCare
             }
             catch (Exception ex)
             {
+                if (IsDeadlockException(ex))
+                {
+                    throw new InvalidOperationException(
+                        $"Phiếu khám {maPhieuKham} đang được cập nhật đồng thời. Vui lòng thử lại.",
+                        ex);
+                }
+
                 // Log error and rethrow with context
                 throw new InvalidOperationException($"Lỗi khi cập nhật trạng thái phiếu khám {maPhieuKham}", ex);
             }
@@ -519,6 +595,8 @@ namespace HealthCare.Services.OutpatientCare
         public async Task<FinalDiagnosisDto> TaoChanDoanCuoiAsync(
             FinalDiagnosisCreateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(request.MaPhieuKham))
                 throw new ArgumentException("MaPhieuKham là bắt buộc");
 
@@ -573,12 +651,13 @@ namespace HealthCare.Services.OutpatientCare
                 chanDoan.HuongXuTri = request.HuongXuTri;
                 chanDoan.LoiKhuyen = request.LoiKhuyen;
                 chanDoan.PhatDoDieuTri = request.PhatDoDieuTri;
+                chanDoan.NgayTaiKham = request.NgayTaiKham;
+                chanDoan.GhiChuTaiKham = request.GhiChuTaiKham;
 
                 // ===== LƯU CHẨN ĐOÁN VÀ KẾT THÚC CA TRÊN MÀN KHÁM =====
-                // Phiếu khám chuyển sang trạng thái "da_lap_chan_doan" để chờ bước xử lý tiếp theo.
-                await CapNhatTrangThaiPhieuKhamAsync(
-                    phieu.MaPhieuKham,
-                    new ClinicalExamStatusUpdateRequest { TrangThai = "da_lap_chan_doan" });
+                // Không gọi CapNhatTrangThaiPhieuKhamAsync tại đây vì hàm đó Clear ChangeTracker
+                // để retry deadlock, sẽ detach PhieuChanDoanCuoi vừa tạo trước khi SaveChanges.
+                phieu.TrangThai = "da_lap_chan_doan";
 
                 // Cập nhật trạng thái bệnh nhân → cho_xu_ly (chờ xử lý chẩn đoán)
                 phieu.BenhNhan.TrangThaiHomNay = "cho_xu_ly";
@@ -611,7 +690,6 @@ namespace HealthCare.Services.OutpatientCare
                     {
                         MaBenhNhan = maBenhNhan,
                         MaBacSiKeDon = maBacSiKeDon!,
-                        MaPhieuChanDoanCuoi = chanDoan.MaPhieuChanDoan,
                         TongTienDon = 0m,
                         Items = request.DonThuoc
                     };
@@ -624,6 +702,8 @@ namespace HealthCare.Services.OutpatientCare
                 // Commit transaction before broadcasting
                 await transaction.CommitAsync();
                 transactionCommitted = true;
+
+                await _realtime.BroadcastClinicalExamUpdatedAsync(MapClinicalExam(phieu));
 
                 // ===== LOG TO MONGODB: Medical Event History =====
                 var payload = new BsonDocument
@@ -640,6 +720,8 @@ namespace HealthCare.Services.OutpatientCare
                     { "loi_khuyen", chanDoan.LoiKhuyen ?? (BsonValue)BsonNull.Value },
                     { "noi_dung_kham", chanDoan.NoiDungKham ?? (BsonValue)BsonNull.Value },
                     { "phat_do_dieu_tri", chanDoan.PhatDoDieuTri ?? (BsonValue)BsonNull.Value },
+                    { "ngay_tai_kham", chanDoan.NgayTaiKham.HasValue ? chanDoan.NgayTaiKham.Value : (BsonValue)BsonNull.Value },
+                    { "ghi_chu_tai_kham", chanDoan.GhiChuTaiKham ?? (BsonValue)BsonNull.Value },
                     { "ma_phieu_chan_doan", chanDoan.MaPhieuChanDoan },
                     { "ma_don_thuoc", chanDoan.MaDonThuoc ?? (BsonValue)BsonNull.Value }
                 };
@@ -682,7 +764,9 @@ namespace HealthCare.Services.OutpatientCare
                     NoiDungKham = chanDoan.NoiDungKham,
                     HuongXuTri = chanDoan.HuongXuTri,
                     LoiKhuyen = chanDoan.LoiKhuyen,
-                    PhatDoDieuTri = chanDoan.PhatDoDieuTri
+                    PhatDoDieuTri = chanDoan.PhatDoDieuTri,
+                    NgayTaiKham = chanDoan.NgayTaiKham,
+                    GhiChuTaiKham = chanDoan.GhiChuTaiKham
                 };
 
                 await _realtime.BroadcastFinalDiagnosisChangedAsync(dto);
@@ -734,6 +818,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<FinalDiagnosisDto?> LayChanDoanCuoiAsync(string maPhieuKham)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maPhieuKham)) return null;
 
             var chanDoan = await _db.PhieuChanDoanCuois
@@ -754,7 +840,9 @@ namespace HealthCare.Services.OutpatientCare
                 NoiDungKham = chanDoan.NoiDungKham,
                 HuongXuTri = chanDoan.HuongXuTri,
                 LoiKhuyen = chanDoan.LoiKhuyen,
-                PhatDoDieuTri = chanDoan.PhatDoDieuTri
+                PhatDoDieuTri = chanDoan.PhatDoDieuTri,
+                NgayTaiKham = chanDoan.NgayTaiKham,
+                GhiChuTaiKham = chanDoan.GhiChuTaiKham
             };
         }
 
@@ -764,6 +852,8 @@ namespace HealthCare.Services.OutpatientCare
             string maPhieuKham,
             CompleteExamRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maPhieuKham))
                 throw new ArgumentException("MaPhieuKham là bắt buộc");
 
@@ -894,6 +984,8 @@ namespace HealthCare.Services.OutpatientCare
             int pageSize,
             string? maKhoaScope = null)
         {
+            await _overdueCleanup.CleanupAsync();
+
             page = page <= 0 ? 1 : page;
             pageSize = pageSize <= 0 ? 20 : pageSize;
 
@@ -1037,6 +1129,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task HuyLuotKhamAsync(string maLuotKham)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maLuotKham))
                 throw new ArgumentException("MaLuotKham là bắt buộc");
 
@@ -1120,6 +1214,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task HuyCaChoKhamAsync(string maHangDoi)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maHangDoi))
                 throw new ArgumentException("MaHangDoi lÃ  báº¯t buá»™c");
 

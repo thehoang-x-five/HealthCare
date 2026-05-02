@@ -84,6 +84,8 @@ namespace HealthCare.DTOs
         public string? HuongXuTri { get; set;}
         public string? LoiKhuyen { get; set;}
         public string? PhatDoDieuTri { get; set;}   // thêm cho khớp entity
+        public DateTime? NgayTaiKham { get; set; }
+        public string? GhiChuTaiKham { get; set; }
     }
 
     public record class FinalDiagnosisCreateRequest
@@ -102,6 +104,8 @@ namespace HealthCare.DTOs
         public string? LoiKhuyen { get; set;}
         public string? PhatDoDieuTri { get; set;}
         public string? MaICD10 { get; set;}
+        public DateTime? NgayTaiKham { get; set; }
+        public string? GhiChuTaiKham { get; set; }
         public IReadOnlyList<PrescriptionItemCreateRequest> DonThuoc { get; set;} = Array.Empty<PrescriptionItemCreateRequest>();
 
 

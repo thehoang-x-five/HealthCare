@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using HealthCare.Attributes;
 using HealthCare.DTOs;
+using HealthCare.Infrastructure.Security;
 using HealthCare.Services.MedicationBilling;
 using HealthCare.Services.Banking;
 using Microsoft.AspNetCore.Authorization;
@@ -12,8 +13,6 @@ namespace HealthCare.Controllers
     [ApiController]
     [Route("api/billing")]
     [Authorize]
-    [RequireRole("y_ta", "admin", "quan_tri_vien")]
-    [RequireNurseType("hanhchinh")]
     public class BillingController : ControllerBase
     {
         private readonly IBillingService _billingService;
@@ -29,6 +28,8 @@ namespace HealthCare.Controllers
         /// Tạo hoá đơn mới.
         /// </summary>
         [HttpPost("invoices")]
+        [RequireRole("y_ta", "admin", "quan_tri_vien")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<InvoiceDto>> CreateInvoice(
             [FromBody] InvoiceCreateRequest request)
         {
@@ -49,7 +50,13 @@ namespace HealthCare.Controllers
         [HttpGet("invoices/{maHoaDon}")]
         public async Task<ActionResult<InvoiceDto>> GetInvoiceById(string maHoaDon)
         {
-            var dto = await _billingService.LayHoaDonAsync(maHoaDon);
+            var scope = User.GetUserScope();
+            if (!scope.IsGlobal && string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return Forbid();
+
+            var dto = await _billingService.LayHoaDonAsync(
+                maHoaDon,
+                scope.IsGlobal ? null : scope.DepartmentScope);
             if (dto == null) return NotFound();
             return Ok(dto);
         }
@@ -64,7 +71,13 @@ namespace HealthCare.Controllers
             if (filter == null)
                 return BadRequest("Filter is required");
 
-            var result = await _billingService.TimKiemHoaDonAsync(filter);
+            var scope = User.GetUserScope();
+            if (!scope.IsGlobal && string.IsNullOrWhiteSpace(scope.DepartmentScope))
+                return Forbid();
+
+            var result = await _billingService.TimKiemHoaDonAsync(
+                filter,
+                scope.IsGlobal ? null : scope.DepartmentScope);
             return Ok(result);
         }
 
@@ -72,6 +85,8 @@ namespace HealthCare.Controllers
         /// Cập nhật trạng thái hoá đơn (da_thu, da_huy...).
         /// </summary>
         [HttpPut("invoices/{maHoaDon}/status")]
+        [RequireRole("y_ta", "admin", "quan_tri_vien")]
+        [RequireNurseType("hanhchinh")]
         public async Task<ActionResult<InvoiceDto>> UpdateInvoiceStatus(
             string maHoaDon,
             [FromBody] InvoiceStatusUpdateRequest request)
@@ -109,6 +124,8 @@ namespace HealthCare.Controllers
         /// Chuyển chua_thu → da_thu + cập nhật phương thức + mã giao dịch.
         /// </summary>
         [HttpPut("invoices/{maHoaDon}/confirm")]
+        [RequireRole("y_ta", "admin", "quan_tri_vien")]
+        [RequireNurseType("hanhchinh")]
         public async Task<IActionResult> ConfirmPayment(
             string maHoaDon,
             [FromBody] PaymentConfirmRequest request)
@@ -133,6 +150,8 @@ namespace HealthCare.Controllers
         /// Tạo mã QR VietQR cho hóa đơn (sử dụng VietQR.io API).
         /// </summary>
         [HttpPost("invoices/{maHoaDon}/generate-qr")]
+        [RequireRole("y_ta", "admin", "quan_tri_vien")]
+        [RequireNurseType("hanhchinh")]
         public async Task<IActionResult> GenerateQR(
             string maHoaDon,
             [FromBody] VietQRRequest? request = null)

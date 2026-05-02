@@ -46,6 +46,9 @@ namespace HealthCare.DTOs
         /// <summary>Loại lượt: khám thường / dịch vụ... (v.type)</summary>
         public string? Type { get; set; }
 
+        /// <summary>Trạng thái lượt khám: hoan_tat / dang_thuc_hien / da_huy...</summary>
+        public string? TrangThai { get; set; }
+
         /// <summary>Người cập nhật / tạo (v.by)</summary>
         public string? By { get; set; }
 

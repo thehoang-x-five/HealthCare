@@ -41,8 +41,8 @@ namespace HealthCare.Services.MedicationBilling
     {
         // ===== HÓA ĐƠN =====
         Task<InvoiceDto> TaoHoaDonAsync(InvoiceCreateRequest request);
-        Task<InvoiceDto?> LayHoaDonAsync(string maHoaDon);
-        Task<PagedResult<InvoiceHistoryRecordDto>> TimKiemHoaDonAsync(InvoiceSearchFilter filter);
+        Task<InvoiceDto?> LayHoaDonAsync(string maHoaDon, string? maKhoaScope = null);
+        Task<PagedResult<InvoiceHistoryRecordDto>> TimKiemHoaDonAsync(InvoiceSearchFilter filter, string? maKhoaScope = null);
         Task<InvoiceDto?> CapNhatTrangThaiHoaDonAsync(
             string maHoaDon, 
             InvoiceStatusUpdateRequest request);

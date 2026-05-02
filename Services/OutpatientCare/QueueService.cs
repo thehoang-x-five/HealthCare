@@ -15,12 +15,18 @@ using HealthCare.Services.PatientManagement;
 
 namespace HealthCare.Services.OutpatientCare
 {
-    public class QueueService(DataContext db, IRealtimeService realtime, IPatientService patients, IServiceProvider provider) : IQueueService
+    public class QueueService(
+        DataContext db,
+        IRealtimeService realtime,
+        IPatientService patients,
+        IServiceProvider provider,
+        IOverdueWorkflowCleanupService overdueCleanup) : IQueueService
     {
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
         private readonly IPatientService _patients = patients;
         private readonly IServiceProvider _provider = provider;
+        private readonly IOverdueWorkflowCleanupService _overdueCleanup = overdueCleanup;
 
         private sealed record DutyStaffInfo(
             string? MaNhanSu,
@@ -31,6 +37,12 @@ namespace HealthCare.Services.OutpatientCare
         private static bool IsTechnicianRole(string? vaiTro, string? chucVu) =>
             string.Equals(vaiTro, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(chucVu, "ky_thuat_vien", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsClinicalQueueKind(string? loaiHangDoi)
+        {
+            var value = (loaiHangDoi ?? string.Empty).Trim().ToLowerInvariant();
+            return value is "kham_lam_sang" or "kham_ls" or "ls";
+        }
 
         private static IReadOnlyList<QueueServiceResultFileDto> ParseResultFiles(string? raw)
         {
@@ -241,6 +253,8 @@ namespace HealthCare.Services.OutpatientCare
         // ====== THÊM VÀO HÀNG ĐỢI ======
         public async Task<QueueItemDto> ThemVaoHangDoiAsync(QueueEnqueueRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(request.MaBenhNhan))
                 throw new ArgumentException("MaBenhNhan là bắt buộc");
             var isClsQueue = string.Equals(request.LoaiHangDoi, "can_lam_sang", StringComparison.OrdinalIgnoreCase);
@@ -341,7 +355,7 @@ namespace HealthCare.Services.OutpatientCare
                 existingActive.TrangThai = "cho_goi";
                 await _db.SaveChangesAsync();
 
-                if (request.LoaiHangDoi == "kham_ls")
+                if (IsClinicalQueueKind(request.LoaiHangDoi))
                 {
                     await _patients.CapNhatTrangThaiBenhNhanAsync(
                         request.MaBenhNhan,
@@ -374,7 +388,7 @@ namespace HealthCare.Services.OutpatientCare
             await _db.SaveChangesAsync();
             // 🔥 Cập nhật trạng thái hôm nay của bệnh nhân bằng PatientService
                 // để tận dụng realtime + notification
-                if (request.LoaiHangDoi == "kham_ls")
+                if (IsClinicalQueueKind(request.LoaiHangDoi))
                     {
                 await _patients.CapNhatTrangThaiBenhNhanAsync(
                 request.MaBenhNhan,
@@ -399,6 +413,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<QueueItemDto?> LayHangDoiAsync(string maHangDoi)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var entity = await _db.HangDois
                 .AsNoTracking()
                 .FirstOrDefaultAsync(h => h.MaHangDoi == maHangDoi);
@@ -411,6 +427,8 @@ namespace HealthCare.Services.OutpatientCare
             string? loaiHangDoi = null,
             string? trangThai = null)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var query = _db.HangDois
                 .AsNoTracking()
                 .Where(h => h.MaPhong == maPhong);
@@ -461,6 +479,8 @@ namespace HealthCare.Services.OutpatientCare
             string maHangDoi,
             QueueStatusUpdateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var entity = await _db.HangDois
                 .FirstOrDefaultAsync(h => h.MaHangDoi == maHangDoi);
 
@@ -483,6 +503,8 @@ namespace HealthCare.Services.OutpatientCare
             string maHangDoi,
             QueueEnqueueRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maHangDoi))
                 return null;
 
@@ -526,7 +548,7 @@ namespace HealthCare.Services.OutpatientCare
 
             await _db.SaveChangesAsync();
 
-            if (request.LoaiHangDoi == "kham_ls")
+            if (IsClinicalQueueKind(request.LoaiHangDoi))
             {
                 await _patients.CapNhatTrangThaiBenhNhanAsync(
                     request.MaBenhNhan,
@@ -540,6 +562,8 @@ namespace HealthCare.Services.OutpatientCare
             string maPhong,
             string? loaiHangDoi = null)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var query = _db.HangDois
                 .Where(h => h.MaPhong == maPhong && h.TrangThai == "cho_goi");
 
@@ -578,6 +602,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<PagedResult<QueueItemDto>> TimKiemHangDoiAsync(QueueSearchFilter filter)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var query = _db.HangDois.AsNoTracking().AsQueryable();
 
             // ====== Map vai trò + nhân sự sang phòng phụ trách nếu không truyền MaPhong ======

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using HealthCare.Datas;
 using HealthCare.DTOs;
 using HealthCare.Entities;
+using HealthCare.Enums;
 using HealthCare.Realtime;
 using HealthCare.RenderID;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,9 @@ namespace HealthCare.Services.OutpatientCare
     IRealtimeService realtime,
     INotificationService notifications, IDashboardService dashboard,
     IPatientService patients,IQueueService queue,
-        IClinicalService clinical, IPharmacyService pharmacy) : IHistoryService
+        IClinicalService clinical,
+        IPharmacyService pharmacy,
+        IOverdueWorkflowCleanupService overdueCleanup) : IHistoryService
     {
         private readonly DataContext _db = db;
         private readonly IRealtimeService _realtime = realtime;
@@ -31,6 +34,7 @@ namespace HealthCare.Services.OutpatientCare
         private readonly IQueueService _queue = queue;
         private readonly IClinicalService _clinical = clinical;
         private readonly IPharmacyService _pharmacy = pharmacy;
+        private readonly IOverdueWorkflowCleanupService _overdueCleanup = overdueCleanup;
 
         private static bool IsClsRoomType(string? loaiPhong)
         {
@@ -38,10 +42,21 @@ namespace HealthCare.Services.OutpatientCare
             return value is "phong_dich_vu" or "phong_cls";
         }
 
+        private static bool IsClsVisit(LuotKhamBenh luot)
+        {
+            var loaiLuot = (luot.LoaiLuot ?? string.Empty).Trim().ToLowerInvariant();
+            var loaiHangDoi = (luot.HangDoi?.LoaiHangDoi ?? string.Empty).Trim().ToLowerInvariant();
+            return loaiLuot == "can_lam_sang" ||
+                   loaiHangDoi == "can_lam_sang" ||
+                   IsClsRoomType(luot.HangDoi?.Phong?.LoaiPhong);
+        }
+
         // ==================== LIST LỊCH SỬ KHÁM (TAB "KHÁM BỆNH") ====================
 
         public async Task<PagedResult<HistoryVisitRecordDto>> LayLichSuAsync(HistoryFilterRequest filter)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var q = _db.LuotKhamBenhs
                 .AsNoTracking()
                 .Include(l => l.HangDoi)
@@ -56,6 +71,18 @@ namespace HealthCare.Services.OutpatientCare
                 .Include(l => l.HangDoi)
                     .ThenInclude(h => h.PhieuKhamLamSang)
                         .ThenInclude(pk => pk.DichVuKham)
+                .Include(l => l.HangDoi)
+                    .ThenInclude(h => h.ChiTietDichVu)
+                        .ThenInclude(ct => ct.PhieuKhamCanLamSang)
+                            .ThenInclude(cls => cls.PhieuKhamLamSang)
+                                .ThenInclude(pk => pk.PhieuChanDoanCuoi)
+                .Include(l => l.HangDoi)
+                    .ThenInclude(h => h.ChiTietDichVu)
+                        .ThenInclude(ct => ct.PhieuKhamCanLamSang)
+                            .ThenInclude(cls => cls.PhieuTongHopKetQua)
+                .Include(l => l.HangDoi)
+                    .ThenInclude(h => h.ChiTietDichVu)
+                        .ThenInclude(ct => ct.KetQuaDichVu)
                 .AsQueryable();
 
             // ----- scope: hôm nay / khoảng thời gian -----
@@ -98,8 +125,37 @@ namespace HealthCare.Services.OutpatientCare
 
             if (laCls.HasValue)
             {
+                q = laCls.Value
+                    ? q.Where(l =>
+                        l.LoaiLuot == "can_lam_sang" ||
+                        l.HangDoi.LoaiHangDoi == "can_lam_sang" ||
+                        l.HangDoi.Phong.LoaiPhong == "phong_cls" ||
+                        l.HangDoi.Phong.LoaiPhong == "phong_dich_vu")
+                    : q.Where(l =>
+                        (l.LoaiLuot == "kham_lam_sang" ||
+                         l.HangDoi.LoaiHangDoi == "kham_lam_sang") &&
+                        l.HangDoi.Phong.LoaiPhong != "phong_cls" &&
+                        l.HangDoi.Phong.LoaiPhong != "phong_dich_vu");
+            }
+
+            var statusScope = (filter.StatusScope ?? "medical").Trim().ToLowerInvariant();
+            if (statusScope is "cancelled" or "canceled" or "huy" or "da_huy")
+            {
+                q = q.Where(l => l.TrangThai == TrangThaiLuotKham.DaHuy || l.TrangThai == "huy");
+            }
+            else if (statusScope is not "all" and not "tat_ca")
+            {
                 q = q.Where(l =>
-                    IsClsRoomType(l.HangDoi.Phong.LoaiPhong) == laCls.Value);
+                    l.TrangThai != TrangThaiLuotKham.DaHuy &&
+                    l.TrangThai != "huy" &&
+                    (
+                        l.TrangThai == TrangThaiLuotKham.HoanTat ||
+                        (l.HangDoi.PhieuKhamLamSang != null &&
+                            l.HangDoi.PhieuKhamLamSang.PhieuChanDoanCuoi != null) ||
+                        (l.HangDoi.ChiTietDichVu != null &&
+                            (l.HangDoi.ChiTietDichVu.KetQuaDichVu != null ||
+                             l.HangDoi.ChiTietDichVu.PhieuKhamCanLamSang.PhieuTongHopKetQua != null))
+                    ));
             }
 
             // ----- keyword toàn văn -----
@@ -148,6 +204,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<HistoryVisitDetailDto?> LayChiTietLichSuKhamAsync(string maLuotKham)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var luot = await _db.LuotKhamBenhs
                 .Include(l => l.HangDoi)
                     .ThenInclude(h => h.BenhNhan)
@@ -272,6 +330,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<HistoryVisitRecordDto> TaoLuotKhamAsync(HistoryVisitCreateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var maHangDoiReq = request.MaHangDoi?.Trim();
             if (string.IsNullOrWhiteSpace(maHangDoiReq))
                 throw new ArgumentException("MaHangDoi là bắt buộc", nameof(request.MaHangDoi));
@@ -540,6 +600,8 @@ namespace HealthCare.Services.OutpatientCare
        string maLuotKham,
        HistoryVisitStatusUpdateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var luot = await _db.LuotKhamBenhs
                 .Include(l => l.HangDoi)
                     .ThenInclude(h => h.BenhNhan)
@@ -657,12 +719,13 @@ l.GioKetThuc >= gio)
             var phong = h.Phong;
             var khoa = phong.KhoaChuyenMon;
             var bs = luot.NhanSuThucHien;
-            var phieuLs = h.PhieuKhamLamSang;
+            var phieuClsFromQueue = h.ChiTietDichVu?.PhieuKhamCanLamSang;
+            var phieuLs = h.PhieuKhamLamSang ?? phieuClsFromQueue?.PhieuKhamLamSang;
             var pcd = phieuLs?.PhieuChanDoanCuoi;
-            var phieuCls = phieuLs?.PhieuKhamCanLamSang;
+            var phieuCls = phieuClsFromQueue ?? phieuLs?.PhieuKhamCanLamSang;
             var phieuTongHop = phieuLs?.PhieuTongHopKetQua ?? phieuCls?.PhieuTongHopKetQua;
 
-            bool laDichVu = IsClsRoomType(phong.LoaiPhong);
+            bool laDichVu = IsClsVisit(luot);
             string loaiLuot = laDichVu ? "can_lam_sang" : "kham_lam_sang";
 
             string? note = pcd?.ChanDoanCuoi
@@ -684,6 +747,7 @@ l.GioKetThuc >= gio)
 
                 LoaiLuot = loaiLuot,
                 GhiChu = note,
+                TrangThai = luot.TrangThai,
                 LaKhamDichVu = laDichVu,
 
                 MaLuotKham = luot.MaLuotKham,

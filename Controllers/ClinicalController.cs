@@ -58,9 +58,20 @@ namespace HealthCare.Controllers
             string maPhieuKham,
             [FromBody] ClinicalExamStatusUpdateRequest request)
         {
-            var result = await _service.CapNhatTrangThaiPhieuKhamAsync(maPhieuKham, request);
-            if (result is null) return NotFound();
-            return Ok(result);
+            try
+            {
+                var result = await _service.CapNhatTrangThaiPhieuKhamAsync(maPhieuKham, request);
+                if (result is null) return NotFound();
+                return Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         [HttpPost("final-diagnosis")]

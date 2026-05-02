@@ -37,6 +37,7 @@ namespace HealthCare.Services.OutpatientCare
         private readonly IBillingService _billing;
         private readonly IMongoHistoryRepository _mongoHistory;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly IOverdueWorkflowCleanupService _overdueCleanup;
 
         public ClsService(
             DataContext db,
@@ -48,7 +49,8 @@ namespace HealthCare.Services.OutpatientCare
             IHistoryService history,
             IBillingService billing,
             IMongoHistoryRepository mongoHistory,
-            IWebHostEnvironment webHostEnvironment)
+            IWebHostEnvironment webHostEnvironment,
+            IOverdueWorkflowCleanupService overdueCleanup)
         {
             _db = db;
             _realtime = realtime;
@@ -60,6 +62,7 @@ namespace HealthCare.Services.OutpatientCare
             _billing = billing;
             _mongoHistory = mongoHistory;
             _webHostEnvironment = webHostEnvironment;
+            _overdueCleanup = overdueCleanup;
         }
         // ================== HELPER ==================
 
@@ -727,6 +730,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<ClsOrderDto> TaoPhieuClsAsync(ClsOrderCreateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(request.MaBenhNhan))
                 throw new ArgumentException("MaBenhNhan là bắt buộc");
             if (string.IsNullOrWhiteSpace(request.MaPhieuKhamLs))
@@ -846,16 +851,20 @@ namespace HealthCare.Services.OutpatientCare
             return dto;
         }
 
-        public Task<ClsOrderDto?> LayPhieuClsAsync(string maPhieuKhamCls)
+        public async Task<ClsOrderDto?> LayPhieuClsAsync(string maPhieuKhamCls)
         {
-            if (string.IsNullOrWhiteSpace(maPhieuKhamCls))
-                return Task.FromResult<ClsOrderDto?>(null);
+            await _overdueCleanup.CleanupAsync();
 
-            return BuildClsOrderDtoAsync(maPhieuKhamCls);
+            if (string.IsNullOrWhiteSpace(maPhieuKhamCls))
+                return null;
+
+            return await BuildClsOrderDtoAsync(maPhieuKhamCls);
         }
 
         public async Task<ClsOrderDto?> CapNhatTrangThaiPhieuClsAsync(string maPhieuKhamCls, string trangThai)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maPhieuKhamCls))
                 return null;
             if (string.IsNullOrWhiteSpace(trangThai))
@@ -1005,6 +1014,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<ClsItemDto?> CapNhatTrangThaiChiTietDVAsync(string maChiTietDv, string trangThai)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maChiTietDv))
                 return null;
             if (string.IsNullOrWhiteSpace(trangThai))
@@ -1041,6 +1052,8 @@ namespace HealthCare.Services.OutpatientCare
             string? serviceMaKhoaScope = null,
             string? serviceMaPhongScope = null)
         {
+            await _overdueCleanup.CleanupAsync();
+
             page = page <= 0 ? 1 : page;
             pageSize = pageSize <= 0 ? 50 : pageSize; // ✅ Chuẩn hóa: 50 items mặc định
 
@@ -1172,6 +1185,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<ClsItemDto> TaoChiTietDichVuAsync(ClsItemCreateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(request.MaPhieuKhamCls))
                 throw new ArgumentException("MaPhieuKhamCls là bắt buộc");
             if (string.IsNullOrWhiteSpace(request.MaDichVu))
@@ -1209,6 +1224,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<IReadOnlyList<ClsItemDto>> LayDanhSachDichVuClsAsync(string maPhieuKhamCls)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var list = await _db.ChiTietDichVus
                 .AsNoTracking()
                 .Where(c => c.MaPhieuKhamCls == maPhieuKhamCls)
@@ -1224,6 +1241,8 @@ namespace HealthCare.Services.OutpatientCare
         /// </summary>
         public async Task<ClsItemDto?> LayChiTietDichVuAsync(string maChiTietDv)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maChiTietDv))
                 return null;
 
@@ -1241,6 +1260,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<ClsResultDto> TaoKetQuaClsAsync(ClsResultCreateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(request.MaChiTietDv))
                 throw new ArgumentException("MaChiTietDv là bắt buộc");
             if (string.IsNullOrWhiteSpace(request.TrangThaiChot))
@@ -1565,6 +1586,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<IReadOnlyList<ClsResultDto>> LayKetQuaTheoPhieuClsAsync(string maPhieuKhamCls)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var list = await _db.KetQuaDichVus
                 .AsNoTracking()
                 .Include(k => k.NhanVienYTes)
@@ -1594,6 +1617,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<ClsSummaryDto> TaoTongHopAsync(string maPhieuKhamCls)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maPhieuKhamCls))
                 throw new ArgumentException("MaPhieuKhamCls là bắt buộc");
 
@@ -1732,6 +1757,8 @@ namespace HealthCare.Services.OutpatientCare
             string? serviceMaKhoaScope = null,
             string? serviceMaPhongScope = null)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(filter.MaBenhNhan))
                 throw new ArgumentException("MaBenhNhan là bắt buộc trong filter");
 
@@ -1818,6 +1845,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task<ClsSummaryDto?> LayPhieuTongHopKetQuaAsync(string maPhieuTongHop)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maPhieuTongHop))
                 return null;
 
@@ -1852,6 +1881,8 @@ namespace HealthCare.Services.OutpatientCare
             string maPhieuTongHop,
             ClsSummaryStatusUpdateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maPhieuTongHop))
                 return null;
             if (string.IsNullOrWhiteSpace(request.TrangThai))
@@ -1881,6 +1912,8 @@ namespace HealthCare.Services.OutpatientCare
             string maPhieuTongHop,
             ClsSummaryUpdateRequest request)
         {
+            await _overdueCleanup.CleanupAsync();
+
             if (string.IsNullOrWhiteSpace(maPhieuTongHop))
                 return null;
 
@@ -2036,6 +2069,8 @@ namespace HealthCare.Services.OutpatientCare
 
         public async Task HuyPhieuClsAsync(string maPhieuKhamCls)
         {
+            await _overdueCleanup.CleanupAsync();
+
             var phieu = await _db.PhieuKhamCanLamSangs
                 .Include(p => p.ChiTietDichVus)
                 .FirstOrDefaultAsync(p => p.MaPhieuKhamCls == maPhieuKhamCls)
